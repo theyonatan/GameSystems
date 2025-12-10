@@ -11,9 +11,14 @@ public abstract class MovementState
     /// 
     /// EnterState() - loading the state data at the beginning of the game.
     /// </summary>
-    protected MovementManager Controller;
-    protected PlayerStateData LocalData;
     protected InputDirector Director;
+    protected MovementManager Controller;
+    
+    /// <summary>
+    /// Shared between all states.
+    /// so if this changes in one, it applies to all of them.
+    /// </summary>
+    protected PlayerStateData LocalData;
 
     public bool CanMove = true;
     public bool CanRun = true;

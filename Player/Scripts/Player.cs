@@ -1,11 +1,10 @@
 using UnityEngine;
-using NaughtyAttributes;
 
 public class Player : MonoBehaviour
 {
     private Camera _cam;
     private string _currentState;
-    [Expandable] [SerializeField] private PlayerStateData playerStateData;
+    private PlayerStateData _playerStateData;
 
     public Camera GetCamera()
     {
@@ -14,22 +13,32 @@ public class Player : MonoBehaviour
         return _cam;
     }
 
-    public PlayerStateData GetData(string stateName)
+    private void Start()
     {
-        return stateName switch
-        {
-            "Walking" => Load("WalkingPlayer"),
-            "WaterTurbo" => Load("WaterTurboPlayer"),
-            _ => Load("WalkingPlayer")
-        };
+        Load("WalkingPlayer");
     }
 
-    private PlayerStateData Load(string stateName)
+    public ref PlayerStateData GetData(string stateName)
+    {
+        switch (stateName)
+        {
+            case "Walking":
+                Load("WalkingPlayer");
+                return ref _playerStateData;
+            case "WaterTurbo":
+                Load("WaterTurboPlayer");
+                return ref _playerStateData;
+            default:
+                Load("WalkingPlayer");
+                return ref _playerStateData;
+        }
+    }
+
+    private void Load(string stateName)
     {
         if (stateName != _currentState)
-            playerStateData = Resources.Load<PlayerStateData>($"playerStates/{stateName}");
+            _playerStateData = Resources.Load<PlayerStateData>($"playerStates/{stateName}");
         
         _currentState = stateName;
-        return playerStateData;
     }
 }

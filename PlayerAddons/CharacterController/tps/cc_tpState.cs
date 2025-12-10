@@ -77,7 +77,7 @@ public class cc_tpState : MovementState
         
         // Subscribe to player data changes
         LocalData.OnAccelerationChanged += newAcceleration => acceleration = newAcceleration;
-        LocalData.OnWalkingSpeedChanged += newWalkingSpeed => Debug.Log(newWalkingSpeed);
+        LocalData.OnWalkingSpeedChanged += newWalkingSpeed => walkSpeed = newWalkingSpeed;
         LocalData.OnRunningSpeedChanged += newRunningSpeed => sprintSpeed = newRunningSpeed;
     }
 
