@@ -1,0 +1,16 @@
+{
+    "name": "goapai",
+    "rootNamespace": "",
+    "references": [
+        "GUID:40d95b8da7e84c143902b364a4757f42"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

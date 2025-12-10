@@ -1,0 +1,22 @@
+{
+    "name": "StoryEditor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:6657cdf45bdc2074487362c0b3ed3bc5",
+        "GUID:21d1eb854b91ade49bc69a263d12bee2",
+        "GUID:e43142fc3fec6554980dde6126631f1d",
+        "GUID:4307f53044263cf4b835bd812fc161a4",
+        "GUID:d8b63aba1907145bea998dd612889d6b"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

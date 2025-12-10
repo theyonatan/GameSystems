@@ -1,0 +1,21 @@
+{
+    "name": "PlayerAddons",
+    "rootNamespace": "",
+    "references": [
+        "GUID:5a5dfecaa428f4a4096e5d40bf679556",
+        "GUID:4307f53044263cf4b835bd812fc161a4",
+        "GUID:1491147abca9d7d4bb7105af628b223e",
+        "GUID:11accd9d42b155f478abde08128e177f",
+        "GUID:066808d71640d294192aaa2ef60fae21",
+        "GUID:6270fca1922681f4c9b767232d3af495"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

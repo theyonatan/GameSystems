@@ -1,0 +1,23 @@
+{
+  "name": "com.yonatanabergel.fullplayer",
+  "version": "0.0.2",
+  "displayName": "Zero Player",
+  "description": "The ultimate player, Suitable for any game",
+  "unity": "2021.1",
+  "unityRelease": "0b5",
+  "dependencies": {
+    "com.unity.cinemachine": "2.8.9",
+    "com.unity.inputsystem": "1.6.3"
+ },
+ "keywords": [
+    "Player",
+    "Third Person",
+    "First Person",
+    "Ship"
+  ],
+  "author": {
+    "name": "Yonatan Abergel",
+    "email": "yonatanab1@gmail.com",
+    "url": "https://yonatanmakesgames.itch.io/"
+  }
+}

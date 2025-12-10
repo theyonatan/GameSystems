@@ -1,0 +1,11 @@
+Upon creating a new project, make sure to:
+create a new addressable (assembly definition)
+select cinemachine & input system
+and anything else that you need.
+
+make sure you have the PlayerBase asset imported.
+
+there are some other bonus assets that can be added to the player.
+such as PlayerAddons/Online.
+
+all bonus assets will sit under PlayerAddons.
