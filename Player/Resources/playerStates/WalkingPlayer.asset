@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: WalkingPlayer
   m_EditorClassIdentifier: 
   Acceleration: 10
-  WalkingSpeed: 111
-  RunningSpeed: 8
+  WalkingSpeed: 3
+  RunningSpeed: 6
   JumpSpeed: 10
   JumpHeight: 4
   CameraSpeed: {x: 0, y: 0}

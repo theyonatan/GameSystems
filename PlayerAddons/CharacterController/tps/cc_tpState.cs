@@ -197,8 +197,8 @@ public class cc_tpState : MovementState
     private void HandleJumpAndGravity()
     {
         // constant but limited force if on ground
-        if (IsGrounded)
-            _verticalVelocity = gravity * Time.deltaTime;
+        if (IsGrounded && _verticalVelocity < 0f)
+            _verticalVelocity = -2f;
         
         // jump
         if (IsGrounded && _holdingJump && CanMove)
