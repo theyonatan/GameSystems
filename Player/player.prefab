@@ -144,7 +144,7 @@ GameObject:
   - component: {fileID: 4563362470836703908}
   - component: {fileID: 3636053407684218288}
   - component: {fileID: 7052660998106064111}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -392,7 +392,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 894980d9cfec71c409fd8f3af07cbe2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Player::Player
-  playerStateData: {fileID: 0}
 --- !u!114 &3601134302779420096
 MonoBehaviour:
   m_ObjectHideFlags: 0
