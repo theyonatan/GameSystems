@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -157,4 +158,24 @@ public class StoryExecuter : MonoBehaviour
     
     public void AllowDebug() => _allowDebug = true;
     public void DisableDebug() => _allowDebug = false;
+
+    public StoryCharacter GetSystem()
+    {
+        // check if exists in scene
+        var allCharacters = StoryHelper.GatherCharacters();
+
+        foreach (var character in allCharacters.Where(character
+                     => character.Key == Characters.System))
+            return character.Value;
+
+        // if doesn't, create it
+        var systemPrefab = Resources.Load<StoryCharacter>("System");
+        if (!systemPrefab)
+        {
+            Debug.LogError("couldn't find system in resources!");
+            return null;
+        }
+        
+        return Instantiate(systemPrefab, Vector3.zero, Quaternion.identity);
+    }
 }

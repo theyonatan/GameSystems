@@ -44,4 +44,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb5462a47d6a9f1418882198d476c0e7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: story::StoryCharacter
-  characterStory: {fileID: 11400000, guid: 9b0fca4efaed10946b97e5d6a930622d, type: 2}
+  CharacterStory: {fileID: 11400000, guid: 9b0fca4efaed10946b97e5d6a930622d, type: 2}
+  headPosition: {fileID: 0}
