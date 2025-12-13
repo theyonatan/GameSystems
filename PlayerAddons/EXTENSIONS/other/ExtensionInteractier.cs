@@ -22,7 +22,7 @@ public class ExtensionInteractier : MonoBehaviour
         {
             if (hitInfo.collider.gameObject.TryGetComponent(out Interactable interactObj))
                 interactObj.Interact();
-            else if (hitInfo.collider && hitInfo.collider.transform.parent)
+            else if (hitInfo.collider != null && hitInfo.collider.transform.parent != null)
             {
                 Debug.Log(hitInfo.collider.gameObject.name  + " bellow: " + hitInfo.collider.transform.parent.name + " is not interactable");
             }

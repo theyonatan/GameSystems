@@ -4,6 +4,10 @@ using UnityEngine;
 
 public interface Interactable
 {
-    void MarkAsInteractable();
     void Interact();
+    void MarkAsInteractable();
+    void StopMarking()
+    {
+        Debug.Log("Stop marking interactable");
+    }
 }
