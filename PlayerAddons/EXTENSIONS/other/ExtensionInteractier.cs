@@ -6,6 +6,7 @@ public class ExtensionInteractier : MonoBehaviour
 
     public Transform InteractorSource;
     public float InteractRange;
+    private Interactable _lastInteractedObj;
 
     // Start is called before the first frame update
     void Start()
@@ -41,7 +42,15 @@ public class ExtensionInteractier : MonoBehaviour
         if (Physics.Raycast(r, out RaycastHit hitInfo, InteractRange))
         {
             if (hitInfo.collider.gameObject.TryGetComponent(out Interactable interactObj))
+            {
                 interactObj.MarkAsInteractable();
+                _lastInteractedObj = interactObj;
+            }
+            else if (_lastInteractedObj != null)
+            {
+                _lastInteractedObj.StopMarking();
+                _lastInteractedObj = null;
+            }
         }
     }
 }
