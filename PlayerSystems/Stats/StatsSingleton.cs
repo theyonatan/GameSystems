@@ -137,11 +137,10 @@ public class Stat
         get => m_Value;
         set
         {
-            if (m_Value != value)
-            {
-                m_Value = value;
-                OnStatChanged?.Invoke(m_Value);
-            }
+            if (Mathf.Approximately(m_Value, value)) return;
+            
+            m_Value = value;
+            OnStatChanged?.Invoke(m_Value);
         }
     }
 
