@@ -93,6 +93,9 @@ public class FP_CameraState : CameraState
 
     public override void ClearState()
     {
+        if (!_cameraOrientation)
+            return;
+        
         var previousComponent = _cameraOrientation.GetComponent<CinemachineHardLockToTarget>();
         if (previousComponent)
             Object.Destroy(previousComponent);
