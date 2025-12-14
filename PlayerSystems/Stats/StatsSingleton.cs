@@ -5,6 +5,7 @@ using UnityEngine;
 
 public class StatsSingleton : MonoBehaviour
 {
+    #region Singleton
     static StatsSingleton mInstance;
 
     public static StatsSingleton Instance
@@ -27,6 +28,10 @@ public class StatsSingleton : MonoBehaviour
             return mInstance;
         }
     }
+    
+    #endregion
+
+    public void ResetStats(Dictionary<StatType, Stat> stats) => mInstance.m_stats = stats;
 
     private Dictionary<StatType, Stat> m_stats;
     private HashSet<Modifier> m_modifiers;
@@ -140,7 +145,7 @@ public class Stat
         }
     }
 
-    public Stat(float initialValue, bool allowModification = false) => (m_Value, canBeModified) = (initialValue, allowModification);
+    public Stat(float initialValue, bool allowModifiers = false) => (m_Value, canBeModified) = (initialValue, allowModifiers);
 
     public void ActivateModifier(Modifier modifier)
     {

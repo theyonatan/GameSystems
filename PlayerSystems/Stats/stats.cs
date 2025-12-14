@@ -7,7 +7,8 @@ public enum StatType
     Strength,
     Money,
     Luck,
-    Snow
+    Snow,
+    Diamonds
 }
 
 public class Modifier
