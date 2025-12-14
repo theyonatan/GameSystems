@@ -2,8 +2,10 @@ using UnityEngine;
 
 public class ExtensionInteractier : MonoBehaviour
 {
-    private InputDirector inputDirector;
+    private InputDirector _inputDirector;
+    private int _interactionMask;
 
+    private Transform _camTransform;
     public Transform InteractorSource;
     public float InteractRange;
     private Interactable _lastInteractedObj;
@@ -11,15 +13,36 @@ public class ExtensionInteractier : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        inputDirector = GetComponent<InputDirector>();
-        inputDirector.OnInteractPressed += OnPressedInteract;
+        _inputDirector = GetComponent<InputDirector>();
+        _inputDirector.OnInteractPressed += OnPressedInteract;
+        
+        // get ignore layers
+        int playerLayer = LayerMask.NameToLayer("Player");
+        int selfLayer = LayerMask.NameToLayer("Self");
+        
+        // default: hit anything
+        _interactionMask = Physics.DefaultRaycastLayers;
+        
+        // exclude player and self
+        if (playerLayer != -1)
+            _interactionMask &= ~(1 << playerLayer);
+        if (selfLayer != -1)
+            _interactionMask &= ~(1 << selfLayer);
+        
+        // get camera for direction
+        if (TryGetComponent(out Player player))
+            _camTransform = player.GetCamera().transform;
+        else if (Camera.main != null)
+            _camTransform = Camera.main.transform;
+        else
+            _camTransform = InteractorSource.transform;
     }
 
     void OnPressedInteract()
     {
         Debug.Log("Player Pressed Interact");
-        Ray ray = new(InteractorSource.position, InteractorSource.forward);
-        if (Physics.Raycast(ray, out RaycastHit hitInfo, InteractRange))
+        Ray ray = new(InteractorSource.position, _camTransform.forward);
+        if (Physics.Raycast(ray, out RaycastHit hitInfo, InteractRange, _interactionMask))
         {
             if (hitInfo.collider.gameObject.TryGetComponent(out Interactable interactObj))
                 interactObj.Interact();
@@ -32,14 +55,14 @@ public class ExtensionInteractier : MonoBehaviour
 
     private void OnDestroy()
     {
-        inputDirector.OnInteractPressed -= OnPressedInteract;
+        _inputDirector.OnInteractPressed -= OnPressedInteract;
     }
 
     // Update is called once per frame
     void Update()
     {
-        Ray r = new(InteractorSource.position, InteractorSource.forward);
-        if (Physics.Raycast(r, out RaycastHit hitInfo, InteractRange))
+        Ray r = new(InteractorSource.position, _camTransform.forward);
+        if (Physics.Raycast(r, out RaycastHit hitInfo, InteractRange, _interactionMask))
         {
             if (hitInfo.collider.gameObject.TryGetComponent(out Interactable interactObj))
             {
