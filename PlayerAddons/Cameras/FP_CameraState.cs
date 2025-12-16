@@ -43,6 +43,8 @@ public class FP_CameraState : CameraState
         Transform characterOrientation = Manager.GetComponentInChildren<CharacterOrientation>().transform;
         _cameraOrientation.gameObject.AddComponent<CinemachineHardLockToTarget>();
         _cameraOrientation.Follow = Manager.GetComponentInChildren<CameraOrientation>().transform;
+        if (_cameraOrientation is CinemachineCamera cinemachineCamera)
+            cinemachineCamera.Lens.FieldOfView = 80f;
         
         characterOrientation.rotation = _playerOrientation.rotation;
         
