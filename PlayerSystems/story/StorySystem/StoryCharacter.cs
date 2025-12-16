@@ -140,6 +140,10 @@ public class StoryCharacter : MonoBehaviour
     public void EnableInput() => _storyExecuter.addAction(new EnableInput());
     
     public void DisableInput() => _storyExecuter.addAction(new DisableInput());
+    
+    public void ShowCursor() => _storyExecuter.addAction(new ShowCursor());
+    
+    public void HideCursor() => _storyExecuter.addAction(new HideCursor());
 
     public void EnableJump() => _storyExecuter.addAction(new EnableJumpInput());
     

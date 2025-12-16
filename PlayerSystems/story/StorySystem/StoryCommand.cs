@@ -186,6 +186,26 @@ public class EnableJumpInput : StoryCommand
     }
 }
 
+public class ShowCursor : StoryCommand
+{
+    public bool Execute()
+    {
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+        return true;
+    }
+}
+
+public class HideCursor : StoryCommand
+{
+    public bool Execute()
+    {
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+        return true;
+    }
+}
+
 public class WaitUntilPlayerNearGameobject : StoryCommand
 {
     private readonly Vector3 _targetObject;
