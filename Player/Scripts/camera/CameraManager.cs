@@ -23,7 +23,7 @@ public class CameraManager : MonoBehaviour
 
     // References
     private InputDirector _inputDirector;
-    
+    private Player _player;
 
     // values
     public Vector2 CameraSpeed
@@ -36,6 +36,7 @@ public class CameraManager : MonoBehaviour
     {
         // States:
         _currentState = new CameraStateInPlace();
+        _player = GetComponent<Player>();
     }
 
     private void Start()
@@ -108,8 +109,14 @@ public class CameraManager : MonoBehaviour
 
     void spawnNewVirtualCamera(GameObject cinemachineComponent)
     {
-        var spawnedCameraObject = Instantiate(cinemachineComponent, transform.parent);
-        CurrentCinemachineComponent = spawnedCameraObject.GetComponent<CinemachineCamera>();
+        // spawn at camera position to kill any bendings
+        var cam = _player.GetCamera();
+        var spawnedCameraObject = cam
+            ? Instantiate(cinemachineComponent, cam.transform.position, cam.transform.rotation)
+            : Instantiate(cinemachineComponent, transform.parent);
+
+        CurrentCinemachineComponent =
+            spawnedCameraObject.GetComponent<CinemachineCamera>();
         
         // give new camera priority
         if (CurrentCinemachineComponent)
