@@ -1,8 +1,11 @@
+using System;
 using UnityEngine;
 
 public class ExtensionInteractier : MonoBehaviour
 {
-    private InputDirector _inputDirector;
+    protected InputDirector _inputDirector;
+    protected Type InteractableType = typeof(Interactable);
+    private bool _unsubscribedFromDefaultInteract = false;
     private int _interactionMask;
 
     private Transform _camTransform;
@@ -11,7 +14,7 @@ public class ExtensionInteractier : MonoBehaviour
     private Interactable _lastInteractedObj;
 
     // Start is called before the first frame update
-    void Start()
+    protected void Start()
     {
         _inputDirector = GetComponent<InputDirector>();
         _inputDirector.OnInteractPressed += OnPressedInteract;
@@ -38,13 +41,13 @@ public class ExtensionInteractier : MonoBehaviour
             _camTransform = InteractorSource.transform;
     }
 
-    void OnPressedInteract()
+    protected void OnPressedInteract()
     {
         Debug.Log("Player Pressed Interact");
         Ray ray = new(InteractorSource.position, _camTransform.forward);
         if (Physics.Raycast(ray, out RaycastHit hitInfo, InteractRange, _interactionMask))
         {
-            if (hitInfo.collider.gameObject.TryGetComponent(out Interactable interactObj))
+            if (TryGetInteractable(hitInfo, out var interactObj))
                 interactObj.Interact();
             else if (hitInfo.collider != null && hitInfo.collider.transform.parent != null)
             {
@@ -53,18 +56,13 @@ public class ExtensionInteractier : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
-    {
-        _inputDirector.OnInteractPressed -= OnPressedInteract;
-    }
-
     // Update is called once per frame
-    void Update()
+    protected void Update()
     {
         Ray r = new(InteractorSource.position, _camTransform.forward);
         if (Physics.Raycast(r, out RaycastHit hitInfo, InteractRange, _interactionMask))
         {
-            if (hitInfo.collider.gameObject.TryGetComponent(out Interactable interactObj))
+            if (TryGetInteractable(hitInfo, out var interactObj))
             {
                 interactObj.MarkAsInteractable();
                 _lastInteractedObj = interactObj;
@@ -75,5 +73,34 @@ public class ExtensionInteractier : MonoBehaviour
                 _lastInteractedObj = null;
             }
         }
+    }
+
+    protected void OnDestroy()
+    {
+        UnsubscribeFromDefaultInteract();
+    }
+
+    protected void UnsubscribeFromDefaultInteract()
+    {
+        if (_unsubscribedFromDefaultInteract)
+            return;
+        
+        _unsubscribedFromDefaultInteract = true;
+        _inputDirector.OnInteractPressed -= OnPressedInteract;
+    }
+    
+    private bool TryGetInteractable(RaycastHit hit, out Interactable interactable)
+    {
+        if (hit.collider.gameObject.TryGetComponent(out Interactable interactObj))
+        {
+            if (InteractableType.IsAssignableFrom(interactObj.GetType()))
+            {
+                interactable = interactObj;
+                return true;
+            }
+        }
+
+        interactable = null;
+        return false;
     }
 }
