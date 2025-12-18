@@ -23,5 +23,8 @@ public enum Characters
     
     // GrokStory
     WitchDoctor,
-    XAI_Dolphin
+    XAI_Dolphin,
+    
+    // Other games using new system
+    Other,
 }
