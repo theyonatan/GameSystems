@@ -25,6 +25,13 @@ public class CutscenesHelper
         return cutscenesCameras;
     }
 
+    public static CutsceneCamera LocateCamera(string cutsceneCameraName)
+    {
+        var cameras = GatherCutsceneCameras();
+        
+        return cameras[cutsceneCameraName];
+    }
+
     /// <summary>
     /// Gives priority to a cutscene camera.
     /// this means it will be the active camera, a blend/transition will start from the previous camera to this one.

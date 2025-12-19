@@ -112,7 +112,7 @@ public class StoryExecuter : MonoBehaviour
     public void SetChapter(string chapter)
     {
         if (!string.IsNullOrEmpty(CurrentChapter))
-            Debug.LogError(
+            throw new Exception(
                 $"setting a new chapter: \"{chapter}\", but did not finish current chapter: \"{CurrentChapter}\"!");
 
         CurrentChapter = chapter;
