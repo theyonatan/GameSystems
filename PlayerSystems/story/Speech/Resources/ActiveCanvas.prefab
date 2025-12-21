@@ -142,7 +142,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a85e0ef996389864d90fc222ee456814, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 16d6163de3655244f950ebf45c1cf64e, type: 3}
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -151,7 +151,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 0.66
+  m_PixelsPerUnitMultiplier: 1.38
 --- !u!1 &6437048434915253124
 GameObject:
   m_ObjectHideFlags: 0
@@ -340,8 +340,7 @@ MonoBehaviour:
     ain''t no way this is real huh'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 48aa9cb8e130bdc408ea8d6a93d3516a, type: 2}
-  m_sharedMaterial: {fileID: -4367789221106973514, guid: 48aa9cb8e130bdc408ea8d6a93d3516a,
-    type: 2}
+  m_sharedMaterial: {fileID: -4367789221106973514, guid: 48aa9cb8e130bdc408ea8d6a93d3516a, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
