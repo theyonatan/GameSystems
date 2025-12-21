@@ -25,6 +25,8 @@ public enum Characters
     WitchDoctor,
     XAI_Dolphin,
     
-    // Other games using new system
-    Other,
+    // 90 Perscent
+    MechanicSteampunk,
+    LadySteampunk,
+    Titan,
 }
