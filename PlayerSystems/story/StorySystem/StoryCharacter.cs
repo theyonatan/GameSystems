@@ -7,7 +7,6 @@ public class StoryCharacter : MonoBehaviour
 {
     public StoryCharacterPrefab CharacterStory;
     [SerializeField] private Transform headPosition;
-    private Characters _character;
     private StoryExecuter _storyExecuter;
     private NavMeshAgent _navMeshAgent;
 
@@ -108,6 +107,14 @@ public class StoryCharacter : MonoBehaviour
     }
 
     /// <summary>
+    /// plays given animation
+    /// </summary>
+    public void Behave(string animationKey, bool continueStoryWhilePlaying=false)
+    {
+        throw new NotImplementedException();
+    }
+
+    /// <summary>
     /// Camera & Cutscene Controls
     /// </summary>
     
@@ -118,13 +125,14 @@ public class StoryCharacter : MonoBehaviour
         _storyExecuter.addAction(new SwapPlayerState<TNewMovementState, TNewCameraState>());
     }
     
-    public void SwapCamera(CutsceneCamera vcam, float speed=0.2f, bool continueStoryOverCamera=true)
-        => _storyExecuter.addAction(new SwapCamera(vcam, speed, continueStoryOverCamera));
+    public void SwapCamera(
+        CutsceneCamera vcam,
+        Transform followTargetTransform=null,
+        float speed=0.2f,
+        bool continueStoryOverCamera=true
+        ) => _storyExecuter.addAction(new SwapCamera(
+            vcam, speed, continueStoryOverCamera, followTargetTransform));
     
-    public void SwapCamera(CutsceneCamera vcam, Transform followTargetTransform=null)
-        => _storyExecuter.addAction(new SwapCamera(
-            vcam, 0f, true, followTargetTransform));
-
     public void ShowMovieBars(bool waitForCompletion = false, float duration = 0.6f)
         => _storyExecuter.addAction(new ShowMovieLines(
             waitForCompletion, duration));

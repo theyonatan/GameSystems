@@ -47,7 +47,7 @@ public class StoryHelper
             throw;
         }
     }
-    
+
     /// <summary>
     /// Gather all characters in the scene, string[] format
     /// </summary>
