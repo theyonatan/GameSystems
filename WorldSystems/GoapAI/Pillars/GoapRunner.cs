@@ -33,6 +33,16 @@ public class GoapRunner
         
         _gPlanner = new GoapPlanner(logAgent);
     }
+
+    public void UpdateRunner(
+        Dictionary<string, AgentBelief> beliefs,
+        HashSet<AgentAction> actions,
+        HashSet<AgentGoal> goals)
+    {
+        _beliefs = beliefs;
+        _actions = actions;
+        _goals = goals;
+    }
     
     public void Perform()
     {

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using AYellowpaper.SerializedCollections;
 using UnityEngine;
 using UnityEngine.AI;
@@ -29,8 +30,8 @@ public abstract class IGoapAgent : MonoBehaviour
     protected virtual void OnStart() {}
     
     // references from the user
-    [SerializedDictionary] public SerializedDictionary<string, Transform> Locations;
     [SerializedDictionary] public SerializedDictionary<string, Sensor> Sensors;
+    [SerializedDictionary] public SerializedDictionary<string, Transform> Locations;
     
     // components
     private GoapAnimationMapper _animationMapper;
@@ -59,6 +60,12 @@ public abstract class IGoapAgent : MonoBehaviour
         SetupBeliefs();
         SetupActions();
         SetupGoals();
+        
+        // update runner after settingup goap stuff
+        _gRunner.UpdateRunner(Beliefs, Actions, Goals);
+        
+        foreach (var sensor in Sensors.Where(sensor => sensor.Key == "ChaseSensor"))
+            sensor.Value.OnTargetChanged += ResetActionAndGoal;
     }
     
     protected void Update()

@@ -26,6 +26,7 @@ public class Sensor : MonoBehaviour
         detectionRange = GetComponent<SphereCollider>();
         detectionRange.isTrigger = true;
         detectionRange.radius = detectionRadius;
+        transform.localScale = Vector3.one;
     }
 
     private void Start()
@@ -58,6 +59,7 @@ public class Sensor : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag(detectionTag)) return;
+        Debug.LogError(other.name);
         UpdateTargetPosition(other.gameObject);
     }
 
