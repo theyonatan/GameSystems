@@ -13,10 +13,11 @@ public abstract class IGoapAgent : MonoBehaviour
     
     private GoapRunner _gRunner;
     protected GoapAnimator GAnimator;
+
+    [SerializeField] protected bool goapAgentEnabled = true;
     
     // values
     [SerializeField] protected bool logAgent;
-    protected float TimerInterval;
     
     // goap functions
     protected abstract void SetupBeliefs();
@@ -25,10 +26,11 @@ public abstract class IGoapAgent : MonoBehaviour
     
     // optional functions
     protected virtual void UpdateStats() {}
+    protected virtual void OnStart() {}
     
     // references from the user
-    protected SerializedDictionary<string, Transform> Locations;
-    protected SerializedDictionary<string, Sensor> Sensors;
+    [SerializedDictionary] public SerializedDictionary<string, Transform> Locations;
+    [SerializedDictionary] public SerializedDictionary<string, Sensor> Sensors;
     
     // components
     private GoapAnimationMapper _animationMapper;
@@ -52,6 +54,7 @@ public abstract class IGoapAgent : MonoBehaviour
     
     private void Start()
     {
+        OnStart();
         SetupTimers();
         SetupBeliefs();
         SetupActions();
@@ -63,6 +66,10 @@ public abstract class IGoapAgent : MonoBehaviour
         // update timers
         _goapTimer.Tick(Time.deltaTime);
         GAnimator.UpdateAnimationsTimer(Time.deltaTime);
+        
+        // don't control the agent if disabled.
+        if (!goapAgentEnabled)
+            return;
         
         // tell goap system to find what to do next or perform current action.
         _gRunner.Perform();
@@ -89,5 +96,18 @@ public abstract class IGoapAgent : MonoBehaviour
     protected virtual void PreActionReset()
     {
         AgentNavmesh?.ResetPath();
+    }
+
+    public void EnableGoap()
+    {
+        goapAgentEnabled = true;
+    }
+
+    public void DisableGoap()
+    {
+        ResetActionAndGoal();
+        AgentNavmesh?.ResetPath();
+        
+        goapAgentEnabled = false;
     }
 }
