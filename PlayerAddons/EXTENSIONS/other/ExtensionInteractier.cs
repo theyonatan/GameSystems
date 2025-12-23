@@ -12,6 +12,8 @@ public class ExtensionInteractier : MonoBehaviour
     public Transform InteractorSource;
     public float InteractRange;
     private Interactable _lastInteractedObj;
+    
+    public bool DisplayDebugInteract;
 
     // Start is called before the first frame update
     protected void Start()
@@ -60,6 +62,8 @@ public class ExtensionInteractier : MonoBehaviour
     protected void Update()
     {
         Ray r = new(InteractorSource.position, _camTransform.forward);
+        if (DisplayDebugInteract) 
+            Debug.DrawRay(r.origin, r.direction * InteractRange, Color.mediumPurple);
         if (Physics.Raycast(r, out RaycastHit hitInfo, InteractRange, _interactionMask))
         {
             if (TryGetInteractable(hitInfo, out var interactObj))
