@@ -1,23 +1,22 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public interface IGoapPlanner
 {
-    ActionPlan Plan(IGoapAgent agent, HashSet<AgentGoal> goals, AgentGoal mostRecentGoal = null);
+    ActionPlan Plan(HashSet<AgentAction> agentActions, HashSet<AgentGoal> goals, AgentGoal mostRecentGoal = null);
 }
 
 public class GoapPlanner : IGoapPlanner
 {
-    bool logAgent = false;
+    private readonly bool _logAgent;
 
-    public GoapPlanner(bool LogAgent = false)
+    public GoapPlanner(bool logAgent=false)
     {
-        logAgent = LogAgent;
+        _logAgent = logAgent;
     }
 
-    public ActionPlan Plan(IGoapAgent agent, HashSet<AgentGoal> goals, AgentGoal mostRecentGoal = null)
+    public ActionPlan Plan(HashSet<AgentAction> agentActions, HashSet<AgentGoal> goals, AgentGoal mostRecentGoal = null)
     {
         // Order goals by priority, descending
         List<AgentGoal> orderedGoals = goals
@@ -28,10 +27,10 @@ public class GoapPlanner : IGoapPlanner
         // Try to solve each goal in order
         foreach (var goal in orderedGoals)
         {
-            Node goalNode = new(null, null, goal.DesiredEffects, 0);
+            Node goalNode = new(null, goal.DesiredEffects, 0);
 
             // If we can find a path to the goal, return the plan
-            if (FindPath(goalNode, agent.actions))
+            if (FindPath(goalNode, agentActions))
             {
                 // If the goalNode has no leaves and no action to perform try a different goal
                 if (goalNode.IsLeafDead) continue;
@@ -44,7 +43,7 @@ public class GoapPlanner : IGoapPlanner
                     actionStack.Push(cheapestLeaf.Action);
                 }
 
-                return new ActionPlan(goal, actionStack, goalNode.Cost);
+                return new ActionPlan(goal, actionStack);
             }
         }
 
@@ -79,7 +78,7 @@ public class GoapPlanner : IGoapPlanner
                 var newAvailableActions = new HashSet<AgentAction>(actions);
                 newAvailableActions.Remove(action);
 
-                var newNode = new Node(parent, action, newRequiredEffects, parent.Cost + action.Cost);
+                var newNode = new Node(action, newRequiredEffects, parent.Cost + action.Cost);
 
                 // Explore the new node recursively
                 if (FindPath(newNode, newAvailableActions))
@@ -101,14 +100,13 @@ public class GoapPlanner : IGoapPlanner
 
     private void GoapLog(string radioMessage)
     {
-        if (logAgent)
+        if (_logAgent)
             Debug.LogWarning(radioMessage);
     }
 }
 
 public class Node
 {
-    public Node Parent { get; }
     public AgentAction Action { get; }
     public HashSet<AgentBelief> RequiredEffects { get; }
     public List<Node> Leaves { get; }
@@ -116,9 +114,8 @@ public class Node
 
     public bool IsLeafDead => Leaves.Count == 0 && Action == null;
 
-    public Node(Node parent, AgentAction action, HashSet<AgentBelief> effects, float cost)
+    public Node(AgentAction action, HashSet<AgentBelief> effects, float cost)
     {
-        Parent = parent;
         Action = action;
         RequiredEffects = new HashSet<AgentBelief>(effects);
         Leaves = new List<Node>();
@@ -131,12 +128,10 @@ public class ActionPlan
 {
     public AgentGoal AgentGoal { get; }
     public Stack<AgentAction> Actions { get; }
-    public float TotalCost { get; set; }
 
-    public ActionPlan(AgentGoal agentGoal, Stack<AgentAction> actions, float totalCost)
+    public ActionPlan(AgentGoal agentGoal, Stack<AgentAction> actions)
     {
         AgentGoal = agentGoal;
         Actions = actions;
-        TotalCost = totalCost;
     }
 }

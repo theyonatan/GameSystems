@@ -1,22 +1,32 @@
 using System;
 using UnityEngine;
 
-public class AnimationController
+public class GoapAnimator
 {
     private const int DefaultAnimationClip = 0;
     private const float CrossfadeDuration = 0.1f;
     
-    public readonly Animator AgentAnimator;
+    private readonly Animator AgentAnimator;
+    public readonly GoapAnimationMapper AnimationMapper;
     private CountdownTimer _timer;
 
-    public AnimationController(Animator agentAnimator)
+    public GoapAnimator(Animator agentAnimator, GoapAnimationMapper animationMapper)
     {
         AgentAnimator = agentAnimator;
+        AnimationMapper = animationMapper;
     }
 
-    public void PlayAnimationUsingTimer(int animationClipHash, Action onAnimationFinished = null)
+    public void PlayAnimationUsingTimer(string animationClipName, Action onAnimationFinished = null)
     {
-        _timer = new CountdownTimer(GetAnimationLength(animationClipHash));
+        if (!AgentAnimator)
+        {
+            onAnimationFinished?.Invoke();
+            return;
+        }
+        
+        int animationClipHash = GetAnimationClipHash(animationClipName);
+        
+        _timer = new CountdownTimer(animationClipHash);
         _timer.OnTimerStart += () => AgentAnimator.CrossFade(animationClipHash, CrossfadeDuration);
 
         _timer.OnTimerStop += onAnimationFinished ?? (
@@ -25,20 +35,44 @@ public class AnimationController
         _timer.Start();
     }
 
-    public void UpdateAnimationsTimer()
-        => _timer?.Tick(Time.deltaTime);
+    public void PlayAnimationImmediately(string animationClipName, Action onAnimationFinished = null)
+    {
+        if (!AgentAnimator)
+        {
+            onAnimationFinished?.Invoke();
+            return;
+        }
+        
+        int animationClipHash = GetAnimationClipHash(animationClipName);
+        
+        AgentAnimator.CrossFade(animationClipHash, CrossfadeDuration);
+
+        onAnimationFinished?.Invoke();
+
+        _timer.Start();
+    }
+    
+    public void SetFloat(string animationClipName, float value) => AgentAnimator?.SetFloat(animationClipName, value);
+    public void SetBool(string animationClipName, bool value) => AgentAnimator?.SetBool(animationClipName, value);
+    public void SetTrigger(string animationClipName) => AgentAnimator?.SetTrigger(animationClipName);
+
+    public void UpdateAnimationsTimer(float deltaTime)
+        => _timer?.Tick(deltaTime);
     
     /// helper functions
-    private int GetAnimationClipHash(string animationClipName)
-        => Animator.StringToHash(animationClipName);
-    
-    private float GetAnimationLength(int hash) {
+    public float GetAnimationLength(string animationClipName)
+    {
+        int animationClipHash = GetAnimationClipHash(animationClipName);
+        
         foreach (AnimationClip clip in AgentAnimator.runtimeAnimatorController.animationClips) {
-            if (Animator.StringToHash(clip.name) == hash) {
+            if (Animator.StringToHash(clip.name) == animationClipHash) {
                 return clip.length;
             }
         }
 
         return -1f;
     }
+    
+    private int GetAnimationClipHash(string animationClipName)
+        => Animator.StringToHash(animationClipName);
 }

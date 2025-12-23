@@ -73,20 +73,26 @@ public class WanderStrategy : IActionStrategy
 
 public class MoveStrategy : IActionStrategy
 {
+    private static readonly int IsMoving = Animator.StringToHash("IsMoving");
+    private static readonly int Speed = Animator.StringToHash("Speed");
     private readonly NavMeshAgent _agent;
     private readonly Func<Vector3> _destination;
-    private readonly AnimationController _animations;
+    private readonly GoapAnimator _goapAnimator;
+    private readonly Action _onComplete = null;
 
     public bool CanPerform => !Complete;
     public bool Complete => _agent.remainingDistance <= 1f && !_agent.pathPending;
-    public Action OnComplete = null;
 
-    public MoveStrategy(NavMeshAgent agent, Func<Vector3> destination, AnimationController animations, Action onComplete = null)
+    public MoveStrategy(
+        NavMeshAgent agent,
+        Func<Vector3> destination,
+        GoapAnimator goapAnimator,
+        Action onComplete = null)
     {
         _agent = agent;
         _destination = destination;
-        _animations = animations;
-        OnComplete = onComplete;
+        _goapAnimator = goapAnimator;
+        _onComplete = onComplete;
     }
 
     public void Start()
@@ -94,10 +100,15 @@ public class MoveStrategy : IActionStrategy
         _agent.SetDestination(_destination());
     }
 
+    public void Update(float deltaTime)
+    {
+        _goapAnimator.SetBool("IsMoving", _agent.velocity.sqrMagnitude >= 0.04f);
+        _goapAnimator.SetFloat("Speed", _agent.velocity.magnitude);
+    }
+
     public void Stop()
     {
-        if (OnComplete != null)
-            OnComplete();
+        _onComplete?.Invoke();
         _agent.ResetPath();
     }
 }
@@ -133,24 +144,24 @@ public class ChaseStrategy : IActionStrategy
 
 public class AttackStrategy : IActionStrategy
 {
+    private readonly string _animationName;
     public bool CanPerform => true;
     public bool Complete { get; private set; }
 
     private readonly CountdownTimer _timer;
-    private readonly AnimationController _animations;
+    private readonly GoapAnimator _goapAnimator;
     
-    public AttackStrategy(AnimationController animations)
+    public AttackStrategy(GoapAnimator goapAnimator)
     {
-        _animations = animations;
-        _timer = new CountdownTimer(animations.GetAnimationLength(animations.animationClips["AttackClip"]));
-        _timer.OnTimerStart += () => Complete = false;
-        _timer.OnTimerStop += () => Complete = true;
+        _animationName = goapAnimator.AnimationMapper.Fight;
+        _goapAnimator = goapAnimator;
+        Complete = false;
     }
 
     public void Start()
     {
         _timer.Start();
-        _animations.animator.SetTrigger("Attack");
+        _goapAnimator.PlayAnimationUsingTimer(_animationName, () => Complete = true);
     }
 
     public void Update(float deltaTime) => _timer.Tick(deltaTime);
@@ -160,21 +171,21 @@ public class DanceStrategy : IActionStrategy
     public bool CanPerform => true;
     public bool Complete { get; private set; }
 
+    private readonly string _animationName;
     private readonly CountdownTimer _timer;
-    private readonly AnimationController _animations;
+    private readonly GoapAnimator _goapAnimator;
 
-    public DanceStrategy(AnimationController animations)
+    public DanceStrategy(GoapAnimator goapAnimator)
     {
-        _animations = animations;
-        _timer = new CountdownTimer(animations.GetAnimationLength(animations.animationClips["DanceClip"]));
-        _timer.OnTimerStart += () => Complete = true;
-        _timer.OnTimerStop += () => Complete = false;
+        _animationName = goapAnimator.AnimationMapper.Dance;
+        _goapAnimator = goapAnimator;
+        Complete = false;
     }
 
     public void Start()
     {
         _timer.Start();
-        _animations.PlayAnimationUsingTimer(_animations.animationClips["DanceClip"]);
+        _goapAnimator.PlayAnimationUsingTimer(_animationName, () => Complete = true);
     }
 
     public void Update(float deltaTime) => _timer.Tick(deltaTime);
