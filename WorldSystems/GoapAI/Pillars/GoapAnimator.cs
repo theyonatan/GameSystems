@@ -33,6 +33,12 @@ public class GoapAnimator
         _timer.Start();
     }
 
+    /// <summary>
+    /// sets a trigger on animator and throws event after animation ends.
+    /// </summary>
+    /// <param name="animationClipName">name of the imported clip! the one you drag to animator controller.</param>
+    /// <param name="animationTrigger">name of trigger to activate in animator controller.</param>
+    /// <param name="onAnimationFinished">event to throw after animation finished playing.</param>
     public void TriggerAnimationUsingTimer(string animationClipName, string animationTrigger, Action onAnimationFinished = null)
     {
         if (!AgentAnimator)

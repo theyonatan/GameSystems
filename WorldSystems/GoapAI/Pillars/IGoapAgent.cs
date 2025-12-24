@@ -126,4 +126,9 @@ public abstract class IGoapAgent : MonoBehaviour
         
         goapAgentEnabled = false;
     }
+
+    public bool IsEnabled()
+    {
+        return goapAgentEnabled;
+    }
 }
