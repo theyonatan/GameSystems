@@ -162,11 +162,11 @@ public class StoryExecuter : MonoBehaviour
     public StoryCharacter GetSystem()
     {
         // check if exists in scene
-        var allCharacters = StoryHelper.GatherCharacters();
+        var allCharacters = StoryHelper.GatherAllCharacters();
 
         foreach (var character in allCharacters.Where(character
-                     => character.Key == Characters.System))
-            return character.Value;
+                     => character.CharacterStory.character == Characters.System))
+            return character;
 
         // if doesn't, create it
         var systemPrefab = Resources.Load<StoryCharacter>("System");

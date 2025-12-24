@@ -4,6 +4,7 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "StoryCharacterPrefab", menuName = "Zero/StoryCharacter")]
 public class StoryCharacterPrefab : ScriptableObject
 {
+    public string CharacterName;
     public Characters character;
     public GameObject prefab;
     public bool ShowTailWhenTalking = true;

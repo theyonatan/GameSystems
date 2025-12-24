@@ -2,6 +2,8 @@ using UnityEngine;
 
 public enum Characters
 {
+    NewSystem,
+    
     // playground
     System,
     Player,

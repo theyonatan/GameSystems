@@ -13,7 +13,8 @@ public class StoryHelper
     /// </summary>
     /// <returns>dictionary of available characters in the scene:
     /// (character id, character object)</returns>
-    public static Dictionary<Characters, StoryCharacter> GatherCharacters()
+    [Obsolete("Use GatherCharacters() of Dictionary<String, StoryCharacter> instead")]
+    public static Dictionary<Characters, StoryCharacter> GatherCharactersByEnum()
     {
         // Gather all characters in the scene
         StoryCharacter[] foundCharacters = Object.FindObjectsByType<StoryCharacter>(FindObjectsSortMode.None);
@@ -42,12 +43,97 @@ public class StoryHelper
         }
         catch (ArgumentException e)
         {
-            Debug.LogError("made a new character? you forgot to change it's CharacterType.");
+            Debug.LogError("Likely used old story gathering system of enums! use GatherCharacters instead.");
+            Debug.LogError("OR made a new character? you forgot to change it's CharacterType.");
+            Debug.LogError(e);
+            return new Dictionary<Characters, StoryCharacter>();
+        }
+    }
+
+    /// <summary>
+    /// Gather all characters present in the scene
+    /// </summary>
+    public static StoryCharacter[] GatherAllCharacters()
+    {
+        // Gather all characters in the scene
+        StoryCharacter[] foundCharacters =
+            Object.FindObjectsByType<StoryCharacter>(FindObjectsSortMode.None);
+
+        // verify characters are built correctly
+        if (foundCharacters.Length == 0)
+        {
+            Debug.LogError("No story characters found!");
+            return Array.Empty<StoryCharacter>();
+        }
+
+        return foundCharacters;
+    }
+
+    /// <summary>
+    /// Gather all characters present in the scene for a specific cutscene
+    /// </summary>
+    /// <param name="cutsceneId">Cutscene identifier</param>
+    public static Dictionary<string, StoryCharacter> GatherCharacters(string cutsceneId)
+    {
+        // Gather all characters in the scene
+        StoryCharacter[] foundCharacters = GatherAllCharacters();
+
+        if (foundCharacters.Length == 0)
+            return new Dictionary<string, StoryCharacter>();
+
+        // Filter by cutscene
+        var filteredCharacters = foundCharacters
+            .Where(sc => sc.CutsceneId == cutsceneId);
+
+        var filteredCharactersList = filteredCharacters.ToList();
+        if (!filteredCharactersList.Any())
+        {
+            Debug.LogWarning($"No characters found for cutscene '{cutsceneId}'.");
+            return new Dictionary<string, StoryCharacter>();
+        }
+
+        // Validate
+        foreach (StoryCharacter character in filteredCharactersList)
+        {
+            if (character.CharacterStory == null)
+                Debug.LogError($"Character {character.name} has no CharacterStory assigned!");
+            else if (string.IsNullOrWhiteSpace(character.CharacterStory.CharacterName))
+                Debug.LogError($"Character {character.name} has an empty CharacterName!");
+        }
+
+        // save them to dictionary and setup them
+        try
+        {
+            Dictionary<string, StoryCharacter> storyCharacters =
+                filteredCharactersList.ToDictionary(
+                    sc => sc.CharacterStory.CharacterName
+                );
+
+            SetUpAll(storyCharacters);
+            return storyCharacters;
+        }
+        catch (ArgumentException e)
+        {
+            Debug.LogError(
+                $"Duplicate CharacterName detected in cutscene '{cutsceneId}'."
+            );
             Debug.LogError(e);
             throw;
         }
     }
 
+    public static StoryCharacter GatherSpecific(string requestedName)
+    {
+        var allCharacters = GatherAllCharacters();
+        foreach (var character in allCharacters)
+        {
+            if (character.CharacterStory.CharacterName == requestedName)
+                return character;
+        }
+        
+        throw new ArgumentException($"Character with name {requestedName} not found in scene!");
+    }
+    
     /// <summary>
     /// Gather all characters in the scene, string[] format
     /// </summary>
@@ -82,7 +168,13 @@ public class StoryHelper
     }
     
     // sets their script variables
-    public static void SetUpAll(Dictionary<Characters, StoryCharacter> characters)
+    private static void SetUpAll(Dictionary<Characters, StoryCharacter> characters)
+    {
+        foreach (StoryCharacter character in characters.Values)
+            character.SetUp();
+    }
+
+    private static void SetUpAll(Dictionary<string, StoryCharacter> characters)
     {
         foreach (StoryCharacter character in characters.Values)
             character.SetUp();
