@@ -176,6 +176,12 @@ public class cc_fpState : MovementState
         // apply new velocity
         _movementVelocity.y = _verticalVelocity;
     }
+
+    // for knockback
+    public void AddVerticalVelocity(float knockbackUpForce)
+    {
+        _verticalVelocity += knockbackUpForce;
+    }
     
     // -------------------------------
     // Input Events

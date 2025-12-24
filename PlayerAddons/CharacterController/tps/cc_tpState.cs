@@ -212,6 +212,12 @@ public class cc_tpState : MovementState
         _movementVelocity.y = _verticalVelocity;
     }
     
+    // for knockback
+    public void AddVerticalVelocity(float knockbackUpForce)
+    {
+        _verticalVelocity += knockbackUpForce;
+    }
+    
     // -------------------------------
     // Input Events
     // -------------------------------
