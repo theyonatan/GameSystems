@@ -73,8 +73,6 @@ public class WanderStrategy : IActionStrategy
 
 public class MoveStrategy : IActionStrategy
 {
-    private static readonly int IsMoving = Animator.StringToHash("IsMoving");
-    private static readonly int Speed = Animator.StringToHash("Speed");
     private readonly NavMeshAgent _agent;
     private readonly Func<Vector3> _destination;
     private readonly GoapAnimator _goapAnimator;
@@ -108,6 +106,7 @@ public class MoveStrategy : IActionStrategy
 
     public void Stop()
     {
+        _goapAnimator.SetBool("IsMoving", false);
         _onComplete?.Invoke();
         _agent.ResetPath();
     }

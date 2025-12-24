@@ -2,8 +2,9 @@
     "name": "goapai",
     "rootNamespace": "",
     "references": [
-        "GUID:40d95b8da7e84c143902b364a4757f42",
-        "GUID:d525ad6bd40672747bde77962f1c401e"
+        "GUID:13c236ff0f643fe479f7665a665a81f8",
+        "GUID:d525ad6bd40672747bde77962f1c401e",
+        "GUID:70fb184056480124a8a3852d6c80ac26"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
