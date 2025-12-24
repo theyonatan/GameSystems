@@ -6,6 +6,7 @@ using UnityEngine.AI;
 public class StoryCharacter : MonoBehaviour
 {
     public StoryCharacterPrefab CharacterStory;
+    public string CutsceneId;
     [SerializeField] private Transform headPosition;
     private StoryExecuter _storyExecuter;
     private NavMeshAgent _navMeshAgent;
@@ -109,9 +110,18 @@ public class StoryCharacter : MonoBehaviour
     /// <summary>
     /// plays given animation
     /// </summary>
-    public void Behave(string animationKey, bool continueStoryWhilePlaying=false)
+    public void Behave(string animationName, bool continueStoryWhilePlaying=false)
     {
-        throw new NotImplementedException();
+        var animator = GetComponent<Animator>();
+        if (animator == null)
+            animator = gameObject.GetComponentInChildren<Animator>();
+        if (animator == null)
+        {
+            Debug.LogError("no animator found when requested behave!");
+            return;
+        }
+        
+        _storyExecuter.addAction(new PlayAnimation(animator, animationName, continueStoryWhilePlaying));
     }
 
     /// <summary>

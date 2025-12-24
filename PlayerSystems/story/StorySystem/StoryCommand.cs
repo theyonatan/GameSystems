@@ -98,6 +98,65 @@ public class GoTo : StoryCommand
     }
 }
 
+public class PlayAnimation : StoryCommand
+{
+    private Animator _animator;
+    private string _animationName;
+    private bool _continueStoryWhilePlaying;
+
+    private bool _startedPlayingAnimation;
+    private bool _finishedAnimation;
+    
+    public PlayAnimation(Animator animator, string animationName, bool continueStoryWhilePlaying=false)
+    {
+        _animator = animator;
+        _animationName = animationName;
+        _continueStoryWhilePlaying = continueStoryWhilePlaying;
+    }
+    
+    public bool Execute()
+    {
+        // wait for animation to finish
+        if (_startedPlayingAnimation)
+            return _finishedAnimation || _continueStoryWhilePlaying;
+        
+        // play animation once
+        CrossplayAnimationUsingTimer(_animationName, () =>
+        {
+            _finishedAnimation = true;
+        });
+        
+        return false;
+    }
+    
+    private void CrossplayAnimationUsingTimer(string animationClipName, Action onAnimationFinished = null)
+    {
+        if (_startedPlayingAnimation)
+            return;
+        _startedPlayingAnimation = true;
+        
+        var timer = new CountdownTimer(GetAnimationLength(animationClipName));
+        timer.OnTimerStart += () => _animator.CrossFade(animationClipName, 0.2f);
+
+        timer.OnTimerStop += onAnimationFinished;
+
+        timer.Start();
+    }
+    
+    private float GetAnimationLength(string animationClipName)
+    {
+        int animationClipHash = Animator.StringToHash(animationClipName);
+        
+        foreach (AnimationClip clip in _animator.runtimeAnimatorController.animationClips) {
+            if (Animator.StringToHash(clip.name) == animationClipHash) {
+                return clip.length;
+            }
+        }
+
+        return -1f;
+    }
+}
+
 public class DelayedStoryAction : StoryCommand
 {
     private readonly Action _delayedAction;
