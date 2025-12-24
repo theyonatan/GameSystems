@@ -36,7 +36,6 @@ public abstract class MovementState
     public abstract void FixedUpdate();
     public abstract void CleanState();
 
-
     // Extra calls
 
     public virtual void OnCollisionStay(Collision collision)

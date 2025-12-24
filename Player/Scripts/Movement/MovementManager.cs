@@ -102,6 +102,11 @@ public class MovementManager : MonoBehaviour
     {
         CurrentState.CleanState();
     }
+    
+    public MovementState GetCurrentState()
+    {
+        return CurrentState;
+    }
 
     public void EnableMovement()
     {
