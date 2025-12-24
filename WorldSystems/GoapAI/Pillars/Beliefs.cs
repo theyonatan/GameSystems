@@ -46,7 +46,7 @@ public class BeliefFactory
                 
                 foreach (Sensor sensor in sensors)
                     Debug.Log(sensor.name + ": " + sensor.IsTargetInRange);
-                Debug.LogError($"WTF? Sensor {key} detected something (condition returned true) but does not hold anything!");
+                Debug.LogError($"WTF? Sensor {key} detected something but does not hold anything!");
                 Debug.Break();
                 return Vector3.zero;
             })

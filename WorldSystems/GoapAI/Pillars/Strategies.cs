@@ -144,7 +144,7 @@ public class ChaseStrategy : IActionStrategy
 
 public class AttackStrategy : IActionStrategy
 {
-    private readonly string _animationName;
+    private readonly string _animationNameFromMapper;
     public bool CanPerform => true;
     public bool Complete { get; private set; }
 
@@ -153,42 +153,35 @@ public class AttackStrategy : IActionStrategy
     
     public AttackStrategy(GoapAnimator goapAnimator)
     {
-        _animationName = goapAnimator.AnimationMapper.Fight;
+        _animationNameFromMapper = goapAnimator.AnimationMapper.Fight;
         _goapAnimator = goapAnimator;
         Complete = false;
     }
 
     public void Start()
     {
-        _timer.Start();
-        _goapAnimator.PlayAnimationUsingTimer(_animationName, () => Complete = true);
+        _goapAnimator.TriggerAnimationUsingTimer(_animationNameFromMapper, "Attack", () => Complete = true);
     }
-
-    public void Update(float deltaTime) => _timer.Tick(deltaTime);
 }
 public class DanceStrategy : IActionStrategy
 {
     public bool CanPerform => true;
     public bool Complete { get; private set; }
 
-    private readonly string _animationName;
-    private readonly CountdownTimer _timer;
+    private readonly string _animationNameFromMapper;
     private readonly GoapAnimator _goapAnimator;
 
     public DanceStrategy(GoapAnimator goapAnimator)
     {
-        _animationName = goapAnimator.AnimationMapper.Dance;
+        _animationNameFromMapper = goapAnimator.AnimationMapper.Dance;
         _goapAnimator = goapAnimator;
         Complete = false;
     }
 
     public void Start()
     {
-        _timer.Start();
-        _goapAnimator.PlayAnimationUsingTimer(_animationName, () => Complete = true);
+        _goapAnimator.CrossplayAnimationUsingTimer(_animationNameFromMapper, () => Complete = true);
     }
-
-    public void Update(float deltaTime) => _timer.Tick(deltaTime);
 }
 
 public class WaitUntilBeliefFalseStrategy : IActionStrategy
@@ -222,7 +215,6 @@ public class WaitUntilBeliefFalseStrategy : IActionStrategy
 
 public class LookAtStrategy : IActionStrategy
 {
-    private readonly NavMeshAgent _agent;
     private readonly Func<Vector3> _lookAtPosition;
     private readonly Transform _transform;
     private readonly float _rotationSpeed;
@@ -231,10 +223,9 @@ public class LookAtStrategy : IActionStrategy
     public bool Complete { get; private set; }
     public Action OnComplete = null;
 
-    public LookAtStrategy(NavMeshAgent agent, Func<Vector3> lookAtPosition, float rotationSpeed = 5f, Action onComplete = null)
+    public LookAtStrategy(Transform agentTransform, Func<Vector3> lookAtPosition, float rotationSpeed = 5f, Action onComplete = null)
     {
-        _agent = agent;
-        _transform = agent.transform;
+        _transform = agentTransform;
         _lookAtPosition = lookAtPosition;
         _rotationSpeed = rotationSpeed;
         OnComplete = onComplete;
@@ -243,24 +234,22 @@ public class LookAtStrategy : IActionStrategy
     public void Start()
     {
         Complete = false;
-        _agent.SetDestination(_lookAtPosition());
     }
 
     public void Update(float deltaTime)
     {
-        if (_agent.pathPending) return;
-
         Vector3 destination = _lookAtPosition();
-        Vector3 direction = (destination - _transform.position).With(y: 0f).normalized;
+        Vector3 direction = (destination - _transform.position).With(y: 0f);
 
-        if (direction.sqrMagnitude < 0.01f) return;
+        if (direction.sqrMagnitude < 0.001f) return;
 
-        Quaternion targetRotation = Quaternion.LookRotation(direction);
-        _transform.rotation = Quaternion.RotateTowards(_transform.rotation, targetRotation, _rotationSpeed * deltaTime * 100f);
+        Quaternion targetRotation = Quaternion.LookRotation(direction.normalized);
+        _transform.rotation = Quaternion.RotateTowards(
+            _transform.rotation, targetRotation, _rotationSpeed * deltaTime * 100f);
 
         // Mark complete when mostly facing the target
         float angle = Quaternion.Angle(_transform.rotation, targetRotation);
-        if (angle < 5f && _agent.remainingDistance <= 1f)
+        if (angle < 5f)
         {
             Complete = true;
             OnComplete?.Invoke();
@@ -270,6 +259,5 @@ public class LookAtStrategy : IActionStrategy
     public void Stop()
     {
         OnComplete?.Invoke();
-        _agent.ResetPath();
     }
 }

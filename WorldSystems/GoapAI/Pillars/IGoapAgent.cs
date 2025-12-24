@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AYellowpaper.SerializedCollections;
@@ -63,9 +64,10 @@ public abstract class IGoapAgent : MonoBehaviour
         
         // update runner after settingup goap stuff
         _gRunner.UpdateRunner(Beliefs, Actions, Goals);
-        
-        foreach (var sensor in Sensors.Where(sensor => sensor.Key == "ChaseSensor"))
-            sensor.Value.OnTargetChanged += ResetActionAndGoal;
+
+        // subscribe to sensor detection event
+        foreach (var sensor in Sensors.Values.Where(sensor => sensor.ResetGoapOnTargetChange))
+            sensor.OnTargetChanged += ResetActionAndGoal;
     }
     
     protected void Update()
@@ -81,7 +83,14 @@ public abstract class IGoapAgent : MonoBehaviour
         // tell goap system to find what to do next or perform current action.
         _gRunner.Perform();
     }
-    
+
+    private void OnDestroy()
+    {
+        // Unsubscribe from sensor detection event
+        foreach (var sensor in Sensors.Values.Where(sensor => sensor.ResetGoapOnTargetChange))
+            sensor.OnTargetChanged -= ResetActionAndGoal;
+    }
+
     // helper functions
     protected void ResetActionAndGoal()
     {

@@ -19,6 +19,8 @@ public class GoapRunner
     private readonly IGoapPlanner _gPlanner;
     private readonly UnityAction _preActionReset;
 
+    private bool _logGoap;
+
     public GoapRunner(
         Dictionary<string, AgentBelief> beliefs,
         HashSet<AgentAction> actions,
@@ -31,6 +33,7 @@ public class GoapRunner
         _actions = actions;
         _goals = goals;
         
+        _logGoap = logAgent;
         _gPlanner = new GoapPlanner(logAgent);
     }
 
@@ -61,7 +64,7 @@ public class GoapRunner
 
     private void UpdatePlanAndAction()
     {
-        Debug.Log("GOAP: Calculating any potential new plan");
+        LogGoap("GOAP: Calculating any potential new plan");
         CalculatePlan();
 
         if (_actionPlan != null && _actionPlan.Actions.Count > 0)
@@ -70,9 +73,10 @@ public class GoapRunner
 
             _currentGoal = _actionPlan.AgentGoal;
             string planToPrint = string.Join("-> ", _actionPlan.Actions.Select(g => g.Name));
-            Debug.Log($"GOAP: Goal: {_currentGoal.Name} with {_actionPlan.Actions.Count} actions in plan: {planToPrint}");
+            LogGoap($"GOAP: Goal: {_currentGoal.Name} with {_actionPlan.Actions.Count} actions in plan: {planToPrint}");
             _currentAction = _actionPlan.Actions.Pop();
-            Debug.Log($"GOAP: Popped action: {_currentAction.Name}");
+            LogGoap($"GOAP: Popped action: {_currentAction.Name}");
+            if (_logGoap) LogPreconditions();
             // Verify all precondition effects are true
             if (_currentAction.Preconditions.All(b => b.Evaluate()))
             {
@@ -80,7 +84,7 @@ public class GoapRunner
             }
             else
             {
-                Debug.Log("Preconditions not met, clearing current action and goal");
+                LogGoap("Preconditions not met, clearing current action and goal");
                 _currentAction = null;
                 _currentGoal = null;
             }
@@ -131,5 +135,21 @@ public class GoapRunner
         // Forces the planner to re-evaluate the plan
         _currentAction = null;
         _currentGoal = null;
+    }
+
+    private void LogPreconditions()
+    {
+        foreach (var precondition in _currentAction.Preconditions)
+        {
+            Debug.Log($"GOAP: Precondition: {precondition.Name} - {precondition.Evaluate()}");
+        }
+    }
+
+    private void LogGoap(string logMessage)
+    {
+        if (!_logGoap)
+            return;
+
+        Debug.Log(logMessage);
     }
 }

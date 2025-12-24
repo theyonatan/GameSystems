@@ -16,7 +16,7 @@ public class GoapAnimator
         AnimationMapper = animationMapper;
     }
 
-    public void PlayAnimationUsingTimer(string animationClipName, Action onAnimationFinished = null)
+    public void CrossplayAnimationUsingTimer(string animationClipName, Action onAnimationFinished = null)
     {
         if (!AgentAnimator)
         {
@@ -24,16 +24,32 @@ public class GoapAnimator
             return;
         }
         
-        int animationClipHash = GetAnimationClipHash(animationClipName);
-        
-        _timer = new CountdownTimer(animationClipHash);
-        _timer.OnTimerStart += () => AgentAnimator.CrossFade(animationClipHash, CrossfadeDuration);
+        _timer = new CountdownTimer(GetAnimationLength(animationClipName));
+        _timer.OnTimerStart += () => AgentAnimator.CrossFade(animationClipName, CrossfadeDuration);
 
         _timer.OnTimerStop += onAnimationFinished ?? (
             () => AgentAnimator.CrossFade(DefaultAnimationClip, CrossfadeDuration));
 
         _timer.Start();
     }
+
+    public void TriggerAnimationUsingTimer(string animationClipName, string animationTrigger, Action onAnimationFinished = null)
+    {
+        if (!AgentAnimator)
+        {
+            onAnimationFinished?.Invoke();
+            return;
+        }
+        
+        _timer = new CountdownTimer(GetAnimationLength(animationClipName));
+        _timer.OnTimerStart += () => AgentAnimator.SetTrigger(animationTrigger);
+
+        _timer.OnTimerStop += onAnimationFinished ?? (
+            () => AgentAnimator.CrossFade(DefaultAnimationClip, CrossfadeDuration));
+
+        _timer.Start();
+    }
+    
 
     public void PlayAnimationImmediately(string animationClipName, Action onAnimationFinished = null)
     {
@@ -43,9 +59,7 @@ public class GoapAnimator
             return;
         }
         
-        int animationClipHash = GetAnimationClipHash(animationClipName);
-        
-        AgentAnimator.CrossFade(animationClipHash, CrossfadeDuration);
+        AgentAnimator.CrossFade(animationClipName, CrossfadeDuration);
 
         onAnimationFinished?.Invoke();
 
@@ -60,9 +74,9 @@ public class GoapAnimator
         => _timer?.Tick(deltaTime);
     
     /// helper functions
-    public float GetAnimationLength(string animationClipName)
+    private float GetAnimationLength(string animationClipName)
     {
-        int animationClipHash = GetAnimationClipHash(animationClipName);
+        int animationClipHash = Animator.StringToHash(animationClipName);
         
         foreach (AnimationClip clip in AgentAnimator.runtimeAnimatorController.animationClips) {
             if (Animator.StringToHash(clip.name) == animationClipHash) {
@@ -72,7 +86,4 @@ public class GoapAnimator
 
         return -1f;
     }
-    
-    private int GetAnimationClipHash(string animationClipName)
-        => Animator.StringToHash(animationClipName);
 }

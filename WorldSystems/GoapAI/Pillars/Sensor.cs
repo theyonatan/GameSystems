@@ -4,54 +4,55 @@ using UnityEngine;
 [RequireComponent(typeof(SphereCollider))]
 public class Sensor : MonoBehaviour
 {
-    [SerializeField] string detectionTag = "Player";
-    [SerializeField] float detectionRadius = 5f;
-    [SerializeField] float timerInterval = 1f;
+    [SerializeField] private string detectionTag = "Player";
+    [SerializeField] private float detectionRadius = 5f;
+    [SerializeField] private float timerInterval = 1f;
     [SerializeField] private Color sensorColor = Color.green;
+    public bool ResetGoapOnTargetChange = true;
 
-    SphereCollider detectionRange;
+    private SphereCollider _detectionRange;
 
     public event Action OnTargetChanged = delegate { };
 
-    public Vector3 TargetPosition => target ? target.transform.position : Vector3.zero;
+    public Vector3 TargetPosition => _target ? _target.transform.position : Vector3.zero;
     public bool IsTargetInRange => TargetPosition != Vector3.zero;
 
-    GameObject target;
-    Vector3 lastKnownPosition;
-    CountdownTimer timer;
+    private GameObject _target;
+    private Vector3 _lastKnownPosition;
+    private CountdownTimer _timer;
 
 
     private void Awake()
     {
-        detectionRange = GetComponent<SphereCollider>();
-        detectionRange.isTrigger = true;
-        detectionRange.radius = detectionRadius;
+        _detectionRange = GetComponent<SphereCollider>();
+        _detectionRange.isTrigger = true;
+        _detectionRange.radius = detectionRadius;
         transform.localScale = Vector3.one;
     }
 
     private void Start()
     {
-        timer = new CountdownTimer(timerInterval);
-        timer.OnTimerStop += () =>
+        _timer = new CountdownTimer(timerInterval);
+        _timer.OnTimerStop += () =>
         {
-            UpdateTargetPosition(target.OrNull());
-            timer.Start();
+            UpdateTargetPosition(_target.OrNull());
+            _timer.Start();
         };
-        timer.Start();
+        _timer.Start();
     }
 
     private void Update()
     {
-        timer.Tick(Time.deltaTime);
+        _timer.Tick(Time.deltaTime);
     }
 
-    void UpdateTargetPosition(GameObject target = null)
+    private void UpdateTargetPosition(GameObject target = null)
     {
-        this.target = target;
+        _target = target;
         
-        if (IsTargetInRange && (lastKnownPosition != TargetPosition || lastKnownPosition != Vector3.zero))
+        if (IsTargetInRange && (_lastKnownPosition != TargetPosition || _lastKnownPosition != Vector3.zero))
         {
-            lastKnownPosition = TargetPosition;
+            _lastKnownPosition = TargetPosition;
             OnTargetChanged.Invoke();
         }
     }
@@ -59,7 +60,6 @@ public class Sensor : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag(detectionTag)) return;
-        Debug.LogError(other.name);
         UpdateTargetPosition(other.gameObject);
     }
 
