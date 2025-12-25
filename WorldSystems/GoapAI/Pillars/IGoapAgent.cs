@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using AYellowpaper.SerializedCollections;
@@ -124,6 +123,11 @@ public abstract class IGoapAgent : MonoBehaviour
         ResetActionAndGoal();
         AgentNavmesh?.ResetPath();
         
+        goapAgentEnabled = false;
+    }
+
+    public void StopGoap()
+    {
         goapAgentEnabled = false;
     }
 
