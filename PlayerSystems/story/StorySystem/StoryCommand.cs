@@ -174,6 +174,36 @@ public class DelayedStoryAction : StoryCommand
     }
 }
 
+public class Delay : StoryCommand
+{
+    private readonly float _time;
+    private bool _startedTimer;
+    private bool _finishedTimer;
+    private CountdownTimer _timer;
+    
+    public Delay(float time)
+    {
+        _time = time;
+    }
+
+    public bool Execute()
+    {
+        if (_startedTimer)
+        {
+            _timer.Tick(Time.deltaTime);
+            return _finishedTimer;
+        }
+        
+        _timer = new CountdownTimer(_time);
+        _timer.OnTimerStart += () => _startedTimer = true;
+        _timer.OnTimerStop += () => _finishedTimer = true;
+        
+        _timer.Start();
+        
+        return false;
+    }
+}
+
 public class LookAt : StoryCommand
 {
     private Transform _targetLook;

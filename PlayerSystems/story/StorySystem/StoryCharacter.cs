@@ -172,6 +172,11 @@ public class StoryCharacter : MonoBehaviour
         _storyExecuter.addAction(new DelayedStoryAction(action));
     }
 
+    public void Delay(float time)
+    {
+        _storyExecuter.addAction(new Delay(time));
+    }
+
     public static void SpawnCharacter(GameObject character, Vector3 position, Quaternion? rotationDirection = null)
     {
         Quaternion quaternion = Quaternion.identity;
