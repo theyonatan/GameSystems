@@ -91,7 +91,7 @@ public abstract class IGoapAgent : MonoBehaviour
     }
 
     // helper functions
-    protected void ResetActionAndGoal()
+    public void ResetActionAndGoal()
     {
         _gRunner.ResetActionAndGoal();
     }

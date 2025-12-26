@@ -76,10 +76,10 @@ public class MoveStrategy : IActionStrategy
     private readonly NavMeshAgent _agent;
     private readonly Func<Vector3> _destination;
     private readonly GoapAnimator _goapAnimator;
-    private readonly Action _onComplete = null;
+    private readonly Action _onComplete;
 
     public bool CanPerform => !Complete;
-    public bool Complete => _agent.remainingDistance <= 1f && !_agent.pathPending;
+    public bool Complete => _agent is { remainingDistance: <= 1f, pathPending: false };
 
     public MoveStrategy(
         NavMeshAgent agent,
