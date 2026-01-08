@@ -5,12 +5,19 @@ public class Player : MonoBehaviour
     private Camera _cam;
     private string _currentState;
     private PlayerStateData _playerStateData;
+    private bool _ownsAuthority = true;
+    public bool HasAuthority => _ownsAuthority;
 
     public Camera GetCamera()
     {
         if (!_cam)
             _cam = Camera.main;
         return _cam;
+    }
+
+    public void SetAuthority(bool value)
+    {
+        _ownsAuthority = value;
     }
 
     private void Start()

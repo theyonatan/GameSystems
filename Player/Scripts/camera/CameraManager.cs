@@ -22,8 +22,8 @@ public class CameraManager : MonoBehaviour
     public CinemachineCamera CurrentCinemachineComponent;
 
     // References
-    private InputDirector _inputDirector;
     private Player _player;
+    private InputDirector _inputDirector;
 
     // values
     public Vector2 CameraSpeed
@@ -67,6 +67,9 @@ public class CameraManager : MonoBehaviour
     /// <param name="cinemachineCameraToSpawn"></param>
     public void ChargeState(CameraState newState, GameObject cinemachineCameraToSpawn = null)
     {
+        if (!_player.HasAuthority)
+            return;
+        
         // verify we need to switch
         if (newState.GetType() == _currentState.GetType())
             return;
@@ -125,6 +128,9 @@ public class CameraManager : MonoBehaviour
 
     void Update()
     {
+        if (!_player.HasAuthority)
+            return;
+        
         _currentState.UpdateState();
     }
 

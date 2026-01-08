@@ -27,17 +27,15 @@ public class MovementManager : MonoBehaviour
     public MovementState StartingState;
 
     // Assignables
-    private CameraManager _cameraManager;
+    private Player _player;
     private InputDirector _director;
+    private CameraManager _cameraManager;
     private CapsuleCollider _capsuleCollider;
-
-    // Multiplayer
-    public bool IsOwner = true;
-
 
     private void Awake()
     {
         _director = InputDirector.Instance;
+        _player = GetComponent<Player>();
         _capsuleCollider = GetComponent<CapsuleCollider>();
         
         // if injected custom start state OR default to third person state
@@ -84,7 +82,7 @@ public class MovementManager : MonoBehaviour
 
     void Update()
     {
-        if (!IsOwner)
+        if (!_player.HasAuthority)
             return;
 
         CurrentState.UpdateState();
@@ -92,7 +90,7 @@ public class MovementManager : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!IsOwner)
+        if (!_player.HasAuthority)
             return;
 
         CurrentState.FixedUpdate();
