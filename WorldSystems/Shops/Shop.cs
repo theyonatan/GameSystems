@@ -6,6 +6,7 @@ public class Shop : MonoBehaviour, Interactable
     public string ShopName;
     public List<ShopItem> ShopItems;
     [HideInInspector] public bool ShopOpen;
+    public string InteractableType { get; set; }
 
     private void Start()
     {

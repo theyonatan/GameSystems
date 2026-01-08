@@ -1,10 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 [SelectionBase]
 public class PotionItem : InventoryItem, ItemAction, Interactable
 {
+    [SerializeField] private string interactableType;
+    public string InteractableType { get; }
+    
     private void Awake()
     {
         DisplayableInInventoryMenu = true;

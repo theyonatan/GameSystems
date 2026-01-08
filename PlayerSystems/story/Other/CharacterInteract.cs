@@ -1,16 +1,18 @@
-using UnityEngine;
-
 public class CharacterInteract : Interactable
 {
-    
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public string InteractableType { get; set; }
+
+    public void Interact()
     {
         
     }
 
-    // Update is called once per frame
-    void Update()
+    public void MarkAsInteractable()
+    {
+        
+    }
+
+    public void StopMarking()
     {
         
     }

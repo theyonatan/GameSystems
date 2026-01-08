@@ -1,12 +1,13 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class ExtensionInteractier : MonoBehaviour
 {
     protected InputDirector _inputDirector;
-    protected Type InteractableType = typeof(Interactable);
     private bool _unsubscribedFromDefaultInteract = false;
     private int _interactionMask;
+    public List<string> InteractableTypes;
 
     private Transform _camTransform;
     public Transform InteractorSource;
@@ -97,11 +98,13 @@ public class ExtensionInteractier : MonoBehaviour
     {
         if (hit.collider.gameObject.TryGetComponent(out Interactable interactObj))
         {
-            if (InteractableType.IsAssignableFrom(interactObj.GetType()))
+            if (InteractableTypes.Contains(interactObj.InteractableType))
             {
                 interactable = interactObj;
                 return true;
             }
+            if (string.IsNullOrEmpty(interactObj.InteractableType))
+                Debug.LogError($"Forgot To Assign InteractableType to {interactObj.GetType()}");
         }
 
         interactable = null;
