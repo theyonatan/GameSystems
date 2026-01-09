@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ExtensionInteractier : MonoBehaviour
+public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior
 {
     protected InputDirector _inputDirector;
     private bool _unsubscribedFromDefaultInteract = false;
@@ -17,7 +17,7 @@ public class ExtensionInteractier : MonoBehaviour
     public bool DisplayDebugInteract;
 
     // Start is called before the first frame update
-    protected void Start()
+    public void StartPlayer()
     {
         _inputDirector = GetComponent<InputDirector>();
         _inputDirector.OnInteractPressed += OnPressedInteract;
@@ -60,7 +60,7 @@ public class ExtensionInteractier : MonoBehaviour
     }
 
     // Update is called once per frame
-    protected void Update()
+    public void UpdatePlayer()
     {
         Ray r = new(InteractorSource.position, _camTransform.forward);
         if (DisplayDebugInteract) 
@@ -80,7 +80,7 @@ public class ExtensionInteractier : MonoBehaviour
         }
     }
 
-    protected void OnDestroy()
+    public void OnDestroyPlayer()
     {
         UnsubscribeFromDefaultInteract();
     }

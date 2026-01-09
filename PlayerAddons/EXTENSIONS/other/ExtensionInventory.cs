@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ExtensionInventory : MonoBehaviour
+public class ExtensionInventory : MonoBehaviour, IPlayerBehavior
 {
     private InputDirector _inputDirector;
     public GameObject InventoryCanvas;
@@ -8,7 +8,7 @@ public class ExtensionInventory : MonoBehaviour
     private MovementManager _movementManager;
 
     // Start is called before the first frame update
-    void Start()
+    public void StartPlayer()
     {
         _movementManager = gameObject.GetComponent<MovementManager>();
         _cameraManager = gameObject.GetComponent<CameraManager>();
@@ -44,7 +44,7 @@ public class ExtensionInventory : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
+    public void OnDestroyPlayer()
     {
         _inputDirector.OnInventoryPressed -= OnInventoryToggle;
     }

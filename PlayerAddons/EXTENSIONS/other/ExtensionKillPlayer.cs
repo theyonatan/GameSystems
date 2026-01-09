@@ -1,17 +1,17 @@
 using UnityEngine;
 
-public class ExtensionKillPlayer : MonoBehaviour
+public class ExtensionKillPlayer : MonoBehaviour, IPlayerBehavior
 {
     public float SnowToRemove = 30f;
     public Vector3 LastCheckpoint = Vector3.zero;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public void StartPlayer()
     {
         StatsSingleton.Instance.GetStat(StatType.Health).OnStatChanged += ExtensionKillPlayer_OnStatChanged;
     }
 
-    private void OnDestroy()
+    public void OnDestroyPlayer()
     {
         StatsSingleton.Instance.GetStat(StatType.Health).OnStatChanged -= ExtensionKillPlayer_OnStatChanged;
     }

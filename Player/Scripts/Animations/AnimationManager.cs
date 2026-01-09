@@ -1,13 +1,16 @@
 using UnityEngine;
 
-public class AnimationManager : MonoBehaviour
+public class AnimationManager : MonoBehaviour, IPlayerBehavior
 {
     public static AnimationManager Instance;
     [SerializeField] Animator playerAnimator;
     
     // Start is called before the first frame update
-    void Awake()
+    public void OnEnablePlayer()
     {
+        if (!GetComponent<Player>().HasAuthority)
+            return;
+        
         if (Instance == null)
             Instance = this;
         else

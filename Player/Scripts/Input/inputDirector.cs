@@ -1,8 +1,7 @@
 using UnityEngine;
 using System;
-using UnityEngine.InputSystem;
 
-public class InputDirector : MonoBehaviour
+public class InputDirector : MonoBehaviour, IPlayerBehavior
 {
     /// <summary>
     /// The director of all input related events.
@@ -64,37 +63,37 @@ public class InputDirector : MonoBehaviour
 
     public event Action OnPlayerFlameThrowerStart;
     public event Action OnPlayerFlameThrowerStop;
-    
 
     // values
     public Vector2 MovementValue;
 
     // data
+    private Player localPlayer;
     public bool ShouldDisable; // only disable when we're done with player, when this flag is on.
-    public bool IsOwner = true;
-
-
-    private void Awake()
+    
+    public void AwakePlayer()
     {
-        if (!IsOwner)
+        // Multiplayer Guard
+        localPlayer = GetComponent<Player>();
+        Debug.Log($"on enable!!! does {localPlayer.name} has authority? {localPlayer.HasAuthority}");
+        if (!localPlayer.HasAuthority)
             return;
-
-        if (InputDirector.Instance == null)
-            InputDirector.Instance = this;
+        
+        // Singleton
+        if (Instance == null)
+            Instance = this;
         else
-        {
             Debug.LogWarning("input director already exists.");
-            //Destroy(gameObject);
-        }
-
-        _playerInput = new ActionsMaster();
     }
 
-    private void OnEnable()
+    public void OnEnablePlayer()
     {
-        if (!IsOwner)
+        // Multiplayer Guard
+        if (!localPlayer.HasAuthority)
             return;
-
+        
+        _playerInput = new ActionsMaster();
+        
         // actions
         _playerInput.Player.Fire1.started += _ => OnFireStarted?.Invoke();
         _playerInput.Player.Fire1.performed += _ => OnFirePressed?.Invoke();
@@ -140,7 +139,7 @@ public class InputDirector : MonoBehaviour
         ShouldDisable = true;
     }
 
-    private void OnDisable()
+    public void OnDisablePlayer()
     {
         if (!ShouldDisable)
             return;

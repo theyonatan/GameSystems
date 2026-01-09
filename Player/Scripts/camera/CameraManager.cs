@@ -1,7 +1,7 @@
 using Unity.Cinemachine;
 using UnityEngine;
 
-public class CameraManager : MonoBehaviour
+public class CameraManager : MonoBehaviour, IPlayerBehavior
 {
     /// <summary>
     /// manages the different camera states.
@@ -32,15 +32,18 @@ public class CameraManager : MonoBehaviour
         set => _currentState.CameraSpeed = value;
     }
 
-    private void Awake()
+    public void AwakePlayer()
     {
         // States:
         _currentState = new CameraStateInPlace();
         _player = GetComponent<Player>();
     }
 
-    private void Start()
+    public void OnEnablePlayer()
     {
+        if (!_player.HasAuthority)
+            return;
+        
         // subscribe to all input events:
         _inputDirector = InputDirector.Instance;
         _inputDirector.OnDisablePlayerMovement += DisableCamera;
@@ -55,6 +58,7 @@ public class CameraManager : MonoBehaviour
         if (StartingState != null)
             _currentState = StartingState;
         
+        Debug.Log("CamManager - Start");
         _currentState.LoadState(this, _inputDirector);
         _currentState.EnterState();
     }
@@ -95,6 +99,7 @@ public class CameraManager : MonoBehaviour
             CurrentCinemachineComponent = null;
         
         // enter new state
+        Debug.Log("Swap State");
         _currentState = newState;
         _currentState.LoadState(this, InputDirector.Instance);
         _currentState.EnterState();
@@ -126,7 +131,7 @@ public class CameraManager : MonoBehaviour
             CutscenesHelper.GiveCameraPriority(CurrentCinemachineComponent);
     }
 
-    void Update()
+    public void UpdatePlayer()
     {
         if (!_player.HasAuthority)
             return;
@@ -134,7 +139,7 @@ public class CameraManager : MonoBehaviour
         _currentState.UpdateState();
     }
 
-    private void OnDestroy()
+    public void OnDestroyPlayer()
     {
         if (_currentState != null)
             _currentState.ClearState();

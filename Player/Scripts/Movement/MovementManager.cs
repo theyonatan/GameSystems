@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-public class MovementManager : MonoBehaviour
+public class MovementManager : MonoBehaviour, IPlayerBehavior
 {
     /// <summary>
     /// manages the different movement states.
@@ -32,21 +32,29 @@ public class MovementManager : MonoBehaviour
     private CameraManager _cameraManager;
     private CapsuleCollider _capsuleCollider;
 
-    private void Awake()
+    public void AwakePlayer()
     {
         _director = InputDirector.Instance;
         _player = GetComponent<Player>();
+        Debug.Log("WHAT");
         _capsuleCollider = GetComponent<CapsuleCollider>();
         
         // if injected custom start state OR default to third person state
         CurrentState = StartingState ?? new DefaultMovementState();
 
+        // Multiplayer Guard
+        if (!_player.HasAuthority)
+            return;
+        
         CurrentState.LoadState(this, _director);
         CurrentState.EnterState();
     }
 
     public void ChangeState(MovementState newState)
     {
+        if (!_player.HasAuthority)
+            return;
+        
         // verify we need to switch
         if (newState.GetType() == CurrentState.GetType())
             return;
@@ -80,7 +88,7 @@ public class MovementManager : MonoBehaviour
         }
     }
 
-    void Update()
+    public void UpdatePlayer()
     {
         if (!_player.HasAuthority)
             return;
@@ -88,7 +96,7 @@ public class MovementManager : MonoBehaviour
         CurrentState.UpdateState();
     }
 
-    private void FixedUpdate()
+    public void FixedUpdatePlayer()
     {
         if (!_player.HasAuthority)
             return;
@@ -96,7 +104,7 @@ public class MovementManager : MonoBehaviour
         CurrentState.FixedUpdate();
     }
 
-    private void OnDestroy()
+    public void OnDestroyPlayer()
     {
         CurrentState.CleanState();
     }

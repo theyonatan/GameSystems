@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable
+public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable, IPlayerBehavior
 {
     [Header("Forces")]
     [SerializeField] private float knockbackBackwardsForce = 12f;
@@ -11,13 +11,13 @@ public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable
     private Vector3 externalVelocity;
     private MovementManager _movementManager;
     
-    void Awake()
+    public void AwakePlayer()
     {
         cc = GetComponent<CharacterController>();
         _movementManager = GetComponent<MovementManager>();
     }
 
-    void Update()
+    public void UpdatePlayer()
     {
         if (externalVelocity.sqrMagnitude < 0.001f)
             return;
