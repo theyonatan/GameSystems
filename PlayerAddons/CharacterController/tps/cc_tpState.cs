@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using Object = System.Object;
 
 [Serializable]
 public class cc_tpState : MovementState
@@ -45,12 +44,16 @@ public class cc_tpState : MovementState
     // -------------------------------
     public override void LoadState(MovementManager manager, InputDirector director)
     {
+        player = manager.GetComponent<Player>();
+        cc = manager.GetComponent<CharacterController>();
+        
+        if (!player.HasAuthority)
+            return;
+        
         Controller = manager;
         Director = director ?? InputDirector.Instance;
         playerTransform = manager.transform;
 
-        cc = manager.GetComponent<CharacterController>();
-        player = manager.GetComponent<Player>();
         
         if (!cc)
             Debug.LogError("Character Controller not found for this person state, should be added via MovementManager");

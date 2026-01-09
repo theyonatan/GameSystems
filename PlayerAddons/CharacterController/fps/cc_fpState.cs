@@ -52,6 +52,9 @@ public class cc_fpState : MovementState
         
         var animator = manager.GetComponentInChildren<Animator>();
         orientation = animator ? animator.transform : manager.transform;
+        
+        if (!player.HasAuthority)
+            return;
 
         LocalData = player.GetData("Walking");
         acceleration = LocalData.acceleration;
