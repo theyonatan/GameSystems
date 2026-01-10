@@ -19,6 +19,24 @@ public class Player : MonoBehaviour
         return _cam;
     }
 
+    public static Player GetPlayer(int playerId)
+    {
+        foreach (var player in FindObjectsByType<Player>(FindObjectsSortMode.InstanceID))
+            if (player.PlayerId == playerId)
+                return player;
+        
+        return FindFirstObjectByType<Player>();
+    }
+
+    public static Player GetSelf()
+    {
+        foreach (var player in FindObjectsByType<Player>(FindObjectsSortMode.InstanceID))
+            if (player.HasAuthority)
+                return player;
+        
+        return FindFirstObjectByType<Player>();
+    }
+
     public void SetAuthority(bool value)
     {
         ownsAuthority = value;
