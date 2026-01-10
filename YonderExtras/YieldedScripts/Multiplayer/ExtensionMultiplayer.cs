@@ -3,6 +3,7 @@ using FishNet.Connection;
 using FishNet.Object;
 #endif
 using System;
+using FishNet;
 using UnityEngine;
 
 public class ExtensionMultiplayer : NetworkBehaviour, IPlayerBehavior
@@ -12,6 +13,7 @@ public class ExtensionMultiplayer : NetworkBehaviour, IPlayerBehavior
     {
         // give authority
         var player = GetComponent<Player>();
+        player.PlayerId = OwnerId;
         player.SetAuthority(true);
         player.EnablePlayerBehaviors();
         

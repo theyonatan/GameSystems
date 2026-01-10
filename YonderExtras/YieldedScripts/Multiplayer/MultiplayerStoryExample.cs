@@ -29,6 +29,8 @@ public class MultiplayerStoryExample : NetworkBehaviour
             spawnPoint.position,
             Quaternion.identity);
         
+        spawnedPlayer.PlayerId = connection.ClientId;
+        
         spawnedPlayer.GetComponent<ExtensionMultiplayer>().SetupTPSPlayerRpc(connection);
     }
 
