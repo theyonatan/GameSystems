@@ -132,8 +132,8 @@ public class HoverboardState : MovementState
 
     public override void CleanState()
     {
-        AnimationManager.Instance.SetAnimatorValue("MoveX", 0f);
-        AnimationManager.Instance.SetAnimatorValue("MoveY", 0f);
+        Director.GetComponent<AnimationsManager>().SetFloat("MoveX", 0f);
+        Director.GetComponent<AnimationsManager>().SetFloat("MoveY", 0f);
 
         Vector3 movementVelocity = new(0f, rb.linearVelocity.y, 0f);
         rb.linearVelocity = movementVelocity;

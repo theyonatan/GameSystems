@@ -77,7 +77,7 @@ public class ThirdPersonState : MovementState
         _moveDirection.y = _rb.linearVelocity.y;
 
         // Apply animations
-        AnimationManager.Instance.SetAnimatorValue("MoveY", _inputValue.y != 0 || _inputValue.x != 0 ? 1: 0);
+        Director.GetComponent<AnimationsManager>().SetFloat("MoveY", _inputValue.y != 0 || _inputValue.x != 0 ? 1: 0);
 
         // Move the player.
         Vector3 movementVelocity = _moveDirection;
@@ -130,8 +130,8 @@ public class ThirdPersonState : MovementState
     }
     public override void CleanState()
     {
-        AnimationManager.Instance.SetAnimatorValue("MoveX", 0f);
-        AnimationManager.Instance.SetAnimatorValue("MoveY", 0f);
+        Director.GetComponent<AnimationsManager>().SetFloat("MoveX", 0f);
+        Director.GetComponent<AnimationsManager>().SetFloat("MoveY", 0f);
 
         Vector3 movementVelocity = new(0f, _rb.linearVelocity.y, 0f);
         _moveDirection.x = 0;

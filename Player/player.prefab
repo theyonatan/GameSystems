@@ -354,7 +354,6 @@ GameObject:
   - component: {fileID: 3601134302779420096}
   - component: {fileID: 4792341409068955094}
   - component: {fileID: 6995393812737510525}
-  - component: {fileID: 4151311197359000800}
   - component: {fileID: 3252658658092546376}
   - component: {fileID: 8656357685384021830}
   m_Layer: 0
@@ -392,6 +391,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 894980d9cfec71c409fd8f3af07cbe2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Player::Player
+  PlayerId: -1
+  ownsAuthority: 1
+  PlayerEnabled: 1
 --- !u!114 &3601134302779420096
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -406,7 +408,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MovementValue: {x: 0, y: 0}
   ShouldDisable: 0
-  IsOwner: 1
 --- !u!114 &4792341409068955094
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -421,7 +422,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   CurrentState:
     rid: -2
-  IsOwner: 1
   references:
     version: 2
     RefIds:
@@ -447,19 +447,6 @@ MonoBehaviour:
     RefIds:
     - rid: -2
       type: {class: , ns: , asm: }
---- !u!114 &4151311197359000800
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7978530360318098125}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fceb06e217bb8134692c1c3f812272c6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  playerAnimator: {fileID: 4967797005538884161}
 --- !u!136 &3252658658092546376
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -496,4 +483,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: story::StoryCharacter
   CharacterStory: {fileID: 11400000, guid: e321a762d96b56544a584eb6513b577f, type: 2}
+  CutsceneId: 
   headPosition: {fileID: 3537700216096840679}

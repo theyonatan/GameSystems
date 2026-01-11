@@ -14,7 +14,7 @@ public class FpState : MovementState
     [SerializeField] private Animator character;
     [SerializeField] private Transform playerTransform;
     [SerializeField] private Rigidbody rb;
-    private AnimationManager _animationManager;
+    private AnimationsManager _animationsManager;
 
     [Header("InputValues")]
     public float _horizontalMovement;
@@ -75,8 +75,8 @@ public class FpState : MovementState
     {
         // Player Family
         Controller = manager;
-        Director = InputDirector.Instance;
-        _animationManager = AnimationManager.Instance;
+        Director = director;
+        _animationsManager = manager.GetComponent<AnimationsManager>();
 
         // Assignables
         playerTransform = manager.transform.transform;
@@ -133,9 +133,9 @@ public class FpState : MovementState
 
     public override void CleanState()
     {
-        _animationManager.SetAnimatorValue("MoveX", 0f);
-        _animationManager.SetAnimatorValue("MoveY", 0f);
-        _animationManager.SetAnimatorValue("Moving", false);
+        _animationsManager.SetFloat("MoveX", 0f);
+        _animationsManager.SetFloat("MoveY", 0f);
+        _animationsManager.SetBool("Moving", false);
 
         Vector3 movementVelocity = new(0f, rb.linearVelocity.y, 0f);
         rb.linearVelocity = movementVelocity;
@@ -340,7 +340,7 @@ public class FpState : MovementState
 
         MoveDirection = orientation.forward * _verticalMovement + orientation.right * _horizontalMovement;
         
-        _animationManager.SetAnimatorValue("Moving", false);
+        _animationsManager.SetBool("Moving", false);
     }
 
     private void _director_OnPlayerJumpStarted()
@@ -356,14 +356,14 @@ public class FpState : MovementState
     private void _director_OnPlayerRunStarted()
     {
         _holdingSprint = true;
-        _animationManager.SetAnimatorValue("Moving", true);
+        _animationsManager.SetBool("Moving", true);
     }
 
     private void _director_OnPlayerRunStopped()
     {
         _holdingSprint = false;
         
-        _animationManager.SetAnimatorValue("Moving", false);
+        _animationsManager.SetBool("Moving", false);
     }
 
     private void _director_OnEnablePlayerMovement()
@@ -374,7 +374,7 @@ public class FpState : MovementState
     private void _director_OnDisablePlayerMovement()
     {
         CanMove = false;
-        _animationManager.SetAnimatorValue("Moving", false);
+        _animationsManager.SetBool("Moving", false);
     }
 
     private void _director_OnPlayerRunEnabled()

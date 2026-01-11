@@ -5,12 +5,12 @@ public class RaycastGun : GunBaseExtension
     [Header("Raycast Gun Settings")]
     [SerializeField] private float maxRange = 100f;
     [SerializeField] private LayerMask hitLayers;
-    private AnimationManager _animationManager;
+    private AnimationsManager _animationsManager;
 
     protected override void Start()
     {
         base.Start();
-        _animationManager = AnimationManager.Instance;
+        _animationsManager = GetComponent<AnimationsManager>();
     }   
 
     protected override void PerformShoot()
@@ -21,9 +21,9 @@ public class RaycastGun : GunBaseExtension
             return;
         }
 
-        if (_animationManager != null)
+        if (_animationsManager != null)
         {
-            _animationManager.SetAnimatorValue("Shoot");
+            _animationsManager.Play("Shoot");
         }
 
         Ray ray = new(cam.position, cam.forward);
