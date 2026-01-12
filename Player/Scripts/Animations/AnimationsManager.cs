@@ -1,87 +1,94 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using SHG.AnimatorCoder;
 
 public class AnimationsManager : AnimatorCoder, IPlayerBehavior
 {
     [SerializeField] private Animator playerAnimator;
-
-    private readonly Dictionary<string, int> _animationHashes = new();
-    private readonly Dictionary<string, int> _parameterHashes = new();
     
+    private Dictionary<string, AnimationData> _animations = new();
+    private Dictionary<string, int> _parameterHashes = new();
+
     public void OnEnablePlayer()
     {
         if (!GetComponent<Player>().HasAuthority)
             return;
-        
+
         playerAnimator ??= GetComponentInChildren<Animator>();
         if (!playerAnimator)
             Debug.LogError("no player animator was found!");
-        
-        Initialize(playerAnimator);
+        else
+            Initialize(playerAnimator);
     }
-    
+
     // ===== Loading =====
 
-    public void LoadAnimator(RuntimeAnimatorController animatorController)
+    class Builder
     {
-        playerAnimator.runtimeAnimatorController = animatorController;
-    }
+        private readonly Dictionary<string, AnimationData> _animations;
+        private readonly List<string> _parameters;
+        private readonly Dictionary<string, int> _parameterHashes;
+        private readonly RuntimeAnimatorController _animatorController;
 
-    public void LoadAnimations(params string[] animationNames)
-    {
-        _animationHashes.Clear();
-        
-        // TODO: Use add or replace instead
-        foreach (var animationName in animationNames)
-            _animationHashes.Add(animationName, Animator.StringToHash(animationName));
+        public Builder(RuntimeAnimatorController animatorController)
+        {
+            _animatorController = animatorController;
+
+            _animations = new Dictionary<string, AnimationData>();
+            _parameters = new List<string>();
+            _parameterHashes = new Dictionary<string, int>();
+        }
+
+        public Builder(string animatorControllerName)
+        {
+            var controller = Resources.Load<RuntimeAnimatorController>(animatorControllerName);
+
+            if (!controller)
+                Debug.LogError($"Animator controller '{animatorControllerName}' not found!");
+            else
+                _animatorController = controller;
+
+            _animations = new Dictionary<string, AnimationData>();
+            _parameters = new List<string>();
+            _parameterHashes = new Dictionary<string, int>();
+        }
+
+        public Builder AddAnimation(AnimationData animationData)
+        {
+            _animations.Add(animationData.animationName, animationData);
+
+            return this;
+        }
+
+        public Builder AddParameter(string parameterName)
+        {
+            _parameters.Add(parameterName);
+            _parameterHashes.Add(parameterName, Animator.StringToHash(parameterName));
+
+            return this;
+        }
+
+        public void Build(AnimationsManager animationsManager)
+        {
+            animationsManager._animations = _animations;
+            animationsManager._parameters = _parameters.ToDictionary(param => param, _ => false);
+
+            animationsManager.playerAnimator.runtimeAnimatorController = _animatorController;
+            animationsManager.Initialize(animationsManager.playerAnimator);
+        }
     }
 
     /// <summary>
-    /// adds a new animation or replaces if already exists
+    /// Sets a parameter on the actual Unity animator
     /// </summary>
-    /// <param name="animationData"></param>
-    public void AddOrReplace(AnimationData animationData)
-    {
-        
-    }
-
-    public void LoadParameters(params string[] parameterNames)
-    {
-        _parameterHashes.Clear();
-        
-        foreach (var parameterName in parameterNames)
-            _parameterHashes.Add(parameterName, Animator.StringToHash(parameterName));
-    }
-    
-    // ===== Runtime API =====
-
-    public bool Play(string animationName, int layer = 0, float crossfade = 0.15f)
-    {
-        if (!_animationHashes.TryGetValue(animationName, out var hash))
-        {
-            Debug.LogWarning($"Animation '{animationName}' not loaded");
-            return false;
-        }
-
-        playerAnimator.CrossFade(hash, crossfade, layer);
-        return true;
-    }
-
-    public void SetBool(string parameter, bool value)
-    {
-        if (_parameterHashes.TryGetValue(parameter, out var hash))
-            playerAnimator.SetBool(hash, value);
-    }
-
     public void SetFloat(string parameter, float value)
     {
-        if (_parameterHashes.TryGetValue(parameter, out var hash))
-            playerAnimator.SetFloat(hash, value);
+        playerAnimator.SetFloat(hash, value);
     }
 
-    public override void DefaultAnimation(int layer)
+public override void DefaultAnimation(int layer)
     {
-        
+        // todo: Locomotion blend tree is Default.
     }
 }

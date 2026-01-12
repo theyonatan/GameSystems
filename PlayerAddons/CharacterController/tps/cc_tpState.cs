@@ -1,5 +1,7 @@
 using System;
+using SHG.AnimatorCoder;
 using UnityEngine;
+using UnityEngine.Experimental.GlobalIllumination;
 
 [Serializable]
 public class cc_tpState : MovementState
@@ -38,6 +40,10 @@ public class cc_tpState : MovementState
 
     private float _verticalVelocity;
     private Vector3 _movementVelocity;
+
+    [Header("Animations")]
+    private static readonly AnimationData Fall = new ("Fall", lockLayer: true, crossfade: 0.05f);
+    private static readonly AnimationData Jump = new("Jump", lockLayer: true, Fall);
     
     // -------------------------------
     // State Machine

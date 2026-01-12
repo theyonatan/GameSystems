@@ -7,7 +7,7 @@ namespace SHG.AnimatorCoder
 {
     public class OnParameter : StateMachineBehaviour
     {
-        [SerializeField, Tooltip("Parameter to test")] private Parameters parameter;
+        [SerializeField, Tooltip("Parameter to test")] private string parameter;
         [SerializeField, Tooltip("Specify whether it should be on or off")] private bool target;
         [SerializeField, Tooltip("Chain of animations to play when condition is met")] private AnimationData[] nextAnimations;
 
