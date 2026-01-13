@@ -356,6 +356,7 @@ GameObject:
   - component: {fileID: 6995393812737510525}
   - component: {fileID: 3252658658092546376}
   - component: {fileID: 8656357685384021830}
+  - component: {fileID: 6786799398193208947}
   m_Layer: 0
   m_Name: player
   m_TagString: Player
@@ -485,3 +486,16 @@ MonoBehaviour:
   CharacterStory: {fileID: 11400000, guid: e321a762d96b56544a584eb6513b577f, type: 2}
   CutsceneId: 
   headPosition: {fileID: 3537700216096840679}
+--- !u!114 &6786799398193208947
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7978530360318098125}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fceb06e217bb8134692c1c3f812272c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Player::AnimationsManager
+  playerAnimator: {fileID: 0}

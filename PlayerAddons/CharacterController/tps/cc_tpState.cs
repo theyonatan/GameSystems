@@ -1,7 +1,6 @@
 using System;
 using SHG.AnimatorCoder;
 using UnityEngine;
-using UnityEngine.Experimental.GlobalIllumination;
 
 [Serializable]
 public class cc_tpState : MovementState
@@ -13,9 +12,9 @@ public class cc_tpState : MovementState
     [Header("Assignables")]
     [SerializeField] private CharacterController cc;
     [SerializeField] private Transform cameraTransform;
-    [SerializeField] private Transform playerTransform;
     [SerializeField] private Transform characterOrientation;
-    [SerializeField] private Player player;
+    private Player _player;
+    private AnimationsManager _animator;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 5f;
@@ -41,33 +40,29 @@ public class cc_tpState : MovementState
     private float _verticalVelocity;
     private Vector3 _movementVelocity;
 
-    [Header("Animations")]
-    private static readonly AnimationData Fall = new ("Fall", lockLayer: true, crossfade: 0.05f);
-    private static readonly AnimationData Jump = new("Jump", lockLayer: true, Fall);
-    
     // -------------------------------
     // State Machine
     // -------------------------------
     public override void LoadState(MovementManager manager, InputDirector director)
     {
-        player = manager.GetComponent<Player>();
+        _player = manager.GetComponent<Player>();
+        _animator = manager.GetComponent<AnimationsManager>();
         cc = manager.GetComponent<CharacterController>();
         
-        if (!player.HasAuthority)
+        if (!_player.HasAuthority)
             return;
         
         Controller = manager;
         Director = director ?? InputDirector.Instance;
-        playerTransform = manager.transform;
 
         
         if (!cc)
             Debug.LogError("Character Controller not found for this person state, should be added via MovementManager");
 
         characterOrientation = manager.GetComponentInChildren<CharacterOrientation>().transform;
-        cameraTransform = player.GetCamera().transform;
+        cameraTransform = _player.GetCamera().transform;
 
-        LocalData = player.GetData("Walking");
+        LocalData = _player.GetData("Walking");
         acceleration = LocalData.acceleration;
         walkSpeed = LocalData.walkingSpeed;
         sprintSpeed = LocalData.runningSpeed;
@@ -88,6 +83,19 @@ public class cc_tpState : MovementState
         LocalData.OnAccelerationChanged += newAcceleration => acceleration = newAcceleration;
         LocalData.OnWalkingSpeedChanged += newWalkingSpeed => walkSpeed = newWalkingSpeed;
         LocalData.OnRunningSpeedChanged += newRunningSpeed => sprintSpeed = newRunningSpeed;
+        
+        // Setup Animations
+        new AnimationsManager.Builder("tps_animator")
+            .AddAnimation("Idle", connections:
+                new AnimationCondition("Walking", conditions: new AnimationParameter("Walking", true)))
+            .AddAnimation("Walking", connections:
+                new AnimationCondition("Idle", conditions: new AnimationParameter("Walking", false)), crossfade: 0.1f)
+            .AddAnimation("Jump", true, "Fall", 0.1f)
+            .AddAnimation("Fall")
+            .AddParameter("Walking")
+            .AddParameter("Falling")
+            .AddParameter("Running")
+            .Build(_animator);
     }
 
     public override void EnterState()
@@ -177,7 +185,6 @@ public class cc_tpState : MovementState
             RotateCharacterTowards(targetRotation);
         }
         
-        
         // move towards new velocity
         float targetSpeed = _holdingSprint && CanRun ? sprintSpeed : walkSpeed;
         Vector3 targetHorizontalVelocity = moveDir * targetSpeed;
@@ -207,11 +214,20 @@ public class cc_tpState : MovementState
     {
         // constant but limited force if on ground
         if (IsGrounded && _verticalVelocity < 0f)
+        {
             _verticalVelocity = -2f;
+            
+            _animator.SetBool("Falling", false);
+        }
+        else
+            _animator.SetBool("Falling", true);
         
         // jump
         if (IsGrounded && _holdingJump && CanMove)
+        {
             _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            _animator.Play("Jump");
+        }
 
         // new velocity, clamp if reached max
         _verticalVelocity += gravity * Time.deltaTime;
@@ -230,9 +246,17 @@ public class cc_tpState : MovementState
     // -------------------------------
     // Input Events
     // -------------------------------
-    private void OnPlayerMoved(Vector2 movementValue) => _moveInput = movementValue;
+    private void OnPlayerMoved(Vector2 movementValue)
+    {
+        _moveInput = movementValue;
+        _animator.SetBool("Walking", true);
+    }
 
-    private void OnPlayerMovedFinished() => _moveInput = Vector2.zero;
+    private void OnPlayerMovedFinished()
+    {
+        _moveInput = Vector2.zero;
+        _animator.SetBool("Walking", false);
+    }
 
     private void OnPlayerJumpStarted() => _holdingJump = true;
     private void OnPlayerJumpStopped() => _holdingJump = false;
@@ -241,8 +265,16 @@ public class cc_tpState : MovementState
     {
         _holdingSprint = true;
         _lockSwitch = !_lockSwitch;
+        
+        _animator.SetBool("Running", true);
     }
-    private void OnPlayerRunStopped() => _holdingSprint = false;
+
+    private void OnPlayerRunStopped()
+    {
+        _holdingSprint = false;
+        
+        _animator.SetBool("Running", false);
+    }
 
     private void OnEnablePlayerMovement() => CanMove = true;
     private void OnDisablePlayerMovement() => CanMove = false;

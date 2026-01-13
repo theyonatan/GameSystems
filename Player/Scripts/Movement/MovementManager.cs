@@ -36,7 +36,6 @@ public class MovementManager : MonoBehaviour, IPlayerBehavior
     {
         _director = InputDirector.Instance;
         _player = GetComponent<Player>();
-        Debug.Log("WHAT");
         _capsuleCollider = GetComponent<CapsuleCollider>();
         
         // if injected custom start state OR default to third person state

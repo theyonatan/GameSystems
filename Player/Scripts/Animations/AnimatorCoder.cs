@@ -1,60 +1,60 @@
-//Author: Small Hedge Games
-//Date: 02/07/2024
-
 using System.Collections;
 using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AYellowpaper.SerializedCollections;
 using UnityEditor.Animations;
+using UnityEngine.Events;
 
 namespace SHG.AnimatorCoder
 {
     public abstract class AnimatorCoder : MonoBehaviour
     {
+        public bool Initialized;
+        
         /// <summary> The baseline animation logic on a specific layer </summary>
-        public abstract void DefaultAnimation(int layer);
-        private Animator animator = null;
-        private string[] currentAnimation;
-        private bool[] layerLocked;
-        private Dictionary<string, bool> parameters;
-        private Coroutine[] currentCoroutine;
-        private List<string> animationNames = new ();
+        private void EntryAnimation() => OnDefaultAnimationRequested?.Invoke();
+        protected readonly UnityEvent OnDefaultAnimationRequested = new ();
+        
+        private Animator _animator;
+
+        protected Dictionary<string, AnimationData> Animations; // all available animations for the current animator controller
+        protected SerializedDictionary<string, bool> Parameters; // code animator params to control animation flow
+        protected Dictionary<string, int> AnimatorParameters; // animator params to control blend trees and animation values
+        
+        private string[] _currentAnimation;
+        private bool[] _layerLocked;
+        private Coroutine[] _currentCoroutine;
+        
+        private readonly HashSet<string> _loggedErrors = new();
 
         /// <summary> Sets up the Animator Brain </summary>
-        public void Initialize(Animator animator = null)
+        protected void Initialize(Animator animator)
         {
-            this.animator = animator ? animator : GetComponent<Animator>();
-
+            _animator = animator;
             AnimatorValues.Initialize(animator);
             
             // 3 arrays each the size of the amount of layers.
-            currentCoroutine = new Coroutine[this.animator.layerCount];
-            layerLocked = new bool[this.animator.layerCount];
-            currentAnimation = new string[this.animator.layerCount];
+            _currentCoroutine = new Coroutine[_animator.layerCount];
+            _layerLocked = new bool[_animator.layerCount];
+            _currentAnimation = new string[_animator.layerCount];
 
-            for (int i = 0; i < this.animator.layerCount; ++i)
+            // setup default animation hash for all layers
+            for (int i = 0; i < _animator.layerCount; ++i)
             {
-                layerLocked[i] = false;
+                _layerLocked[i] = false;
 
-                int hash = this.animator.GetCurrentAnimatorStateInfo(i).shortNameHash;
-                for (int k = 0; k < AnimatorValues.AnimationsHashes.Length; ++k)
-                {
-                    if (hash == AnimatorValues.AnimationsHashes[k])
-                    {
-                        currentAnimation[i] = (Animations)Enum.GetValues(typeof(Animations)).GetValue(k);
-                        k = AnimatorValues.AnimationsHashes.Length;
-                    }
-                }
+                var state = _animator.GetCurrentAnimatorStateInfo(i);
+                
+                var hash = AnimatorValues.AnimationsHashes
+                    .FirstOrDefault(x => x.Value == state.shortNameHash)
+                    .Key;
+
+                _currentAnimation[i] = hash ?? "Locomotion";
             }
 
-            string[] names = Enum.GetNames(typeof(Parameters));
-            parameters = new ParameterDisplay[names.Length];
-            for (int i = 0; i < names.Length; ++i)
-            {
-                parameters[i].name = names[i];
-                parameters[i].value = false;
-            }
+            Initialized = true;
         }
 
         /// <summary> Returns the current animation that is playing </summary>
@@ -62,11 +62,11 @@ namespace SHG.AnimatorCoder
         {
             try
             {
-                return currentAnimation[layer];
+                return _currentAnimation[layer];
             }
             catch
             {
-                LogError("Can't retrieve Current Animation. Fix: Initialize() in Start() and don't exceed number of animator layers");
+                Debug.LogError("Can't retrieve Current Animation. Fix: Initialize() in Start() and don't exceed number of animator layers");
                 return "RESET";
             }
         }
@@ -76,11 +76,11 @@ namespace SHG.AnimatorCoder
         {
             try
             {
-                layerLocked[layer] = lockLayer;
+                _layerLocked[layer] = lockLayer;
             }
             catch
             {
-                LogError("Can't retrieve Current Animation. Fix: Initialize() in Start() and don't exceed number of animator layers");
+                Debug.LogError("Can't retrieve Current Animation. Fix: Initialize() in Start() and don't exceed number of animator layers");
             }
         }
 
@@ -88,83 +88,138 @@ namespace SHG.AnimatorCoder
         {
             try
             {
-                return layerLocked[layer];
+                return _layerLocked[layer];
             }
             catch
             {
-                LogError("Can't retrieve Current Animation. Fix: Initialize() in Start() and don't exceed number of animator layers");
+                Debug.LogError("Can't retrieve Current Animation. Fix: Initialize() in Start() and don't exceed number of animator layers");
                 return false;
             }
         }
 
         /// <summary> Sets an animator parameter </summary>
-        public void SetBool(string id, bool value)
+        public void SetBool(string parameterName, bool value)
         {
+            if (!Initialized) return;
+            
             try
             {
-                parameters[id] = value;
+                if (Parameters[parameterName] == value)
+                    return;
+
+                Parameters[parameterName] = value;
             }
-            catch
+            catch (Exception e)
             {
-                LogError("Please Initialize() in Start()");
+                Debug.LogError($"Trying to set: Parameter Not found: {parameterName}\n {e}");
             }
+            
+            EvaluateParameters();
         }
 
         /// <summary> Returns an animator parameter </summary>
-        public bool GetBool(string id)
+        public bool GetBool(string parameterName)
         {
             try
             {
-                return parameters[id];
+                return Parameters[parameterName];
             }
             catch
             {
-                LogError("Please Initialize() in Start()");
+                Debug.LogError($"Trying to get: Parameter Not found: {parameterName}");
                 return false;
             }
         }
+        
+        /// <summary>
+        /// Sets a parameter on the actual Unity animator
+        /// </summary>
+        public void SetFloat(string parameter, float value)
+        {
+            _animator.SetFloat(AnimatorParameters[parameter], value);
+        }
 
         /// <summary> Takes in the animation details and the animation layer, then attempts to play the animation </summary>
-        public void Play(AnimationData data, int layer = 0)
+        public void Play(string animationClipName, int layer = 0)
         {
-            try
+            AnimationData animationToPlay = Animations[animationClipName];
+            
+            // verify if current animation needs to reset
+            if (animationClipName == "RESET")
+                EntryAnimation();
+
+            // verify layer locked
+            if (_layerLocked[layer] || _currentAnimation[layer] == animationClipName)
+                return;
+            
+            if (_currentCoroutine[layer] != null)
             {
-                if (data.animationName == "RESET")
-                {
-                    DefaultAnimation(layer);
-                }
-
-                if (layerLocked[layer] || currentAnimation[layer] == data.animationName) return;
-
-                if (currentCoroutine[layer] != null) StopCoroutine(currentCoroutine[layer]);
-                layerLocked[layer] = data.lockLayer;
-                currentAnimation[layer] = data.animationName;
-
-                animator.CrossFade(AnimatorValues.GetHash(currentAnimation[layer]), data.crossfade, layer);
-
-                if (data.nextAnimation == null) return;
-                
-                // next animation
-                currentCoroutine[layer] = StartCoroutine(Wait());
-                IEnumerator Wait()
-                {
-                    animator.Update(0);
-                    float delay = animator.GetNextAnimatorStateInfo(layer).length;
-                    if (data.crossfade == 0) delay = animator.GetCurrentAnimatorStateInfo(layer).length;
-                    yield return new WaitForSeconds(delay - data.nextAnimation.crossfade);
-                    SetLocked(false, layer);
-                    Play(data.nextAnimation, layer);
-                }
+                StopCoroutine(_currentCoroutine[layer]);
+                _currentCoroutine[layer] = null;
             }
-            catch
+            _layerLocked[layer] = animationToPlay.LockLayer;
+            _currentAnimation[layer] = animationClipName;
+
+            // Animator Play new animation
+            _animator.CrossFade(AnimatorValues.GetHash(_currentAnimation[layer]), animationToPlay.Crossfade, layer);
+
+            // Handle if There's next animation
+            if (animationToPlay.AutoNextAnimation == null) return;
+            
+            _currentCoroutine[layer] = StartCoroutine(Wait());
+            IEnumerator Wait()
             {
-                LogError("Please Initialize() in Start()");
+                // wait for the current animation to finish
+                float delay = _animator.GetNextAnimatorStateInfo(layer).length;
+                if (animationToPlay.Crossfade == 0) delay = _animator.GetCurrentAnimatorStateInfo(layer).length;
+
+                if (Animations.TryGetValue(animationToPlay.AutoNextAnimation, out AnimationData nextAnimation))
+                {
+                    // play next animation
+                    yield return null; // Let animator settle one frame
+                    yield return new WaitForSeconds(delay - nextAnimation.Crossfade);
+                
+                    // above we can cancel the coroutine in case an overriding animation is played before reaching this
+                    SetLocked(false, layer);
+                    Play(nextAnimation.AnimationClipName, layer);
+                }
+                else
+                {
+                    yield return new WaitForSeconds(delay);
+                    
+                    // no next animation, do we transition to a new one?
+                    EvaluateParameters();
+                }
             }
         }
 
-        private void LogError(string message)
+        /// <summary>
+        /// Called after animation finishes or parameter changed
+        /// checks if we can transition to a new state based on parameters
+        /// </summary>
+        private void EvaluateParameters()
         {
-            Debug.LogError("AnimatorCoder Error: " + message);
+            if (!_animator) return;
+
+            for (int layer = 0; layer < _currentAnimation.Length; layer++)
+            {
+                if (_layerLocked[layer])
+                    continue;
+
+                var current = _currentAnimation[layer];
+
+                if (!Animations.TryGetValue(current, out var animData))
+                    continue;
+
+                foreach (var possible in animData.FollowingAnimations)
+                {
+                    if (!possible.Evaluate(Parameters)) continue;
+
+                    Play(possible.ResultAnimationName, layer);
+                    
+                    return;
+                }
+            }
         }
     }
 
@@ -172,24 +227,66 @@ namespace SHG.AnimatorCoder
     [Serializable]
     public class AnimationData
     {
-        public string animationName;
+        public readonly string AnimationClipName;
+        
+        public int Hash;
+        
         /// <summary> Should the layer lock for this animation? </summary>
-        public bool lockLayer;
+        public readonly bool LockLayer;
+        
         /// <summary> Should an animation play immediately after? </summary>
-        public AnimationData nextAnimation;
+        public string AutoNextAnimation;
+        
         /// <summary> Should there be a transition time into this animation? </summary>
-        public float crossfade = 0;
+        public float Crossfade;
+
+        /// <summary> Next animations with conditions </summary>
+        public IReadOnlyList<AnimationCondition> FollowingAnimations;
 
         /// <summary> Sets the animation data </summary>
-        public AnimationData(string animationName = "RESET", bool lockLayer = false, AnimationData nextAnimation = null, float crossfade = 0)
+        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, float crossfade = 0, IReadOnlyList<AnimationCondition> conditions = null)
         {
-            this.animationName = animationName;
-            this.lockLayer = lockLayer;
-            this.nextAnimation = nextAnimation;
-            this.crossfade = crossfade;
+            AnimationClipName = animationClipName;
+            LockLayer = lockLayer;
+            AutoNextAnimation = autoNextAnimation;
+            Crossfade = crossfade;
+            FollowingAnimations = conditions ?? new List<AnimationCondition>();
+            Hash = Animator.StringToHash(animationClipName);
         }
     }
 
+    public class AnimationCondition
+    {
+        public string ResultAnimationName;
+        private List<AnimationParameter> _conditions;
+
+        public AnimationCondition(string resultAnimation, params AnimationParameter[] conditions)
+        {
+            ResultAnimationName = resultAnimation;
+            _conditions = conditions.ToList();
+        }
+
+        public bool Evaluate(Dictionary<string, bool> parameters)
+        {
+            if (_conditions == null || _conditions.Count == 0)
+                return false;
+
+            return _conditions.All(c => parameters[c.ParameterName] == c.TargetCondition);
+        }
+    }
+    
+    public class AnimationParameter
+    {
+        public readonly string ParameterName;
+        public readonly bool TargetCondition;
+        
+        public AnimationParameter(string parameterName, bool targetValue)
+        {
+            ParameterName = parameterName;
+            TargetCondition = targetValue;
+        }
+    }
+    
     /// <summary> Class the manages the hashes of animations and parameters </summary>
     public class AnimatorValues
     {
@@ -235,13 +332,5 @@ namespace SHG.AnimatorCoder
 
             return names;
         }
-    }
-
-    /// <summary> Allows the animation parameters to be shown in debug inspector </summary>
-    [Serializable]
-    public struct ParameterDisplay
-    {
-        [HideInInspector] public string name;
-        public bool value;
     }
 }
