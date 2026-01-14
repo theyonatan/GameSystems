@@ -54,7 +54,7 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         }
 
         public Builder AddAnimation(string animationName, bool lockLayer = false, string autoNextAnimation = null,
-            bool loops = true, float entryCrossfade = 0.2f, params Connection[] connections)
+            bool loops = true, float entryCrossfade = 0f, params Connection[] connections)
         {
             _animations.Add(animationName,
                 new AnimationData(animationName, lockLayer, autoNextAnimation, loops, entryCrossfade, connections));

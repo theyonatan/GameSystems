@@ -86,10 +86,18 @@ public class cc_tpState : MovementState
         
         // Setup Animations
         new AnimationsManager.Builder("tps_animator")
-            .AddAnimation("Idle", connections:
-                Connection.To("Walking", customCrossfade: 0.06f).When("Walking", true))
-            .AddAnimation("Walking", connections:
-                Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false))
+            .AddAnimation("Idle", connections: new [] {
+                Connection.To("Walking", customCrossfade: 0.06f).When("Walking", true),
+            })
+            .AddAnimation("Walking", connections: new [] {
+                Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false),
+                Connection.To("Running", customCrossfade: 0.16f).When("Running", true)
+            })
+            .AddAnimation("Running", connections: new []
+            {
+                Connection.To("Walking", customCrossfade: 0.2f).When("Running", false),
+                Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false)
+            })
             .AddAnimation("Jump", entryCrossfade: 0f, autoNextAnimation: "Fall", lockLayer: true, loops: false)
             .AddAnimation("Fall", connections:
                 Connection.To("Idle", customCrossfade: 0.03f).When("Falling", false))
@@ -97,7 +105,6 @@ public class cc_tpState : MovementState
             .AddParameter("Falling")
             .AddParameter("Running")
             .SetDefaultAnimation(DefaultAnimation)
-            .AllowDebug()
             .Build(_animator);
     }
 
