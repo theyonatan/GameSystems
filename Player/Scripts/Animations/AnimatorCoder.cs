@@ -12,6 +12,7 @@ namespace SHG.AnimatorCoder
     public abstract class AnimatorCoder : MonoBehaviour
     {
         public bool Initialized;
+        public bool DebugMode;
         
         /// <summary> The baseline animation logic on a specific layer </summary>
         private void EntryAnimation() => OnDefaultAnimationRequested?.Invoke();
@@ -47,8 +48,8 @@ namespace SHG.AnimatorCoder
 
                 var state = _animator.GetCurrentAnimatorStateInfo(i);
                 
-                var hash = AnimatorValues.AnimationsHashes
-                    .FirstOrDefault(x => x.Value == state.shortNameHash)
+                var hash = Animations
+                    .FirstOrDefault(x => x.Value.Hash == state.shortNameHash)
                     .Key;
 
                 _currentAnimation[i] = hash ?? "Locomotion";
@@ -106,6 +107,8 @@ namespace SHG.AnimatorCoder
             {
                 if (Parameters[parameterName] == value)
                     return;
+                
+                if (DebugMode) Debug.Log($"Setting {parameterName} to {value}");
 
                 Parameters[parameterName] = value;
             }
@@ -114,7 +117,7 @@ namespace SHG.AnimatorCoder
                 Debug.LogError($"Trying to set: Parameter Not found: {parameterName}\n {e}");
             }
             
-            EvaluateParameters();
+            ReEvaluateParameters();
         }
 
         /// <summary> Returns an animator parameter </summary>
@@ -140,14 +143,11 @@ namespace SHG.AnimatorCoder
         }
 
         /// <summary> Takes in the animation details and the animation layer, then attempts to play the animation </summary>
-        public void Play(string animationClipName, int layer = 0)
+        public void Play(string animationClipName, int layer = 0, float customCrossfade=-1, string reason="Play()")
         {
+            if (DebugMode) Debug.LogWarning($"Playing {animationClipName} from {reason}");
             AnimationData animationToPlay = Animations[animationClipName];
             
-            // verify if current animation needs to reset
-            if (animationClipName == "RESET")
-                EntryAnimation();
-
             // verify layer locked
             if (_layerLocked[layer] || _currentAnimation[layer] == animationClipName)
                 return;
@@ -160,36 +160,60 @@ namespace SHG.AnimatorCoder
             _layerLocked[layer] = animationToPlay.LockLayer;
             _currentAnimation[layer] = animationClipName;
 
+            // before playing, reevaluate to check if we need to pass to somewhere else.
+            ReEvaluateParameters();
+            
             // Animator Play new animation
-            _animator.CrossFade(AnimatorValues.GetHash(_currentAnimation[layer]), animationToPlay.Crossfade, layer);
+            if (Mathf.Approximately(customCrossfade, -1))
+                customCrossfade = animationToPlay.EntryCrossfade;
+            _animator.CrossFade(Animations[_currentAnimation[layer]].Hash, customCrossfade, layer);
 
             // Handle if There's next animation
-            if (animationToPlay.AutoNextAnimation == null) return;
-            
-            _currentCoroutine[layer] = StartCoroutine(Wait());
-            IEnumerator Wait()
+            if (animationToPlay.AutoNextAnimation == null)
             {
+                if (!animationToPlay.Loops)
+                    _currentCoroutine[layer] = StartCoroutine(WaitAndPlayDefault());
+                
+                return;
+            }
+            
+            // Handle if there is a next animation:
+            // wait for current one to finish in coroutine, and play the next after.
+            _currentCoroutine[layer] = StartCoroutine(WaitAndPlayNext());
+            
+            IEnumerator WaitAndPlayNext()
+            {
+                yield return null; // let animator switch to current playing animation so we can work with it.
+                
                 // wait for the current animation to finish
                 float delay = _animator.GetNextAnimatorStateInfo(layer).length;
-                if (animationToPlay.Crossfade == 0) delay = _animator.GetCurrentAnimatorStateInfo(layer).length;
-
-                if (Animations.TryGetValue(animationToPlay.AutoNextAnimation, out AnimationData nextAnimation))
-                {
-                    // play next animation
-                    yield return null; // Let animator settle one frame
-                    yield return new WaitForSeconds(delay - nextAnimation.Crossfade);
+                if (animationToPlay.EntryCrossfade == 0) delay = _animator.GetCurrentAnimatorStateInfo(layer).length;
                 
-                    // above we can cancel the coroutine in case an overriding animation is played before reaching this
-                    SetLocked(false, layer);
-                    Play(nextAnimation.AnimationClipName, layer);
-                }
-                else
-                {
-                    yield return new WaitForSeconds(delay);
-                    
-                    // no next animation, do we transition to a new one?
-                    EvaluateParameters();
-                }
+                // Get next animation (earlier we checked not null)
+                var nextAnimation = Animations[animationToPlay.AutoNextAnimation];
+
+                // play next animation
+                float timeToWait = delay < nextAnimation.EntryCrossfade ? delay : delay - nextAnimation.EntryCrossfade;
+                yield return new WaitForSeconds(timeToWait);
+                
+                // above we can cancel the coroutine in case an overriding animation is played before reaching this
+                SetLocked(false, layer);
+                Play(nextAnimation.AnimationClipName, layer, reason: "nextClip");
+            }
+
+            IEnumerator WaitAndPlayDefault()
+            {
+                yield return null; // let animator switch to current playing animation so we can work with it.
+                
+                // wait for the current animation to finish
+                float delay = _animator.GetNextAnimatorStateInfo(layer).length;
+                if (animationToPlay.EntryCrossfade == 0) delay = _animator.GetCurrentAnimatorStateInfo(layer).length;
+                
+                yield return new WaitForSeconds(delay);
+                
+                // above we can cancel the coroutine in case an overriding animation is played before reaching this
+                SetLocked(false, layer);
+                EntryAnimation();
             }
         }
 
@@ -197,7 +221,7 @@ namespace SHG.AnimatorCoder
         /// Called after animation finishes or parameter changed
         /// checks if we can transition to a new state based on parameters
         /// </summary>
-        private void EvaluateParameters()
+        private void ReEvaluateParameters()
         {
             if (!_animator) return;
 
@@ -215,7 +239,7 @@ namespace SHG.AnimatorCoder
                 {
                     if (!possible.Evaluate(Parameters)) continue;
 
-                    Play(possible.ResultAnimationName, layer);
+                    Play(possible.ResultAnimationName, layer, possible.CustomCrossfade);
                     
                     return;
                 }
@@ -238,40 +262,48 @@ namespace SHG.AnimatorCoder
         public string AutoNextAnimation;
         
         /// <summary> Should there be a transition time into this animation? </summary>
-        public float Crossfade;
+        public float EntryCrossfade;
+
+        /// <summary> Does this animation loop? e.g. walking, idle </summary>
+        public bool Loops;
 
         /// <summary> Next animations with conditions </summary>
-        public IReadOnlyList<AnimationCondition> FollowingAnimations;
+        public IReadOnlyList<Connection> FollowingAnimations;
 
         /// <summary> Sets the animation data </summary>
-        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, float crossfade = 0, IReadOnlyList<AnimationCondition> conditions = null)
+        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, bool loops = true, float entryCrossfade = 0, IReadOnlyList<Connection> conditions = null)
         {
             AnimationClipName = animationClipName;
             LockLayer = lockLayer;
             AutoNextAnimation = autoNextAnimation;
-            Crossfade = crossfade;
-            FollowingAnimations = conditions ?? new List<AnimationCondition>();
+            Loops = loops;
+            EntryCrossfade = entryCrossfade;
+            FollowingAnimations = conditions ?? new List<Connection>();
             Hash = Animator.StringToHash(animationClipName);
         }
     }
 
-    public class AnimationCondition
+    public class Connection
     {
-        public string ResultAnimationName;
-        private List<AnimationParameter> _conditions;
+        public string ResultAnimationName { get; private set; }
+        public float CustomCrossfade;
+        public List<AnimationParameter> Conditions { get; } = new();
+        
+        public static Connection To(string animationName, float customCrossfade=-1) => 
+            new() { ResultAnimationName = animationName, CustomCrossfade =  customCrossfade };
 
-        public AnimationCondition(string resultAnimation, params AnimationParameter[] conditions)
+        public Connection When(string param, bool value) 
         {
-            ResultAnimationName = resultAnimation;
-            _conditions = conditions.ToList();
+            Conditions.Add(new AnimationParameter(param, value));
+            return this;
         }
 
         public bool Evaluate(Dictionary<string, bool> parameters)
         {
-            if (_conditions == null || _conditions.Count == 0)
+            if (Conditions == null || Conditions.Count == 0)
                 return false;
 
-            return _conditions.All(c => parameters[c.ParameterName] == c.TargetCondition);
+            return Conditions.All(c => parameters[c.ParameterName] == c.TargetCondition);
         }
     }
     
@@ -301,12 +333,6 @@ namespace SHG.AnimatorCoder
             
             // load their hashes
             AnimationsHashes = names.ToDictionary(name => name, Animator.StringToHash);
-        }
-
-        /// <summary> Gets the animator hash value of an animation </summary>
-        public static int GetHash(string animationName)
-        {
-            return AnimationsHashes[animationName];
         }
 
         private static string[] GetAllAnimationNames(Animator animator)

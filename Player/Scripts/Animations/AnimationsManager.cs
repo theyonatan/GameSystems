@@ -28,6 +28,7 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         private readonly Dictionary<string, int> _parameterHashes;
         private readonly RuntimeAnimatorController _animatorController;
         private UnityAction _defaultAnimationAction;
+        private bool _debugMode;
 
         public Builder(RuntimeAnimatorController animatorController)
         {
@@ -53,10 +54,10 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         }
 
         public Builder AddAnimation(string animationName, bool lockLayer = false, string autoNextAnimation = null,
-            float crossfade = 0.2f, params AnimationCondition[] connections)
+            bool loops = true, float entryCrossfade = 0.2f, params Connection[] connections)
         {
             _animations.Add(animationName,
-                new AnimationData(animationName, lockLayer, autoNextAnimation, crossfade, connections));
+                new AnimationData(animationName, lockLayer, autoNextAnimation, loops, entryCrossfade, connections));
 
             return this;
         }
@@ -73,13 +74,20 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             return this;
         }
 
-    /// <summary>
+        /// <summary>
         /// Animation to play when unsure what to play / Default / Entry
         /// </summary>
         /// <param name="defaultAnimationAction">This function will get called which should play the animation</param>
         public Builder SetDefaultAnimation(UnityAction defaultAnimationAction)
         {
             _defaultAnimationAction = defaultAnimationAction;
+            
+            return this;
+        }
+
+        public Builder AllowDebug()
+        {
+            _debugMode = true;
             
             return this;
         }
@@ -95,34 +103,13 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             
             animationsManager.OnEnablePlayer(); // get animator
             animationsManager.playerAnimator.runtimeAnimatorController = _animatorController;
+            animationsManager.DebugMode = _debugMode;
             
             // verify animations exist on AnimatorController
             // ValidateAnimatorClips();
             
             // initialize brain
             animationsManager.Initialize(animationsManager.playerAnimator);
-        }
-
-        void ValidateAnimatorClips()
-        {
-            // get animation clips names from animator
-            var clipNames = _animatorController.animationClips
-                .Select(c => c.name)
-                .ToHashSet();;
-
-            foreach (var clipName in clipNames)
-            {
-                Debug.Log($"--{clipName}");
-            }
-            // validate
-            foreach (var anim in _animations.Values)
-            {
-                if (!clipNames.Contains(anim.AnimationClipName))
-                    Debug.LogError($"[AnimatorCoder] Animation '{anim.AnimationClipName}' not found in controller");
-
-                if (anim.AutoNextAnimation != null && !clipNames.Contains(anim.AutoNextAnimation))
-                    Debug.LogError($"[AnimatorCoder] Next animation '{anim.AutoNextAnimation}' not found in controller");
-            }
         }
     }
 }

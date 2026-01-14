@@ -87,14 +87,17 @@ public class cc_tpState : MovementState
         // Setup Animations
         new AnimationsManager.Builder("tps_animator")
             .AddAnimation("Idle", connections:
-                new AnimationCondition("Walking", conditions: new AnimationParameter("Walking", true)))
+                Connection.To("Walking", customCrossfade: 0.06f).When("Walking", true))
             .AddAnimation("Walking", connections:
-                new AnimationCondition("Idle", conditions: new AnimationParameter("Walking", false)), crossfade: 0.1f)
-            .AddAnimation("Jump", true, "Fall", 0.1f)
-            .AddAnimation("Fall")
+                Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false))
+            .AddAnimation("Jump", entryCrossfade: 0f, autoNextAnimation: "Fall", lockLayer: true, loops: false)
+            .AddAnimation("Fall", connections:
+                Connection.To("Idle", customCrossfade: 0.03f).When("Falling", false))
             .AddParameter("Walking")
             .AddParameter("Falling")
             .AddParameter("Running")
+            .SetDefaultAnimation(DefaultAnimation)
+            .AllowDebug()
             .Build(_animator);
     }
 
@@ -241,6 +244,17 @@ public class cc_tpState : MovementState
     public void AddVerticalVelocity(float knockbackUpForce)
     {
         _verticalVelocity += knockbackUpForce;
+    }
+
+    /// <summary>
+    /// Default Animation Logic
+    /// </summary>
+    private void DefaultAnimation()
+    {
+        if (_animator.GetBool("Falling"))
+            _animator.Play("Fall");
+        else
+            _animator.Play("Idle");
     }
     
     // -------------------------------
