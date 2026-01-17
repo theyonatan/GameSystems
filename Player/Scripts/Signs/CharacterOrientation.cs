@@ -1,16 +1,13 @@
+using System;
 using UnityEngine;
 
 public class CharacterOrientation : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
+    [SerializeField] private bool lockOrientationToZero = true;
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        
+        if (lockOrientationToZero)
+            transform.localPosition = Vector3.zero;
     }
 }
