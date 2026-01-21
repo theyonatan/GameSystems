@@ -30,14 +30,14 @@ public class MultiplayerManager : NetworkBehaviour
     }
 
     #endregion
-
+    
     [SerializeField] private NetworkManager networkManager;
     
     /// <summary> Runs only on the Server </summary>
     public UnityAction<NetworkConnection> OnClientConnected;
     /// <summary> Runs only on the Server </summary>
-    public UnityAction<NetworkConnection> OnClientDisconnected;
-
+    public UnityAction<NetworkConnection> OnClientDisconnected; 
+    
     #region StartStop
 
     
