@@ -12,4 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5066ea12ea95ae143a8f45eb0f84047a, type: 3}
   m_Name: RuinsVersion
   m_EditorClassIdentifier: VersionVerifier.editor::VersionTracker
-  version: 108
+  version: 3

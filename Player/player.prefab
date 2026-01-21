@@ -144,6 +144,7 @@ GameObject:
   - component: {fileID: 4563362470836703908}
   - component: {fileID: 3636053407684218288}
   - component: {fileID: 7052660998106064111}
+  - component: {fileID: 8264903117730953386}
   m_Layer: 3
   m_Name: Mesh
   m_TagString: Untagged
@@ -160,7 +161,7 @@ Transform:
   m_GameObject: {fileID: 4577981878675488766}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.81495523, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -222,7 +223,7 @@ SkinnedMeshRenderer:
   m_BlendShapeWeights: []
   m_RootBone: {fileID: 0}
   m_AABB:
-    m_Center: {x: 0.00020834804, y: -0.15184936, z: -0.004155837}
+    m_Center: {x: 0.00020834804, y: 0.74, z: -0.004155837}
     m_Extent: {x: 0.6424879, y: 0.7266288, z: 0.13059136}
   m_DirtyAABB: 0
 --- !u!114 &7052660998106064111
@@ -237,6 +238,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 833b8b1bd204dea40b63f93b9eea3b00, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Player::CharacterOrientation
+  lockOrientationToZero: 1
+--- !u!95 &8264903117730953386
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4577981878675488766}
+  m_Enabled: 1
+  m_Avatar: {fileID: 9000000, guid: 2541a35d5569b444a9239e76dd3f0d53, type: 3}
+  m_Controller: {fileID: 0}
+  m_CullingMode: 1
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 1
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 0
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &6348852126302833098
 GameObject:
   m_ObjectHideFlags: 0
@@ -291,7 +315,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9165659601731520467}
-  - component: {fileID: 4967797005538884161}
   m_Layer: 0
   m_Name: character
   m_TagString: Character
@@ -319,28 +342,6 @@ Transform:
   - {fileID: 394652331713489951}
   m_Father: {fileID: 6448933596788456502}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!95 &4967797005538884161
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7171507082060770588}
-  m_Enabled: 1
-  m_Avatar: {fileID: 9000000, guid: 2541a35d5569b444a9239e76dd3f0d53, type: 3}
-  m_Controller: {fileID: 0}
-  m_CullingMode: 1
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 1
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 0
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &7978530360318098125
 GameObject:
   m_ObjectHideFlags: 0
@@ -498,4 +499,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fceb06e217bb8134692c1c3f812272c6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Player::AnimationsManager
+  Initialized: 0
+  DebugMode: 0
   playerAnimator: {fileID: 0}
