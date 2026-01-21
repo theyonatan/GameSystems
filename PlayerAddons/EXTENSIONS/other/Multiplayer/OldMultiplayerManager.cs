@@ -5,11 +5,11 @@ using UnityEngine.Events;
 
 // ReSharper disable All
 
-public class MultiplayerManager
+public class OldMultiplayerManager
 {
     // singleton
-    private static MultiplayerManager _instance;
-    public static MultiplayerManager Instance => _instance ??= new MultiplayerManager();
+    private static OldMultiplayerManager _instance;
+    public static OldMultiplayerManager Instance => _instance ??= new OldMultiplayerManager();
     
     // personal data
     public int localId;

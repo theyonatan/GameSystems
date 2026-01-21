@@ -1,11 +1,11 @@
 {
-    "name": "Combat",
+    "name": "MultiplayerFishnet",
     "rootNamespace": "",
     "references": [
+        "GUID:7c88a4a7926ee5145ad2dfa06f454c67",
         "GUID:5a5dfecaa428f4a4096e5d40bf679556",
-        "GUID:11accd9d42b155f478abde08128e177f",
-        "GUID:c6a337d087d7b45438055248a32c0b45",
-        "GUID:7c88a4a7926ee5145ad2dfa06f454c67"
+        "GUID:894a6cc6ed5cd2645bb542978cbed6a9",
+        "GUID:9f08ca82eec9ecb4d9b9f6ada43fd757"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

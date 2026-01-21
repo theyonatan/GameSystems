@@ -89,6 +89,10 @@ public class Player : MonoBehaviour
     // Multiplayer: DON'T FORGET TO ENABLE PLAYER BEHAVIOURS() BEFORE RUNNING THESE MANUALLY
     IPlayerBehavior[] _playerBehaviors;
 
+    public void DisablePlayerBehaviors()
+    {
+        PlayerEnabled = false;
+    }
     public void EnablePlayerBehaviors()
     {
         PlayerEnabled = true;

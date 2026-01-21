@@ -328,6 +328,7 @@ namespace SHG.AnimatorCoder
         /// <summary> Initializes the animator state names </summary>
         public static void Initialize(Animator animator)
         {
+            // todo: move to builder
             // load names from controller clips
             var names = GetAllAnimationNames(animator);
             
