@@ -231,6 +231,7 @@ namespace SHG.AnimatorCoder
 
                 var current = _currentAnimation[layer];
 
+                // No active brain animation on this layer yet - nothing to evaluate.
                 if (!Animations.TryGetValue(current, out var animData))
                     continue;
 
