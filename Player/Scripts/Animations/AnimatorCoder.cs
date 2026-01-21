@@ -34,7 +34,6 @@ namespace SHG.AnimatorCoder
         protected void Initialize(Animator animator)
         {
             _animator = animator;
-            AnimatorValues.Initialize(animator);
             
             // 3 arrays each the size of the amount of layers.
             _currentCoroutine = new Coroutine[_animator.layerCount];
@@ -45,17 +44,11 @@ namespace SHG.AnimatorCoder
             for (int i = 0; i < _animator.layerCount; ++i)
             {
                 _layerLocked[i] = false;
-
-                var state = _animator.GetCurrentAnimatorStateInfo(i);
-                
-                var hash = Animations
-                    .FirstOrDefault(x => x.Value.Hash == state.shortNameHash)
-                    .Key;
-
-                _currentAnimation[i] = hash ?? "Locomotion";
+                _currentAnimation[i] = null;
             }
 
             Initialized = true;
+            EntryAnimation();
         }
 
         /// <summary> Returns the current animation that is playing </summary>
@@ -146,7 +139,13 @@ namespace SHG.AnimatorCoder
         public void Play(string animationClipName, int layer = 0, float customCrossfade=-1, string reason="Play()")
         {
             if (DebugMode) Debug.LogWarning($"Playing {animationClipName} from {reason}");
-            AnimationData animationToPlay = Animations[animationClipName];
+
+            // Verify animation exists
+            if (!Animations.TryGetValue(animationClipName, out var animationToPlay))
+            {
+                Debug.LogError($"Animation '{animationClipName}' was not registered in Builder");
+                return;
+            }
             
             // verify layer locked
             if (_layerLocked[layer] || _currentAnimation[layer] == animationClipName)
@@ -316,48 +315,6 @@ namespace SHG.AnimatorCoder
         {
             ParameterName = parameterName;
             TargetCondition = targetValue;
-        }
-    }
-    
-    /// <summary> Class the manages the hashes of animations and parameters </summary>
-    public class AnimatorValues
-    {
-        /// <summary> Returns the animation hash array </summary>
-        public static Dictionary<string, int> AnimationsHashes { get; private set; }
-
-        /// <summary> Initializes the animator state names </summary>
-        public static void Initialize(Animator animator)
-        {
-            // todo: move to builder
-            // load names from controller clips
-            var names = GetAllAnimationNames(animator);
-            
-            // load their hashes
-            AnimationsHashes = names.ToDictionary(name => name, Animator.StringToHash);
-        }
-
-        private static string[] GetAllAnimationNames(Animator animator)
-        {
-            if (!animator)
-            {
-                Debug.LogError("Animator is null while trying to initialize clips");
-                return Array.Empty<string>();
-            }
-
-            AnimatorController controller = animator.runtimeAnimatorController as AnimatorController;
-            if (!controller)
-            {
-                Debug.LogError("Animator Controller is null while trying to initialize clips");
-                return Array.Empty<string>();
-            }
-
-            var clips = controller.animationClips;
-            string[] names = new string[clips.Length];
-
-            for (int i = 0; i < clips.Length; i++)
-                names[i] = clips[i].name;
-
-            return names;
         }
     }
 }
