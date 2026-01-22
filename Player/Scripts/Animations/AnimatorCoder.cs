@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AYellowpaper.SerializedCollections;
-using UnityEditor.Animations;
 using UnityEngine.Events;
 
 namespace SHG.AnimatorCoder
