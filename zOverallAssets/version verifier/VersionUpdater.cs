@@ -6,6 +6,7 @@ public static class VersionUpdater
 {
     static VersionUpdater()
     {
+        return;
         string path = "Assets/GameSystems/zOverallAssets/version verifier/RuinsVersion.asset";
         var versionAsset = AssetDatabase.LoadAssetAtPath<VersionTracker>(path);
 
