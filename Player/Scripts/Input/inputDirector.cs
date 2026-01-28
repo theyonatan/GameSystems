@@ -68,19 +68,21 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public Vector2 MovementValue;
 
     // data
-    private Player localPlayer;
+    private Player _localPlayer;
     public bool ShouldDisable; // only disable when we're done with player, when this flag is on.
     
     public void AwakePlayer()
     {
         // Multiplayer Guard
-        localPlayer = GetComponent<Player>();
-        Debug.Log($"on enable!!! does {localPlayer.name} has authority? {localPlayer.HasAuthority}");
-        if (!localPlayer.HasAuthority)
+        _localPlayer = GetComponent<Player>();
+        Debug.Log("new InputDirector awake. got authority? "
+                  + $"{(_localPlayer.HasAuthority ? "yes, setting up" : "no, skipping setup.")}");
+        
+        if (!_localPlayer.HasAuthority)
             return;
         
         // Singleton
-        if (Instance == null)
+        if (!Instance)
             Instance = this;
         else
             Debug.LogWarning("input director already exists.");
@@ -89,7 +91,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public void OnEnablePlayer()
     {
         // Multiplayer Guard
-        if (!localPlayer.HasAuthority)
+        if (!_localPlayer.HasAuthority)
             return;
         
         _playerInput = new ActionsMaster();

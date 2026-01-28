@@ -34,7 +34,7 @@ public class MultiplayerManager : NetworkBehaviour
     [SerializeField] private NetworkManager networkManager;
     
     /// <summary> Runs only on the Server </summary>
-    public UnityAction<NetworkConnection> OnClientConnected;
+    public UnityAction<NetworkConnection> OnClientLoaded;
     /// <summary> Runs only on the Server </summary>
     public UnityAction<NetworkConnection> OnClientDisconnected; 
     
@@ -96,7 +96,7 @@ public class MultiplayerManager : NetworkBehaviour
         if (!isServer)
             return;
         
-        OnClientConnected?.Invoke(connection);
+        OnClientLoaded?.Invoke(connection);
     }
 
     private void OnDisable()

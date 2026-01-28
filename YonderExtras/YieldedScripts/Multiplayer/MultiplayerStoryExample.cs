@@ -11,13 +11,13 @@ public class MultiplayerStoryExample : NetworkBehaviour
     private void Start()
     {
         _mm = MultiplayerManager.Instance;
-        _mm.OnClientConnected += OnClientConnected;
+        _mm.OnClientLoaded += OnClientConnected;
         _mm.OnClientDisconnected += OnClientDisconnected;
     }
 
     private void OnDestroy()
     {
-        _mm.OnClientConnected -= OnClientConnected;
+        _mm.OnClientLoaded -= OnClientConnected;
         _mm.OnClientDisconnected -= OnClientDisconnected;
     }
 
