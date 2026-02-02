@@ -15,10 +15,12 @@ public class StoryCharacter : MonoBehaviour
     /// setup self (story character)
     /// adds script variables
     /// </summary>
-    public void SetUp()
+    public StoryCharacter SetUp()
     {
         _storyExecuter = StoryExecuter.Instance;
         _navMeshAgent = GetComponent<NavMeshAgent>(); // can be null
+
+        return this;
     }
 
     /// <summary>

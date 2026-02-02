@@ -166,7 +166,7 @@ public class StoryExecuter : MonoBehaviour
 
         foreach (var character in allCharacters.Where(character
                      => character.CharacterStory.character == Characters.System))
-            return character;
+            return character.SetUp();
 
         // if doesn't, create it
         var systemPrefab = Resources.Load<StoryCharacter>("System");
@@ -176,6 +176,6 @@ public class StoryExecuter : MonoBehaviour
             return null;
         }
         
-        return Instantiate(systemPrefab, Vector3.zero, Quaternion.identity);
+        return Instantiate(systemPrefab, Vector3.zero, Quaternion.identity).SetUp();
     }
 }
