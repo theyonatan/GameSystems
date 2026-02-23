@@ -21,14 +21,28 @@ public class FollowBehind : MonoBehaviour
 
     [Header("Arrival")]
     public float ArrivalThreshold = 0.05f;
+    
+    [Header("Float")]
+    public float FloatHeight = 0.5f;
+    public float FloatSpeed = 1f;
+    float _offset;
 
+    void Start()
+    {
+        _offset = Random.Range(0f, Mathf.PI * 2f);
+    }
+    
     void LateUpdate()
     {
         if (!ObjectToFollow) return;
 
+        // float (move) to reference
         Transform reference = Orientation ? Orientation.transform : ObjectToFollow.transform;
-
         Vector3 targetPosition = reference.TransformPoint(Distance);
+
+        // float in place
+        float floatOffset = Mathf.Sin(Time.time * FloatSpeed + _offset) * FloatHeight;
+        targetPosition.y += floatOffset;
 
         // Smooth position
         transform.position = Vector3.Lerp(
@@ -38,13 +52,15 @@ public class FollowBehind : MonoBehaviour
         );
 
         Vector3 toTarget = targetPosition - transform.position;
-
         if (toTarget.magnitude > ArrivalThreshold)
         {
             // Still moving → look in movement direction
             Vector3 direction = toTarget.normalized;
+            
+            // we only care about horizontal magnitude, character might float in place.
+            float horizontalMag = new Vector3(toTarget.x, 0f, toTarget.z).magnitude;
 
-            if (direction.sqrMagnitude > 0.0001f)
+            if (horizontalMag > 1f)
             {
                 Quaternion lookRotation = Quaternion.LookRotation(direction);
                 transform.rotation = Quaternion.Lerp(
