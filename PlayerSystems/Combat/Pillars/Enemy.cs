@@ -38,7 +38,7 @@ public class Enemy : MonoBehaviour, IDamageable
     /// Implementation of IDamageable interface.
     /// Takes in the damage amount and reduces health.
     /// </summary>
-    public void TakeDamage(float damage)
+    public void TakeDamage(float damage, Transform damagerTransform=null)
     {
         health -= damage;
         if (health <= 0f)

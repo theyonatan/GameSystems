@@ -28,7 +28,7 @@ public class PuppetEnemy : MonoBehaviour, IDamageable
     /// Applies damage to the enemy. If health is zero or below, the enemy dies.
     /// </summary>
     /// <param name="damage">Amount of damage to apply.</param>
-    public void TakeDamage(float damage)
+    public void TakeDamage(float damage, Transform damagerTransform=null)
     {
         currentHealth -= damage;
     }
