@@ -14,7 +14,7 @@ public class EnemyPlayer : MonoBehaviour, IDamageable
 
     }
 
-    public void TakeDamage(float damage)
+    public void TakeDamage(float damage, Transform damagerTransform)
     {
         // show black you died UI
         

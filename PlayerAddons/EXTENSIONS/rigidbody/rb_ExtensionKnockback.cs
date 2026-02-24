@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class ExtensionKnockback : MonoBehaviour, Knockbackable
+public class rb_ExtensionKnockback : MonoBehaviour, Knockbackable
 {
     [SerializeField] private float knockbackBackwardsForce = 12f;
     [SerializeField] private float knockbackUpForce = 9f;
