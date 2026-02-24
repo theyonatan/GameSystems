@@ -54,14 +54,19 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             _parameterHashes = new Dictionary<string, int>();
         }
 
-        public Builder(string animatorControllerName)
+        public Builder(string animatorControllerName=null)
         {
-            var animatorController = Resources.Load<RuntimeAnimatorController>(animatorControllerName);
+            if (animatorControllerName != null)
+            {
+                var animatorController = Resources.Load<RuntimeAnimatorController>(animatorControllerName);
 
-            if (!animatorController)
-                Debug.LogError($"Animator controller '{animatorControllerName}' not found!");
-            else
-                _animatorController = animatorController;
+                if (!animatorController)
+                    Debug.LogError($"Animator controller '{animatorControllerName}' not found!");
+                else
+                    _animatorController = animatorController;
+            }
+            else // no controller provided, must be second initialization
+                _animatorController = null;
 
             _animations = new Dictionary<string, AnimationData>();
             _parameters = new List<string>();
@@ -69,10 +74,11 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         }
 
         public Builder AddAnimation(string animationName, bool lockLayer = false, string autoNextAnimation = null,
-            bool loops = true, float entryCrossfade = 0f, params Connection[] connections)
+            float autoNextCrossfade = -1f, bool loops = true, float entryCrossfade = 0f, UnityAction onEnd=null,
+            params Connection[] connections)
         {
             _animations.Add(animationName,
-                new AnimationData(animationName, lockLayer, autoNextAnimation, loops, entryCrossfade, connections));
+                new AnimationData(animationName, lockLayer, autoNextAnimation, autoNextCrossfade, loops, entryCrossfade, connections, onEnd));
 
             return this;
         }
@@ -144,13 +150,16 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             }
             
             // -------------------------------------------------------
+            // if Anyone asks for a debug mode we enable it
+            if (_debugMode)
+                animationsManager.DebugMode = _debugMode;
+            
+            // -------------------------------------------------------
             // we only initialize the brain once. works between MovementStates.
-            if (!animationsManager.Initialized)
+            if (!animationsManager.Initialized && _animatorController)
             {
                 animationsManager.OnEnablePlayer(); // get animator
                 animationsManager.playerAnimator.runtimeAnimatorController = _animatorController;
-                animationsManager.DebugMode = _debugMode;
-                
                 
                 // initialize brain
                 animationsManager.Initialize(animationsManager.playerAnimator);

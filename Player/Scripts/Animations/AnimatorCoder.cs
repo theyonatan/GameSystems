@@ -194,9 +194,15 @@ namespace SHG.AnimatorCoder
                 float timeToWait = delay < nextAnimation.EntryCrossfade ? delay : delay - nextAnimation.EntryCrossfade;
                 yield return new WaitForSeconds(timeToWait);
                 
+                // get crossfade
+                float crossfade = animationToPlay.AutoNextCrossfade >= 0
+                    ? animationToPlay.AutoNextCrossfade
+                    : nextAnimation.EntryCrossfade;
+                
                 // above we can cancel the coroutine in case an overriding animation is played before reaching this
+                animationToPlay.OnEnd?.Invoke();
                 SetLocked(false, layer);
-                Play(nextAnimation.AnimationClipName, layer, reason: "nextClip");
+                Play(nextAnimation.AnimationClipName, layer, crossfade, reason: "nextClip");
             }
 
             IEnumerator WaitAndPlayDefault()
@@ -210,6 +216,7 @@ namespace SHG.AnimatorCoder
                 yield return new WaitForSeconds(delay);
                 
                 // above we can cancel the coroutine in case an overriding animation is played before reaching this
+                animationToPlay.OnEnd?.Invoke();
                 SetLocked(false, layer);
                 EntryAnimation();
             }
@@ -260,6 +267,9 @@ namespace SHG.AnimatorCoder
         /// <summary> Should an animation play immediately after? </summary>
         public string AutoNextAnimation;
         
+        /// <summary> Crossfade to next animation playing immediately after </summary>
+        public readonly float AutoNextCrossfade;
+        
         /// <summary> Should there be a transition time into this animation? </summary>
         public float EntryCrossfade;
 
@@ -269,15 +279,20 @@ namespace SHG.AnimatorCoder
         /// <summary> Next animations with conditions </summary>
         public IReadOnlyList<Connection> FollowingAnimations;
 
+        /// <summary> Action to call when the animation finishes playing </summary>
+        public readonly UnityAction OnEnd;
+
         /// <summary> Sets the animation data </summary>
-        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, bool loops = true, float entryCrossfade = 0, IReadOnlyList<Connection> conditions = null)
+        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, float autoNextCrossfade = -1, bool loops = true, float entryCrossfade = 0, IReadOnlyList<Connection> conditions = null, UnityAction onEnd = null)
         {
             AnimationClipName = animationClipName;
             LockLayer = lockLayer;
             AutoNextAnimation = autoNextAnimation;
+            AutoNextCrossfade = autoNextCrossfade;
             Loops = loops;
             EntryCrossfade = entryCrossfade;
             FollowingAnimations = conditions ?? new List<Connection>();
+            OnEnd = onEnd;
             Hash = Animator.StringToHash(animationClipName);
         }
     }
