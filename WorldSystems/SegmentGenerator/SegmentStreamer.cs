@@ -67,17 +67,17 @@ public class SegmentStreamer : MonoBehaviour
     /// Spawns a random prefab at any world position WITHOUT Entrance/Exit alignment.
     /// Perfect for side props, obstacles, collectibles on random X/Y at fixed-ahead Z.
     /// </summary>
-    public void SpawnRandomFree(Vector3 spawnPosition)
+    public void SpawnRandomFree(Vector3 spawnPosition, Transform parent = null)
     {
         Segment chosenSegmentPrefab = _segmentStreamingAlgorithm.GenerateSegment();
-        if (chosenSegmentPrefab == null)
+        if (!chosenSegmentPrefab)
         {
             Debug.LogError("Error choosing a segment to spawn!");
             return;
         }
 
         // Instantiate at exact position + prefab's original rotation
-        Segment newSegment = Instantiate(chosenSegmentPrefab, spawnPosition, chosenSegmentPrefab.transform.rotation);
+        Segment newSegment = Instantiate(chosenSegmentPrefab, spawnPosition, chosenSegmentPrefab.transform.rotation, parent);
     
         newSegment.OnSegmentSpawned(null); // no previous segment for free spawns
     }
