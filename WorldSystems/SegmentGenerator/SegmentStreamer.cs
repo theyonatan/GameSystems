@@ -9,23 +9,29 @@ public class SegmentStreamer : MonoBehaviour
 
     private void Awake()
     {
-        // Basic singleton check
+        // Singleton
         if (Instance == null)
         {
             Instance = this;
-            _segmentStreamingAlgorithm = GetComponent<SegmentStreamingAlgorithm>();
+            Debug.LogWarning($"this Segment Streamer is default: {Instance.name} " +
+                             $"used by {name}");
         }
-        else
+        else if (Instance != this)
         {
-            Destroy(gameObject);
+            Debug.LogWarning($"Multiple SegmentStreamers detected. " +
+                             $"Notice {Instance.name} is the default Instance. " +
+                             $"This one ({name}) will still work if referenced directly.");
         }
+        
+        _segmentStreamingAlgorithm = GetComponent<SegmentStreamingAlgorithm>();
     }
 
     /// <summary>
     /// Spawns a random segment at the Exit Point (Connected to the Entry Point)
     /// </summary>
     /// <param name="exitTransform">Old segment's Exit, Where we want to align the new segment's entrance.</param>
-    public void SpawnRandomSegment(Transform exitTransform)
+    /// <param name="defaultParent">Parent of object to spawn</param>
+    public void SpawnRandomSegment(Transform exitTransform, Transform defaultParent=null)
     {
         // Pick one segment prefab randomly
         Segment chosenSegmentPrefab = _segmentStreamingAlgorithm.GenerateSegment();
@@ -37,7 +43,7 @@ public class SegmentStreamer : MonoBehaviour
         }
 
         // Instantiate the new segment
-        Segment newSegment = Instantiate(chosenSegmentPrefab);
+        Segment newSegment = Instantiate(chosenSegmentPrefab, defaultParent);
 
         // Find the 'Entrance' transform inside the new segment (so we can align it correctly)
         Transform entrance = newSegment.EntrancePoint;
