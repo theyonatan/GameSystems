@@ -12,7 +12,7 @@ AssetOrigin:
   serializedVersion: 1
   productId: 291626
   packageName: DevTrails - Developer Statistics Made Easy
-  packageVersion: 1.7.2
-  assetPath: Assets/assetStore/Upgrades/Plugins/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Templates/Build
+  packageVersion: 1.7.2a
+  assetPath: Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Templates/Build
     Stats.uxml
-  uploadId: 885828
+  uploadId: 885868

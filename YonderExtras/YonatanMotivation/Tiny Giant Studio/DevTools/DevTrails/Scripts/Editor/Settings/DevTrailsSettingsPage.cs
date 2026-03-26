@@ -14,7 +14,7 @@ namespace TinyGiantStudio.DevTools.DevTrails
         {
             devTrailSettings = new();
 
-            VisualTreeAsset asset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Settings/DevTrails Settings.uxml");
+            VisualTreeAsset asset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Plugins/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Settings/DevTrails Settings.uxml");
             VisualElement pageContainer = new();
             asset.CloneTree(pageContainer);
             visualElement.Add(pageContainer);
