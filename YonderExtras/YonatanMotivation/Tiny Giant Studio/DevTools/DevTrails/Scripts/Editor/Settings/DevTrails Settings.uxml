@@ -6,7 +6,7 @@
     <ui:GroupBox name="UseStatisticsSettings" class="container" style="flex-grow: 1; margin-top: 20px; margin-right: 0; margin-bottom: 5px; margin-left: 0; flex-shrink: 1;">
         <ui:GroupBox name="Header" class="header" style="align-items: stretch;">
             <ui:Label tabindex="-1" text="DevTrails" parse-escape-sequences="true" display-tooltip-when-elided="true" class="title" />
-            <ui:Button text="Version 1.7.2a" name="VersionButton" tooltip="Click to check updates." class="button-text" />
+            <ui:Button text="Version 1.7.2" name="VersionButton" tooltip="Click to check updates." class="button-text" />
             <ui:Button tooltip="Click to open documentation." name="DocumentationButton" text="Documentation" class="button-text" />
         </ui:GroupBox>
         <ui:GroupBox name="Content" class="body" style="flex-shrink: 1; flex-grow: 1; padding-top: 10px; padding-right: 10px; padding-bottom: 10px; padding-left: 10px; flex-direction: column; flex-wrap: wrap;">

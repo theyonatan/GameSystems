@@ -69,7 +69,7 @@ namespace TinyGiantStudio.DevTools
         void SetupTabs(GroupBox groupBox, DevToolsWindow devToolsWindow)
         {
             VisualTreeAsset tabAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(
-                "Assets/Plugins/Tiny Giant Studio/DevTools/Common/Scripts/Editor/Header/TabTemplate.uxml");
+                "Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/Common/Scripts/Editor/Header/TabTemplate.uxml");
 
             GroupBox tabHolder = groupBox.Q<GroupBox>("Tabs");
             tabHolder.Clear(); //Just in-case

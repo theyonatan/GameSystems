@@ -27,13 +27,13 @@ namespace TinyGiantStudio.DevTools.DevTrails
         {
             devToolsWindow = newDevToolsWindow;
 
-            VisualTreeAsset pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Plugins/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Pages/Graphs/PageGraphs.uxml");
+            VisualTreeAsset pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Pages/Graphs/PageGraphs.uxml");
             //If the asset isn't found in the correct location,
             if (pageAsset == null)
                 //Check the testing location
-                pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/DevTrails/Scripts/Editor/Pages/Stats/PageUserStats.uxml");
+                pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTrails/Scripts/Editor/Pages/Stats/PageUserStats.uxml");
 
-            _graphTemplate = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Plugins/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Pages/Graphs/DayGraph.uxml");
+            _graphTemplate = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Pages/Graphs/DayGraph.uxml");
 
             pageContainer = new();
             pageContainer.AddToClassList("flatContainer");

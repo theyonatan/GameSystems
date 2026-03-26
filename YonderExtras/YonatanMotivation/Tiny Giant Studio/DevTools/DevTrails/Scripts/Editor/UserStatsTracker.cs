@@ -368,15 +368,6 @@ namespace TinyGiantStudio.DevTools.DevTrails
                         UserStats_Today.instance.PlayModeUseTime += playModeUseTimeThisSession;
                         UserStats_Global.instance.PlayModeUseTime += playModeUseTimeThisSession;
                     }
-                    else  
-                    {
-                        //Stats aren't saved automatically to avoid performance impact. So, using the play mode exit to save it.
-                        //Changing PlayModeUseTime automatically saves the stats
-                        UserStats_Project.instance.Save();
-                        UserStats_Today.instance.SaveToDisk();
-                        UserStats_Global.instance.SaveToDisk();
-                    }
-                    
                     _timeOfEnteringPlaymode = 0;
                     break;
                 }

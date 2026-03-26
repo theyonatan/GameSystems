@@ -33,7 +33,7 @@ namespace TinyGiantStudio.DevTools.DevTasks
 
             settings = Settings.instance;
 
-            VisualTreeAsset pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Plugins/Tiny Giant Studio/DevTools/Common/Scripts/Editor/Settings/PageSettings.uxml");
+            VisualTreeAsset pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/Common/Scripts/Editor/Settings/PageSettings.uxml");
             pageContainer = new();
             pageContainer.AddToClassList("flatContainer");
             pageAsset.CloneTree(pageContainer);

@@ -55,7 +55,7 @@ namespace TinyGiantStudio.DevTools
         public static void ShowWindow()
         {
             DevToolsWindow window = GetWindow<DevToolsWindow>();
-            Texture2D icon = EditorGUIUtility.Load("Assets/Plugins/Tiny Giant Studio/DevTools/Common/Artworks/TGS_DevTools_CompanyIcon_Thumbnail.png") as Texture2D;
+            Texture2D icon = EditorGUIUtility.Load("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/Common/Artworks/TGS_DevTools_CompanyIcon_Thumbnail.png") as Texture2D;
             if (icon == null)
                 window.titleContent = new GUIContent("DevTools");
             else

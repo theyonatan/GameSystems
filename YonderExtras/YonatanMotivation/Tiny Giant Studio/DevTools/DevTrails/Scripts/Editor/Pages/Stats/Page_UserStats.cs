@@ -35,11 +35,11 @@ namespace TinyGiantStudio.DevTools.DevTrails
         {
             base.devToolsWindow = newDevToolsWindow;
 
-            VisualTreeAsset pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Plugins/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Pages/Stats/PageUserStats.uxml");
+            VisualTreeAsset pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTools/DevTrails/Scripts/Editor/Pages/Stats/PageUserStats.uxml");
             //If the asset isn't found in the correct location,
             if (pageAsset == null)
                 //Check the testing location
-                pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/DevTrails/Scripts/Editor/Pages/Stats/PageUserStats.uxml");
+                pageAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/GameSystems/YonderExtras/YonatanMotivation/Tiny Giant Studio/DevTrails/Scripts/Editor/Pages/Stats/PageUserStats.uxml");
 
             pageContainer = new();
             pageContainer.AddToClassList("flatContainer");
