@@ -132,6 +132,8 @@ public class GoapRunner
 
     public void ResetActionAndGoal()
     {
+        _currentAction?.Stop();
+
         // Forces the planner to re-evaluate the plan
         _currentAction = null;
         _currentGoal = null;

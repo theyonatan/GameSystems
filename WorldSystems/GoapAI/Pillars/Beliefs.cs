@@ -61,6 +61,11 @@ public class BeliefFactory
             .Build());
     }
 
+    public void AddLocationBelief(string key, float distance, Func<Vector3> locationCondition)
+    {
+        AddLocationBelief(key, distance, locationCondition());
+    }
+    
     public void AddLocationBelief(string key, float distance, Transform locationCondition)
     {
         AddLocationBelief(key, distance, locationCondition.position);

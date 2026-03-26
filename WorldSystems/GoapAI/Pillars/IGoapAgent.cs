@@ -16,6 +16,7 @@ public abstract class IGoapAgent : MonoBehaviour
     protected GoapAnimator GAnimator;
 
     [SerializeField] protected bool goapAgentEnabled = true;
+    public bool IgnoreSensors { get; set; }
     
     // values
     [SerializeField] protected bool logAgent;
@@ -28,6 +29,7 @@ public abstract class IGoapAgent : MonoBehaviour
     // optional functions
     protected virtual void UpdateStats() {}
     protected virtual void OnStart() {}
+    protected virtual void OnUpdate() {}
     
     // references from the user
     [SerializedDictionary] public SerializedDictionary<string, Sensor> Sensors;
@@ -66,11 +68,13 @@ public abstract class IGoapAgent : MonoBehaviour
 
         // subscribe to sensor detection event
         foreach (var sensor in Sensors.Values.Where(sensor => sensor.ResetGoapOnTargetChange))
-            sensor.OnTargetChanged += ResetActionAndGoal;
+            sensor.OnTargetChanged += SensorActivated;
     }
     
     protected void Update()
     {
+        OnUpdate();
+        
         // update timers
         _goapTimer.Tick(Time.deltaTime);
         GAnimator.UpdateAnimationsTimer(Time.deltaTime);
@@ -87,11 +91,19 @@ public abstract class IGoapAgent : MonoBehaviour
     {
         // Unsubscribe from sensor detection event
         foreach (var sensor in Sensors.Values.Where(sensor => sensor.ResetGoapOnTargetChange))
-            sensor.OnTargetChanged -= ResetActionAndGoal;
+            sensor.OnTargetChanged -= SensorActivated;
     }
 
     // helper functions
-    public void ResetActionAndGoal()
+    public void SensorActivated()
+    {
+        if (IgnoreSensors)
+            return;
+        
+        ResetActionAndGoal();
+    }
+    
+    private void ResetActionAndGoal()
     {
         _gRunner.ResetActionAndGoal();
     }

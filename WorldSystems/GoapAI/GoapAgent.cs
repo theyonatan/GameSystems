@@ -168,15 +168,5 @@ public class GoapAgent : IGoapAgent
 
     bool InRangeOf(Vector3 pos, float range) => Vector3.Distance(transform.position, pos) < range;
 
-    void OnEnable() => ChaseSensor.OnTargetChanged += HandleTargetChanged;
-    void OnDisable() => ChaseSensor.OnTargetChanged -= HandleTargetChanged;
-
-    void HandleTargetChanged()
-    {
-        Debug.Log("GOAP: Target changed, clearing current action and goal");
-        
-        ResetActionAndGoal();
-    }
-
     #endregion
 }
