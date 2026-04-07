@@ -158,6 +158,25 @@ public class PlayAnimation : StoryCommand
     }
 }
 
+public class DelayFrames : StoryCommand
+{
+    private int _framesLeft;
+
+    public DelayFrames(int frames)
+    {
+        _framesLeft = frames;
+    }
+
+    public bool Execute()
+    {
+        if (_framesLeft <= 0)
+            return true;
+        
+        _framesLeft--;
+        return false;
+    }
+}
+
 public class DelayedStoryAction : StoryCommand
 {
     private readonly Action _delayedAction;

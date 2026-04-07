@@ -169,6 +169,10 @@ public class StoryCharacter : MonoBehaviour
     public void EnableJump() => _storyExecuter.addAction(new EnableJumpInput());
     
     public void DisableJump() => _storyExecuter.addAction(new DisableJumpInput());
+
+    public void DelayFrame() => DelayFrames(1);
+    
+    public void DelayFrames(int frames) => _storyExecuter.addAction(new DelayFrames(frames));
     
     public void DelayedAction(Action action)
     {
