@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 using Object = UnityEngine.Object;
@@ -343,21 +344,27 @@ public class SwapCamera : StoryCommand
     private readonly CutsceneCamera _cutsceneCamera;
     private readonly float _cameraSpeed;
     private readonly bool _continueStoryOverCamera;
+    private readonly bool _instantCut;
     private readonly Transform _followTarget;
-
+    
+    private bool _instantCutStarted;
+    private int _instantCutWaitFrames;
+    
     private bool _gavePriorityOnce;
     private bool _playedCameraOnce;
     private bool _finishedCameraAnimation;
-
+    
     public SwapCamera(CutsceneCamera cutsceneCamera,
         float cameraSpeed,
         bool continueStoryOverCamera,
-        Transform followTarget = null)
+        bool instantCut=false,
+        Transform followTarget=null)
     {
         _cutsceneCamera = cutsceneCamera;
         _cameraSpeed = cameraSpeed;
         _continueStoryOverCamera = continueStoryOverCamera;
         _followTarget = followTarget;
+        _instantCut = instantCut;
         
         _gavePriorityOnce = false;
         _playedCameraOnce = false;
@@ -369,12 +376,16 @@ public class SwapCamera : StoryCommand
         if (BlockUntilCutsceneCameraFree())
             return false;
         
-        // Start Transition (Blend) to new virtual camera
+        // Start Transition (Blend/Cut) to new virtual camera
         if (!_gavePriorityOnce)
             GivePriorityOnce();
-                
-        // wait for blend to finish
-        if (!_cutsceneCamera.IsBlendFinished())
+        
+        // wait for Cut to finish (if instant cut)
+        if (_instantCut && !IsCutFinished())
+            return false;
+        
+        // wait for blend to finish (if not instant cut)
+        if (!_instantCut && !_cutsceneCamera.IsBlendFinished())
             return false;
         
         // ok, finished, play camera
@@ -387,6 +398,26 @@ public class SwapCamera : StoryCommand
 
         // go to the next story action once the camera finished its animation.
         return _finishedCameraAnimation;
+    }
+    
+    /// <summary>
+    /// Wait 4 frames for instant cut to init new, and restore original blend
+    /// </summary>
+    private bool IsCutFinished()
+    {
+        if (!_instantCutStarted)
+        {
+            _instantCutStarted = true;
+            _instantCutWaitFrames = 4;
+        }
+
+        if (_instantCutWaitFrames > 0)
+        {
+            _instantCutWaitFrames--;
+            return false;
+        }
+
+        return true;
     }
     
     /// <summary>
@@ -411,7 +442,7 @@ public class SwapCamera : StoryCommand
     private void GivePriorityOnce()
     {
         _gavePriorityOnce = true;
-        _cutsceneCamera.SetAsActiveCamera();
+        _cutsceneCamera.SetAsActiveCamera(_instantCut);
     }
     
     private void PlayCameraOnce()

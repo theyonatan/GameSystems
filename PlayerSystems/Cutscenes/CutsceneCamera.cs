@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using Unity.Cinemachine;
 
@@ -80,10 +81,60 @@ public class CutsceneCamera : MonoBehaviour
     /// <summary>
     /// Gives priority to this cutscene camera.
     /// this means it will be the active camera, a blend will start from the previous camera to this one.
+    /// if instantCut: no blend.
     /// </summary>
-    public void SetAsActiveCamera()
+    public void SetAsActiveCamera(bool instantCut = false)
     {
-        var brain = CutscenesHelper.GetActive().GetComponent<CinemachineBrain>();
+        // get brain
+        CinemachineBrain brain = CutscenesHelper.GetActive().GetComponent<CinemachineBrain>();
+        if (!brain)
+        {
+            Debug.LogError("No CinemachineBrain found on active camera.");
+            return;
+        }
+        
+        // swap camera instant or blend
+        if (instantCut)
+            InstantCut(brain);
+        else
+            BlendCamera(brain);
+    }
+
+    private void InstantCut(CinemachineBrain brain)
+    {
+        // change blend to cut
+        var originalBlend = brain.DefaultBlend;
+        brain.DefaultBlend = new CinemachineBlendDefinition(
+            CinemachineBlendDefinition.Styles.Cut,
+            0f
+        );
+        
+        // Activate Instant Cut (swap cameras)
+        CutscenesHelper.GiveCameraPriority(VirtualCamera);
+        
+        // restore original state
+        StartCoroutine(RestoreBlendNextFrame(brain, originalBlend));
+        
+        // for the cut, treat the blend as already done
+        _blendStarted = false;
+        _waitingForBlend = false;
+    }
+
+    /// <summary>
+    /// Returns the blend to the brain
+    /// </summary>
+    private IEnumerator RestoreBlendNextFrame(CinemachineBrain brain, CinemachineBlendDefinition originalBlend)
+    {
+        yield return null;
+        yield return null;
+        yield return null;
+        
+        if (brain)
+            brain.DefaultBlend = originalBlend;
+    }
+    
+    private void BlendCamera(CinemachineBrain brain)
+    {
         bool isAlreadyActive = ReferenceEquals(brain.ActiveVirtualCamera, VirtualCamera);
         
         CutscenesHelper.GiveCameraPriority(VirtualCamera);
@@ -131,7 +182,7 @@ public class CutsceneCamera : MonoBehaviour
         
         return false;
     }
-    
+
     public bool IsFinishedPlaying() => _cameraFinishedAnimation;
 
     public CutsceneCameraType GetCameraType() => _cameraType;

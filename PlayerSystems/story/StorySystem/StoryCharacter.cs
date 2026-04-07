@@ -141,9 +141,10 @@ public class StoryCharacter : MonoBehaviour
         CutsceneCamera vcam,
         Transform followTargetTransform=null,
         float speed=0.2f,
+        bool instantCut=false,
         bool continueStoryOverCamera=true
         ) => _storyExecuter.addAction(new SwapCamera(
-            vcam, speed, continueStoryOverCamera, followTargetTransform));
+            vcam, speed, continueStoryOverCamera, instantCut, followTargetTransform));
     
     public void ShowMovieBars(bool waitForCompletion = false, float duration = 0.6f)
         => _storyExecuter.addAction(new ShowMovieLines(
