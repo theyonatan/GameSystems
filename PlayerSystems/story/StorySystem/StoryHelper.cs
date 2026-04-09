@@ -122,13 +122,14 @@ public class StoryHelper
         }
     }
 
-    public static StoryCharacter GatherSpecific(string requestedName)
+    public static StoryCharacter GatherSpecific(string requestedName, string cutsceneId="")
     {
-        var allCharacters = GatherAllCharacters();
+        var allCharacters = GatherCharacters(cutsceneId);
         foreach (var character in allCharacters)
         {
-            if (character.CharacterStory.CharacterName == requestedName)
-                return character;
+            // foreach found name == requested name
+            if (character.Key == requestedName)
+                return character.Value;
         }
         
         throw new ArgumentException($"Character with name {requestedName} not found in scene!");
