@@ -194,6 +194,21 @@ public class DelayedStoryAction : StoryCommand
     }
 }
 
+public class DelayedCustomStoryAction : StoryCommand
+{
+    private readonly Func<bool> _delayedAction;
+
+    public DelayedCustomStoryAction(Func<bool> delayedAction)
+    {
+        _delayedAction = delayedAction;
+    }
+
+    public bool Execute()
+    {
+        return _delayedAction();
+    }
+}
+
 public class Delay : StoryCommand
 {
     private readonly float _time;

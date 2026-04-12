@@ -179,6 +179,11 @@ public class StoryCharacter : MonoBehaviour
         _storyExecuter.addAction(new DelayedStoryAction(action));
     }
 
+    public void DelayedCustomAction(Func<bool> action)
+    {
+        _storyExecuter.addAction(new DelayedCustomStoryAction(action));
+    }
+
     public void Delay(float time)
     {
         _storyExecuter.addAction(new Delay(time));
