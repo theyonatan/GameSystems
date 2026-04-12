@@ -1,0 +1,101 @@
+2026-04-09 - Unity 6 Dialogue Canvas Update
+2026-04-09 - Gather characters via scene id (default none)
+2026-04-09 - Terrain Brushes
+2026-04-07 - Story - Delay Frames
+2026-04-07 - Cutscene System - Straight (Instant) Cut
+2026-03-26 - Goap - Ignore Sensors
+2026-03-26 - Revert "Devtools update"
+2026-03-26 - Devtools update
+2026-03-21 - TimeTrails - Yonatan Motivation
+2026-03-15 - New Input System - Update 6.3
+2026-03-15 - SegmentStreamer - Singleton Optional, Algorithm per object instance
+2026-03-15 - player addons - fps example
+2026-03-15 - Segment streamer - parent free
+2026-03-15 - SegmentStreamer - spawn no entry/exit
+2026-03-12 - Shaderart folder organize
+2026-03-11 - Grass Blend
+2026-03-10 - GrassTool Fix
+2026-03-09 - Grass System
+2026-03-09 - Blockout Assets
+2026-02-24 - AnimatorManager & Brain Update (See Desc)
+2026-02-24 - New Punch Animation
+2026-02-24 - knockback rb rename
+2026-02-24 - IDamageable receives transform position
+2026-02-24 - Float & Float In FollowBehind
+2026-02-22 - Follow Behind for Stands
+2026-02-03 - Story Examples
+2026-02-03 - Auto SetupSystem
+2026-02-02 - orginizing project
+2026-02-02 - Lookat Utility
+2026-02-01 - Removed Deprecated Scripts
+2026-01-30 - Emoji font
+2026-01-30 - Font clearage
+2026-01-29 - prefab update
+2026-01-28 - Multiplayer cleanup
+2026-01-25 - Player timestamp fix
+2026-01-23 - Version Updater silenced
+2026-01-22 - Removed animations using editor
+2026-01-21 - Override animations, keeping old ones intact
+2026-01-21 - Remove animationvalues from animation brains
+2026-01-21 - Animator on mesh instead of character (character is orientation parent)
+2026-01-21 - story meta file fixed
+2026-01-21 - Merge pull request #1 from theyonatan/ChestChanges
+2026-01-21 - Multiplayer Support
+2026-01-21 - Disable player
+2026-01-21 - UI Prefabs Update
+2026-01-21 - OverallAssets Move
+2026-01-17 - CharacterOrientation to freeze localposition
+2026-01-15 - Merge Overall & Test Scenes into GameSystems
+2026-01-15 - Animation System Revamp Finished
+2026-01-14 - Animation system revamp part 4: jump and custom crossfades
+2026-01-13 - Animation System Revamp Part 3: Working Idle and Walks
+2026-01-12 - Animation System Revamp part 2
+2026-01-11 - Slight Folder Refactoring
+2026-01-11 - Animations Revamp Part 1
+2026-01-10 - Clients saving their ids
+2026-01-10 - Player MultiplayerUtils
+2026-01-09 - Fonts update
+2026-01-09 - Multiplayer Player Works
+2026-01-09 - Multiplayer Helpers
+2026-01-09 - Player: SingleEntryPoint
+2026-01-08 - some Code cleanup
+2026-01-08 - Player multiplayer Authority checks
+2026-01-08 - BetterInteractables
+2025-12-28 - characterinteract and default animation
+2025-12-27 - new Delay story by time command
+2025-12-26 - GoapAgent: expose reset action and goal + movestrategy nullcheck
+2025-12-26 - update to unity 6.3
+2025-12-25 - allowing stopping goap
+2025-12-24 - goap qol
+2025-12-24 - knockback for cc and optinally enemy can decide force
+2025-12-24 - getcurrentstate exposed from movementmanager
+2025-12-24 - new story gathering by string name instead of enum
+2025-12-24 - goap strategy animations fixed + new extras asmdef moved from overall assets
+2025-12-24 - new behave storycommand
+2025-12-24 - goap: animations and auto sensors management for all agents
+2025-12-24 - fixed goap goals updating before awake
+2025-12-24 - enable and disable agent, locations and sensors now public for editor access
+2025-12-23 - GOAP AI Revamp (read description)
+2025-12-23 - interactionDebug
+2025-12-21 - gave up on gather characters of string (read desc)
+2025-12-21 - merge swap camera functions
+2025-12-21 - new fonts now in gamesystems
+2025-12-21 - new rounded corners and global dialogue bubble
+2025-12-19 - story and cutscene improvements
+2025-12-18 - storycharacter for any interaction
+2025-12-17 - interaction system update: Interact with any type
+2025-12-17 - swapping camera now spawns new vcam on player cam
+2025-12-17 - show / hide cursor commands
+2025-12-16 - set fov
+2025-12-14 - fixed camera ondestroy reference error
+2025-12-14 - avoid interaction with player cc
+2025-12-14 - stats slight reformatting
+2025-12-14 - StatsSystem convert to stats + diamond stat
+2025-12-13 - not interactable null checks
+2025-12-13 - onstopmarking interactable added + better hit check for interactable
+2025-12-12 - interactor extension error fix
+2025-12-12 - system now gettable from story executer
+2025-12-12 - player mesh now on layer Self
+2025-12-11 - fixed gravity jitter
+2025-12-10 - PlayerStateData redesign (see desscription)
+2025-12-10 - Reorginizing gamesystems project template
