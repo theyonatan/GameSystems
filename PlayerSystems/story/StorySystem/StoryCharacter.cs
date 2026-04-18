@@ -189,6 +189,14 @@ public class StoryCharacter : MonoBehaviour
         _storyExecuter.addAction(new Delay(time));
     }
 
+    /// <summary>
+    /// In the next scene, hook to OnChapterFinished.
+    /// </summary>
+    public void LoadScene(string sceneName, GameObject loadingScreen, bool unloadActiveScene = true)
+    {
+        _storyExecuter.addAction(new LoadScene(sceneName, loadingScreen, unloadActiveScene));
+    }
+
     public static void SpawnCharacter(GameObject character, Vector3 position, Quaternion? rotationDirection = null)
     {
         Quaternion quaternion = Quaternion.identity;

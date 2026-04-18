@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 public interface StoryCommand
@@ -598,5 +599,114 @@ public class HideMovieLines : StoryCommand
 
         return !_waitForCompletion;   // keep running until animation ends
         // or continue if not waiting for completion.
+    }
+}
+
+public class LoadScene : StoryCommand
+{
+    private readonly string _targetSceneName;
+    private readonly GameObject _loadingScreenPrefab;
+    private readonly bool _unloadActiveScene;
+
+    private bool _started;
+    private bool _finished;
+
+    private GameObject _spawnedLoadingScreen;
+    private LoadingBar _loadingBar;
+
+    private AsyncOperation _loadLoadingScreenOp;
+    private AsyncOperation _loadTargetSceneOp;
+    private AsyncOperation _unloadOldSceneOp;
+
+    private string _oldSceneName;
+
+    /// <summary>
+    /// In the next scene, hook to OnChapterFinished.
+    /// </summary>
+    public LoadScene(string targetSceneName, GameObject loadingScreenPrefab=null, bool unloadActiveScene = true)
+    {
+        _targetSceneName = targetSceneName;
+        _loadingScreenPrefab = loadingScreenPrefab;
+        _unloadActiveScene = unloadActiveScene;
+    }
+
+    public bool Execute()
+    {
+        // go on with the story
+        if (_finished)
+            return true;
+
+        // spawn loading screen when starting to load
+        if (!_started)
+        {
+            _started = true;
+            _oldSceneName = SceneManager.GetActiveScene().name;
+
+            if (!_loadingScreenPrefab)
+            {
+                Debug.LogError($"LoadSceneCommand: loading screen prefab is null.");
+                _finished = true;
+                return true;
+            }
+
+            _spawnedLoadingScreen = Object.Instantiate(_loadingScreenPrefab);
+            Object.DontDestroyOnLoad(_spawnedLoadingScreen);
+
+            _loadingBar = _spawnedLoadingScreen.GetComponentInChildren<LoadingBar>(true);
+            if (!_loadingBar)
+            {
+                Debug.LogError("LoadSceneCommand: no LoadingBar found in loading screen children.");
+                Object.Destroy(_spawnedLoadingScreen);
+                _finished = true;
+                return true;
+            }
+        }
+
+        // load new scene
+        if (_loadTargetSceneOp == null)
+        {
+            _loadTargetSceneOp = SceneManager.LoadSceneAsync(_targetSceneName, LoadSceneMode.Additive);
+            if (_loadTargetSceneOp != null) _loadTargetSceneOp.allowSceneActivation = false;
+            _loadingBar.SetProgress(0f);
+            return false;
+        }
+
+        // Unity async scene progress goes 0..0.9 before activation
+        float normalizedProgress = Mathf.Clamp01(_loadTargetSceneOp.progress / 0.9f);
+        _loadingBar.SetProgress(normalizedProgress);
+
+        if (_loadTargetSceneOp.progress >= 0.9f)
+        {
+            _loadingBar.SetProgress(1f);
+            _loadTargetSceneOp.allowSceneActivation = true;
+
+            // wait until scene fully loaded
+            if (!_loadTargetSceneOp.isDone)
+                return false;
+
+            Scene loadedScene = SceneManager.GetSceneByName(_targetSceneName);
+            if (loadedScene.IsValid() && loadedScene.isLoaded)
+                SceneManager.SetActiveScene(loadedScene);
+
+            if (_unloadActiveScene && !string.IsNullOrEmpty(_oldSceneName) && _oldSceneName != _targetSceneName)
+            {
+                if (_unloadOldSceneOp == null)
+                {
+                    _unloadOldSceneOp = SceneManager.UnloadSceneAsync(_oldSceneName);
+                    return false;
+                }
+                
+                if (!_unloadOldSceneOp.isDone)
+                    return false;
+            }
+
+            if (_spawnedLoadingScreen)
+                Object.Destroy(_spawnedLoadingScreen);
+            
+            _finished = true;
+            return true;
+        }
+        
+        return false;
     }
 }
