@@ -309,7 +309,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""44ecd46f-0b7a-4baf-b60f-26c0cfb3e6f7"",
-                    ""path"": ""<Gamepad>/rightStick/x"",
+                    ""path"": ""<Joystick>/stick/x"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": ""main"",

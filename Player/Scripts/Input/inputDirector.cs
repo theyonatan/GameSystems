@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using UnityEngine.InputSystem;
 
 public class InputDirector : MonoBehaviour, IPlayerBehavior
 {
@@ -63,10 +64,17 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
 
     public event Action OnPlayerFlameThrowerStart;
     public event Action OnPlayerFlameThrowerStop;
+    
+    public event Action OnMouseDragStarted;
+    public event Action<float> OnMouseDragged;
+    public event Action OnMouseDragFinished;
 
     // values
     public Vector2 MovementValue;
 
+    private bool _isMouseDragging;
+    private float _lastMouseX;
+    
     // data
     private Player _localPlayer;
     public bool ShouldDisable; // only disable when we're done with player, when this flag is on.
@@ -155,6 +163,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Disable();
         _playerInput.Dispose();
     }
+    
+    private void Update()
+    {
+        if (!_localPlayer || !_localPlayer.HasAuthority)
+            return;
+
+        UpdateMouseDrag();
+    }
 
     public void EnableInput()
     {
@@ -200,5 +216,34 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
             OnPlayerRunEnabled?.Invoke();
         else
             OnPlayerRunDisabled?.Invoke();
+    }
+    
+    private void UpdateMouseDrag()
+    {
+        if (Mouse.current == null)
+            return;
+
+        if (Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            _isMouseDragging = true;
+            _lastMouseX = Mouse.current.position.ReadValue().x;
+            OnMouseDragStarted?.Invoke();
+        }
+
+        if (_isMouseDragging && Mouse.current.leftButton.isPressed)
+        {
+            float currentMouseX = Mouse.current.position.ReadValue().x;
+            float deltaX = currentMouseX - _lastMouseX;
+            _lastMouseX = currentMouseX;
+
+            if (Mathf.Abs(deltaX) > 0.01f)
+                OnMouseDragged?.Invoke(deltaX);
+        }
+
+        if (_isMouseDragging && Mouse.current.leftButton.wasReleasedThisFrame)
+        {
+            _isMouseDragging = false;
+            OnMouseDragFinished?.Invoke();
+        }
     }
 }
