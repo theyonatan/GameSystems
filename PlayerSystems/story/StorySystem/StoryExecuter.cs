@@ -12,7 +12,7 @@ public class StoryExecuter : MonoBehaviour
     public StoryCommand CurrentAction;
     public Queue<StoryCommand> Story = new();
     public string CurrentChapter;
-    public Action<string> OnChapterFinished;
+    private Action<string> _onChapterFinished; // see ListenChapterFinished() bellow. Reminder: never call StoryExecuter from end of life events such as OnDestroy / OnDisable.
     private bool _allowDebug;
     
     public bool IsStoryRunning { get; private set; }
@@ -54,6 +54,15 @@ public class StoryExecuter : MonoBehaviour
         _instance = this;
         DontDestroyOnLoad(gameObject);
     }
+    
+    private void OnDestroy()
+    {
+        // static cleanup
+        if (_instance == this)
+            _instance = null;
+
+        Debug.Log("StoryExecuter destroyed.");
+    }
 
     // Update is called once per frame
     void Update()
@@ -79,7 +88,7 @@ public class StoryExecuter : MonoBehaviour
                 CurrentChapter  = "";
                 CurrentAction   = null;
                 
-                OnChapterFinished?.Invoke(finishedChapter);
+                _onChapterFinished?.Invoke(finishedChapter);
             }
         }
     }
@@ -126,7 +135,7 @@ public class StoryExecuter : MonoBehaviour
     {
         Debug.Log("Starting new chapter: " + CurrentChapter);
 
-        if (!string.IsNullOrEmpty(CurrentChapter))
+        if (string.IsNullOrEmpty(CurrentChapter))
         {
             Debug.Log("No chapter selected, Playing empty chapter");
         }
@@ -148,6 +157,19 @@ public class StoryExecuter : MonoBehaviour
         Story.Clear();
         
         SpeechManager.Instance.ResetSpeech();
+    }
+
+    /// <summary>
+    /// this object (story executer) lives throughout the entirety of the program and shouldn't die before then.
+    /// this event will unsubscribe on its own.
+    /// 
+    /// unsubscribing is dangerous, because it will usually get called when
+    /// an editor instance closes and re-opens but the old storyexecuter is still alive in memory.
+    /// </summary>
+    /// <param name="callback">Function to run when a chapter finishes. gets string name of finished chapter</param>
+    public void ListenChapterFinished(Action<string> callback)
+    {
+        _onChapterFinished += callback;
     }
 
     private void StoryLog(string log)
