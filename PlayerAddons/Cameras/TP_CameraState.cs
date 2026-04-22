@@ -1,6 +1,9 @@
+using System;
 using UnityEngine;
 using Unity.Cinemachine;
+using Object = UnityEngine.Object;
 
+[Serializable]
 public class TP_CameraState : CameraState
 {
     [Header("Sensitivity")]
