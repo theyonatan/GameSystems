@@ -132,7 +132,7 @@ public class StoryHelper
                 return character.Value;
         }
         
-        throw new ArgumentException($"Character with name {requestedName} not found in scene!");
+        throw new ArgumentException($"Character with name {requestedName} at {cutsceneId} not found in scene!\nFound: {string.Join(", ", allCharacters.Values)}");
     }
     
     /// <summary>

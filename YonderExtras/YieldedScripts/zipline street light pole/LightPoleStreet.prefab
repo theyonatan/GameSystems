@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 2627739177790402807}
   - component: {fileID: 5248395670030985075}
   - component: {fileID: 2726850784783105431}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: LightPoleStreet
   m_TagString: Zipline
   m_Icon: {fileID: 0}
@@ -67,7 +67,7 @@ MeshRenderer:
   m_SmallMeshCulling: 1
   m_ForceMeshLod: -1
   m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
+  m_RenderingLayerMask: 17
   m_RendererPriority: 0
   m_Materials:
   - {fileID: -9138658979196919938, guid: 94132ec3cef4e9f49863247cc3f993af, type: 3}
@@ -156,7 +156,7 @@ GameObject:
   m_Component:
   - component: {fileID: 9031196883400772980}
   - component: {fileID: 9156149433231965426}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: ZipTransform
   m_TagString: Untagged
   m_Icon: {fileID: 0}

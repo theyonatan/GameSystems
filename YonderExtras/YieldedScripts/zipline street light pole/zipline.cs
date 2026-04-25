@@ -18,9 +18,14 @@ public class zipline : MonoBehaviour, Interactable
 
     private void Awake()
     {
-        cable.SetPosition(0, ZipTransform.position);
         if (!targetZip)
-            return;
+        {
+           cable.gameObject.SetActive(false);
+           return;
+        }
+        
+        // set cable positions
+        cable.SetPosition(0, ZipTransform.position);
         cable.SetPosition(1, targetZip.ZipTransform.position);
     }
 
