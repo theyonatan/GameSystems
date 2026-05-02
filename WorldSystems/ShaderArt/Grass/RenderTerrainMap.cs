@@ -63,7 +63,7 @@ public class RenderTerrainMap : MonoBehaviour
         tempTex = new RenderTexture(resolution, resolution, 24);
         GetBounds();
         SetUpCam();
-        DrawDiffuseMap();
+        // DrawDiffuseMap();
     }
 
 
@@ -76,7 +76,6 @@ public class RenderTerrainMap : MonoBehaviour
         {
             InvokeRepeating("UpdateTex", 1f, repeatRate);
         }
-
     }
 
 

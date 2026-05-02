@@ -77,14 +77,14 @@ public class GrassPainterWindow : EditorWindow
         // Get existing open window or if none, make a new one:
         GrassPainterWindow window = (GrassPainterWindow)EditorWindow.GetWindow(typeof(GrassPainterWindow), false, "Grass Tool", true);
         var icon = EditorGUIUtility.FindTexture("tree_icon");
-        SO_GrassToolSettings m_toolSettings = (SO_GrassToolSettings)AssetDatabase.LoadAssetAtPath("Assets/GameSystems/WorldSystems/Grass/grassToolSettings.asset", typeof(SO_GrassToolSettings));
+        SO_GrassToolSettings m_toolSettings = (SO_GrassToolSettings)AssetDatabase.LoadAssetAtPath("Assets/GameSystems/WorldSystems/ShaderArt/Grass/grassToolSettings.asset", typeof(SO_GrassToolSettings));
         if (m_toolSettings == null)
         {
             
             Debug.Log("creating new one");
             m_toolSettings = CreateInstance<SO_GrassToolSettings>();
 
-            AssetDatabase.CreateAsset(m_toolSettings, "Assets/GameSystems/WorldSystems/Grass/grassToolSettings.asset");
+            AssetDatabase.CreateAsset(m_toolSettings, "Assets/GameSystems/WorldSystems/ShaderArt/Grass/grassToolSettings.asset");
             m_toolSettings.CreateNewLayers();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
