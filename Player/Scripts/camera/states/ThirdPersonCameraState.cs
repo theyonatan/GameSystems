@@ -15,7 +15,7 @@ public class ThirdPersonCameraState : CameraState
 
     public override void FixedUpdate()
     {
-
+        
     }
 
     public override void LoadState(CameraManager manager, InputDirector director)
