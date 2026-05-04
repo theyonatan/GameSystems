@@ -34,6 +34,12 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             Debug.LogError($"[AnimationManager] animator on character not found!");
     }
 
+    /// <summary>
+    /// used to refresh the animator.
+    /// useful for when swapping skins.
+    /// 
+    /// this clears the old animator cache and re-run the default animation.
+    /// </summary>
     public void RefreshPlayerAnimator()
     {
         if (!GetComponent<Player>().HasAuthority)
@@ -41,9 +47,12 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         
         // recollect player animator
         OnEnablePlayer();
-        
+
         playerAnimator.runtimeAnimatorController = _animatorController;
         RefreshBrain(playerAnimator);
+        
+        ResetCurrentAnimationCache();
+        EntryAnimation();
     }
 
     // ===== Loading =====

@@ -89,7 +89,7 @@ public class Player : MonoBehaviour
     public void SwapSkin(string skinName)
     {
         // disable player for a frame
-        PlayerEnabled = false;
+        DisablePlayerBehaviors();
 
         // Find old skin and save its rotation
         var currentSkin = GetComponentInChildren<Skin>();
@@ -133,7 +133,7 @@ public class Player : MonoBehaviour
         GetComponent<AnimationsManager>().RefreshPlayerAnimator();
         
         // reenable player after everything is finished collecting
-        PlayerEnabled = true;
+        EnablePlayerBehaviors();
     }
 
     // MonoBehavior Events
@@ -147,6 +147,8 @@ public class Player : MonoBehaviour
     public void EnablePlayerBehaviors()
     {
         PlayerEnabled = true;
+        
+        
     }
     
     public void Awake()

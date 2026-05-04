@@ -369,6 +369,11 @@ public class SwapPlayerState<TMovementState, TCameraState> : StoryCommand
 
         movementManager.ChangeState(new TMovementState());
         cameraManager.ChargeState(new TCameraState());
+        
+        // if uses animations, refresh them
+        var animationsManager = player.GetComponentInChildren<AnimationsManager>();
+        if (animationsManager && animationsManager.Initialized)
+            animationsManager.RefreshPlayerAnimator();
 
         return true;
     }

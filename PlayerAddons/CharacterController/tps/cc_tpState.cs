@@ -134,9 +134,11 @@ public class cc_tpState : MovementState
 
     public override void CleanState()
     {
+        // no need to clear velocity, read more in enterstate.
         // _currentVelocity = Vector3.zero;
         // _verticalVelocity = 0f;
-
+        
+        // clear input
         Director.OnPlayerMoved -= OnPlayerMoved;
         Director.OnPlayerMovedFinished -= OnPlayerMovedFinished;
         Director.OnPlayerJumpStarted -= OnPlayerJumpStarted;
@@ -147,6 +149,11 @@ public class cc_tpState : MovementState
         Director.OnDisablePlayerMovement -= OnDisablePlayerMovement;
         Director.OnPlayerRunEnabled -= OnPlayerRunEnabled;
         Director.OnPlayerRunDisabled -= OnPlayerRunDisabled;
+        
+        // clear animatins
+        _animator.SetBool("Walking", false);
+        _animator.SetBool("Falling", false);
+        _animator.SetBool("Running", false);
     }
 
     public override void RefreshPlayerReferences()

@@ -14,7 +14,7 @@ namespace SHG.AnimatorCoder
         public bool DebugMode;
         
         /// <summary> The baseline animation logic on a specific layer </summary>
-        private void EntryAnimation() => OnDefaultAnimationRequested?.Invoke();
+        protected void EntryAnimation() => OnDefaultAnimationRequested?.Invoke();
         protected readonly UnityEvent OnDefaultAnimationRequested = new ();
         
         private Animator _animator;
@@ -52,6 +52,7 @@ namespace SHG.AnimatorCoder
         
         protected void RefreshBrain(Animator animator)
         {
+            // reassign animator
             _animator = animator;
         }
 
@@ -243,6 +244,8 @@ namespace SHG.AnimatorCoder
                 var current = _currentAnimation[layer];
 
                 // No active brain animation on this layer yet - nothing to evaluate.
+                if (string.IsNullOrEmpty(current))
+                    continue;
                 if (!Animations.TryGetValue(current, out var animData))
                     continue;
 
@@ -253,6 +256,24 @@ namespace SHG.AnimatorCoder
                     Play(possible.ResultAnimationName, layer, possible.CustomCrossfade);
                     
                     return;
+                }
+            }
+        }
+        
+        protected void ResetCurrentAnimationCache()
+        {
+            if (_currentAnimation == null || _layerLocked == null || _currentCoroutine == null)
+                return;
+
+            for (int i = 0; i < _currentAnimation.Length; i++)
+            {
+                _currentAnimation[i] = null;
+                _layerLocked[i] = false;
+
+                if (_currentCoroutine[i] != null)
+                {
+                    StopCoroutine(_currentCoroutine[i]);
+                    _currentCoroutine[i] = null;
                 }
             }
         }
