@@ -49,6 +49,11 @@ namespace SHG.AnimatorCoder
             Initialized = true;
             EntryAnimation();
         }
+        
+        protected void RefreshBrain(Animator animator)
+        {
+            _animator = animator;
+        }
 
         /// <summary> Returns the current animation that is playing </summary>
         public string GetCurrentAnimation(int layer)
@@ -165,7 +170,7 @@ namespace SHG.AnimatorCoder
             if (Mathf.Approximately(customCrossfade, -1))
                 customCrossfade = animationToPlay.EntryCrossfade;
             _animator.CrossFade(Animations[_currentAnimation[layer]].Hash, customCrossfade, layer);
-
+            
             // Handle if There's next animation
             if (animationToPlay.AutoNextAnimation == null)
             {

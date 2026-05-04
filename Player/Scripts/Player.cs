@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -83,6 +84,56 @@ public class Player : MonoBehaviour
 
         movementManager.ChangeState(new TMovementState());
         cameraManager.ChargeState(new TCameraState());
+    }
+
+    public void SwapSkin(string skinName)
+    {
+        // disable player for a frame
+        PlayerEnabled = false;
+
+        // Find old skin and save its rotation
+        var currentSkin = GetComponentInChildren<Skin>();
+        if (!currentSkin)
+        {
+            Debug.LogError("current skin doesn't support swapping!");
+            return;
+        }
+        
+        var oldSkinRotation = currentSkin.transform.rotation;
+        
+        // Spawn New skin and apply old rotation
+        Skin newSkin = Resources.Load<Skin>($"Skins/{skinName}");
+        if (!newSkin)
+        {
+            Debug.LogError("new skin wasn't found!");
+            return;
+        }
+
+        var spawnedSkin = Instantiate(newSkin, transform);
+        spawnedSkin.transform.rotation = oldSkinRotation;
+        
+        // Destroy old skin - now all states are tuned to the new references.
+        Destroy(currentSkin.gameObject);
+        
+        StartCoroutine(ApplySkinCoroutine());
+    }
+
+    private IEnumerator ApplySkinCoroutine()
+    {
+        // wait for the changes to apply, destroy old player and fully instantiate the new one
+        yield return null;
+        
+        // refresh assignables
+        foreach (var refreshableReference in GetComponents<IRefreshPlayerReferences>())
+            refreshableReference.RefreshPlayerReferences();
+        GetComponent<MovementManager>().RefreshPlayerReferences();
+        GetComponent<CameraManager>().RefreshPlayerReferences();
+        
+        // refresh animations assignables
+        GetComponent<AnimationsManager>().RefreshPlayerAnimator();
+        
+        // reenable player after everything is finished collecting
+        PlayerEnabled = true;
     }
 
     // MonoBehavior Events

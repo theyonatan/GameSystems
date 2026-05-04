@@ -152,7 +152,12 @@ public class ThirdPersonState : MovementState
         Director.OnPlayerRunEnabled -= _director_OnPlayerRunEnabled;
         Director.OnPlayerRunDisabled -= _director_OnPlayerRunDisabled;
     }
-    
+
+    public override void RefreshPlayerReferences()
+    {
+        
+    }
+
     // -------------------------------
     // Input Events
     // -------------------------------

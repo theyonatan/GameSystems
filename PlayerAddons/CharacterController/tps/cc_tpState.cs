@@ -149,6 +149,13 @@ public class cc_tpState : MovementState
         Director.OnPlayerRunDisabled -= OnPlayerRunDisabled;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        // maybe this is null? -----------------------------------↓
+        characterOrientation = Controller.GetComponentInChildren<CharacterOrientation>().transform;
+        Debug.Log("well " + characterOrientation);
+    }
+
     // -------------------------------
     // Core Movement
     // -------------------------------

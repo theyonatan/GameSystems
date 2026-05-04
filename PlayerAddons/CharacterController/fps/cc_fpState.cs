@@ -115,6 +115,12 @@ public class cc_fpState : MovementState
         Director.OnPlayerRunDisabled -= OnPlayerRunDisabled;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        var animator = Controller.GetComponentInChildren<Animator>();
+        orientation = animator ? animator.transform : Controller.transform;
+    }
+
     // -------------------------------
     // Core Movement
     // -------------------------------

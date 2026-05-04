@@ -34,4 +34,9 @@ public class DefaultMovementState : MovementState
     {
         
     }
+
+    public override void RefreshPlayerReferences()
+    {
+        
+    }
 }

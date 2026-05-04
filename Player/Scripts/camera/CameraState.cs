@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public abstract class CameraState
+public abstract class CameraState : IRefreshPlayerReferences
 {
     /// <summary>
     /// /// CameraState will have many inheriting states, each for a different camera mode.
@@ -50,4 +50,5 @@ public abstract class CameraState
     public abstract void FixedUpdate();
     public abstract void ClearState();
     public abstract void OnDestroy();
+    public virtual void RefreshPlayerReferences() { }
 }

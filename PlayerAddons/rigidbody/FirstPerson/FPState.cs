@@ -154,6 +154,13 @@ public class FpState : MovementState
         Director.OnPlayerRunDisabled -= _director_OnPlayerRunDisabled;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        character = Controller.transform.GetComponentInChildren<Animator>();
+        orientation = character.transform;
+        groundCheck = character.gameObject.GetComponentInChildren<PlayerGround>().transform;
+    }
+
 
     // -------------------------------
     // Movement Functions

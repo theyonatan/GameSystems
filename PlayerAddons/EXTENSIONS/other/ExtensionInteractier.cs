@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior
+public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlayerReferences
 {
     protected InputDirector _inputDirector;
     private bool _unsubscribedFromDefaultInteract = false;
@@ -109,5 +109,10 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior
 
         interactable = null;
         return false;
+    }
+
+    public void RefreshPlayerReferences()
+    {
+        InteractorSource = GetComponentInChildren<CameraOrientation>().transform;
     }
 }

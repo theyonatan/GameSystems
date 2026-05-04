@@ -31,4 +31,9 @@ public class StoryControlledPlayer : MovementState
     {
         throw new System.NotImplementedException();
     }
+
+    public override void RefreshPlayerReferences()
+    {
+        
+    }
 }

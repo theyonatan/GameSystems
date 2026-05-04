@@ -139,6 +139,12 @@ public class HoverboardState : MovementState
         rb.linearVelocity = movementVelocity;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        character = Controller.transform.parent.GetComponentInChildren<Animator>();
+        groundCheck = character.gameObject.GetComponentInChildren<PlayerGround>().transform;
+    }
+
 
     // -------------------------------
     // Movement Functions

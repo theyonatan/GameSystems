@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [System.Serializable]
-public abstract class MovementState
+public abstract class MovementState : IRefreshPlayerReferences
 {
     /// <summary>
     /// /// MovementState will have many inheriting states, each for a different movement mode.
@@ -35,6 +35,8 @@ public abstract class MovementState
     public abstract void UpdateState();
     public abstract void FixedUpdate();
     public abstract void CleanState();
+    
+    public virtual void RefreshPlayerReferences() { }
 
     // Extra calls
 

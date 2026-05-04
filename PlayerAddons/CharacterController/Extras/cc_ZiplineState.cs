@@ -45,4 +45,11 @@ public class cc_ZiplineState : MovementState
     {
         
     }
+
+    public override void RefreshPlayerReferences()
+    {
+        var orientation = Controller.GetComponentInChildren<CharacterOrientation>();
+        if (orientation)
+            _characterOrientation = orientation.transform;
+    }
 }

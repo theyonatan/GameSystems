@@ -21,6 +21,7 @@ public class ThirdPersonCameraState : CameraState
     public override void LoadState(CameraManager manager, InputDirector director)
     {
         InputDirector = director;
+        Manager = manager;
         _freelookCamera = manager.transform.parent.GetComponentInChildren<CinemachineFreeLook>();
 
         PlayerStateData localData = Resources.Load<PlayerStateData>("playerStates/normalPlayer");
@@ -37,6 +38,13 @@ public class ThirdPersonCameraState : CameraState
     {
         //freelookCamera.m_XAxis.m_MaxSpeed = cameraSpeed.x;
         //freelookCamera.m_YAxis.m_MaxSpeed = cameraSpeed.y;
+    }
+
+    public override void RefreshPlayerReferences()
+    {
+        _lookat = _player.GetComponentInChildren<LookatSign>().transform;
+        
+        _freelookCamera.LookAt = _lookat;
     }
 
     public override void UpdateState()

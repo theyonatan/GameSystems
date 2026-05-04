@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 public class MovementManager : MonoBehaviour, IPlayerBehavior
@@ -85,6 +84,11 @@ public class MovementManager : MonoBehaviour, IPlayerBehavior
                 _capsuleCollider.isTrigger = false;
                 break;
         }
+    }
+    
+    public void RefreshPlayerReferences()
+    {
+        CurrentState?.RefreshPlayerReferences();
     }
 
     public void UpdatePlayer()

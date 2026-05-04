@@ -32,4 +32,9 @@ public class SkiState : MovementState
     {
 
     }
+
+    public override void RefreshPlayerReferences()
+    {
+        
+    }
 }

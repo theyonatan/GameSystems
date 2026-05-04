@@ -30,4 +30,9 @@ public class BikeState : MovementState
     {
         throw new System.NotImplementedException();
     }
+
+    public override void RefreshPlayerReferences()
+    {
+        
+    }
 }

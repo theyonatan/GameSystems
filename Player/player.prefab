@@ -214,6 +214,7 @@ SkinnedMeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   serializedVersion: 2
   m_Quality: 0
   m_UpdateWhenOffscreen: 0
@@ -315,6 +316,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9165659601731520467}
+  - component: {fileID: 4500325879420777221}
   m_Layer: 0
   m_Name: character
   m_TagString: Character
@@ -342,6 +344,19 @@ Transform:
   - {fileID: 394652331713489951}
   m_Father: {fileID: 6448933596788456502}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4500325879420777221
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7171507082060770588}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7de52d2783d8b3948904b56bd6e3d93f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Player::Skin
+  SkinName: Pirategirl
 --- !u!1 &7978530360318098125
 GameObject:
   m_ObjectHideFlags: 0

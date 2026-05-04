@@ -77,6 +77,15 @@ public class TP_CameraState : CameraState
         Cursor.visible = false;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        Debug.LogError("References applied!");
+        _cameraOrientation = Manager.GetComponentInChildren<CameraOrientation>().transform;
+        _lookatTarget = GameObject.FindGameObjectWithTag("lookat").transform;
+        
+        _virtualCam.Follow = _cameraOrientation;
+    }
+
     public override void UpdateState()
     {
         _influence = 0.8f;

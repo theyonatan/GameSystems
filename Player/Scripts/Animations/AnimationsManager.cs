@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using AYellowpaper.SerializedCollections;
 using UnityEngine;
 using SHG.AnimatorCoder;
@@ -23,6 +22,7 @@ using UnityEngine.Events;
 public class AnimationsManager : AnimatorCoder, IPlayerBehavior
 {
     [SerializeField] private Animator playerAnimator;
+    private RuntimeAnimatorController _animatorController;
 
     public void OnEnablePlayer()
     {
@@ -32,6 +32,18 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         playerAnimator = GetComponentInChildren<Animator>(true);
         if (!playerAnimator)
             Debug.LogError($"[AnimationManager] animator on character not found!");
+    }
+
+    public void RefreshPlayerAnimator()
+    {
+        if (!GetComponent<Player>().HasAuthority)
+            return;
+        
+        // recollect player animator
+        OnEnablePlayer();
+        
+        playerAnimator.runtimeAnimatorController = _animatorController;
+        RefreshBrain(playerAnimator);
     }
 
     // ===== Loading =====
@@ -160,6 +172,7 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             {
                 animationsManager.OnEnablePlayer(); // get animator
                 animationsManager.playerAnimator.runtimeAnimatorController = _animatorController;
+                animationsManager._animatorController = _animatorController;
                 
                 // initialize brain
                 animationsManager.Initialize(animationsManager.playerAnimator);

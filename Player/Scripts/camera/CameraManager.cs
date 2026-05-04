@@ -130,6 +130,11 @@ public class CameraManager : MonoBehaviour, IPlayerBehavior
         if (CurrentCinemachineComponent)
             CutscenesHelper.GiveCameraPriority(CurrentCinemachineComponent);
     }
+    
+    public void RefreshPlayerReferences()
+    {
+        _currentState?.RefreshPlayerReferences();
+    }
 
     public void UpdatePlayer()
     {

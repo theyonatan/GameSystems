@@ -34,6 +34,10 @@ public class CameraStateFirstPerson : CameraState
         _virtualCam = Manager.CurrentCinemachineComponent.gameObject;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        orientation = Manager.transform.GetComponentInChildren<Animator>().gameObject.transform;
+    }
 
     // input events
     private void _inputDirector_OnCameraMoved(Vector2 camValue)

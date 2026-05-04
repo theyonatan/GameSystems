@@ -107,6 +107,12 @@ public class FirstPersonState : MovementState
         rb.linearVelocity = movementVelocity;
     }
 
+    public override void RefreshPlayerReferences()
+    {
+        orientation = Controller.transform.parent.GetComponentInChildren<Animator>().gameObject.transform;
+        character = Controller.transform.parent.GetComponentInChildren<Animator>();
+    }
+
     // Logic
     // Fixed Update Movement
     private void Movement()
