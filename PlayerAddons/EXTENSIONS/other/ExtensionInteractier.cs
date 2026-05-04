@@ -22,6 +22,8 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
         _inputDirector = GetComponent<InputDirector>();
         _inputDirector.OnInteractPressed += OnPressedInteract;
         
+        InteractorSource = GetComponentInChildren<CameraOrientation>().transform;
+        
         // get ignore layers
         int playerLayer = LayerMask.NameToLayer("Player");
         int selfLayer = LayerMask.NameToLayer("Self");

@@ -48,6 +48,20 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         // recollect player animator
         OnEnablePlayer();
 
+        if (!playerAnimator)
+        {
+            Debug.LogError("[AnimationsManager] no animator found on new skin after refresh!");
+            return;
+        }
+        
+        // load animation controller from new skin
+        RuntimeAnimatorController controllerToUse = playerAnimator.runtimeAnimatorController;
+        if (!controllerToUse)
+            controllerToUse = _animatorController; // keep old one if no new one
+        
+        _animatorController = controllerToUse;
+        
+        // apply new controller or old one
         playerAnimator.runtimeAnimatorController = _animatorController;
         RefreshBrain(playerAnimator);
         
@@ -62,7 +76,7 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         private readonly Dictionary<string, AnimationData> _animations;
         private readonly List<string> _parameters;
         private readonly Dictionary<string, int> _parameterHashes;
-        private readonly RuntimeAnimatorController _animatorController;
+        private RuntimeAnimatorController _animatorController;
         private UnityAction _defaultAnimationAction;
         private bool _debugMode;
 
@@ -78,20 +92,23 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         public Builder(string animatorControllerName=null)
         {
             if (animatorControllerName != null)
-            {
-                var animatorController = Resources.Load<RuntimeAnimatorController>(animatorControllerName);
-
-                if (!animatorController)
-                    Debug.LogError($"Animator controller '{animatorControllerName}' not found!");
-                else
-                    _animatorController = animatorController;
-            }
-            else // no controller provided, must be second initialization
+                LoadAnimatorControllerResources(animatorControllerName);
+            else // no controller provided, must be second initialization or provided via skin
                 _animatorController = null;
 
             _animations = new Dictionary<string, AnimationData>();
             _parameters = new List<string>();
             _parameterHashes = new Dictionary<string, int>();
+        }
+
+        private void LoadAnimatorControllerResources(string animatorControllerName="tps_animator")
+        {
+            var animatorController = Resources.Load<RuntimeAnimatorController>(animatorControllerName);
+
+            if (!animatorController)
+                Debug.LogError($"Animator controller '{animatorControllerName}' not found!");
+            else
+                _animatorController = animatorController;
         }
 
         public Builder AddAnimation(string animationName, bool lockLayer = false, string autoNextAnimation = null,
@@ -176,12 +193,31 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
                 animationsManager.DebugMode = _debugMode;
             
             // -------------------------------------------------------
-            // we only initialize the brain once. works between MovementStates.
-            if (!animationsManager.Initialized && _animatorController)
+            // Initialize the animation brain with a controller only once.
+            // Only movement states should initialize it because they provide
+            // the default animation logic.
+            //
+            // Extensions may build before the movement state.
+            // In that case, they only register their animations/parameters,
+            // and the movement state initializes the brain later.
+            if (!animationsManager.Initialized && _defaultAnimationAction != null)
             {
                 animationsManager.OnEnablePlayer(); // get animator
-                animationsManager.playerAnimator.runtimeAnimatorController = _animatorController;
-                animationsManager._animatorController = _animatorController;
+                
+                // check if an AnimationController is available with skin
+                RuntimeAnimatorController controllerToUse = _animatorController;
+                if (!controllerToUse)
+                    controllerToUse = animationsManager.playerAnimator.runtimeAnimatorController;
+
+                if (!controllerToUse)
+                {
+                    Debug.LogWarning("[AnimationsManager] No RuntimeAnimatorController found on skin. reverting to default");
+                    LoadAnimatorControllerResources();
+                    controllerToUse = _animatorController;
+                }
+
+                animationsManager.playerAnimator.runtimeAnimatorController = controllerToUse;
+                animationsManager._animatorController = controllerToUse;
                 
                 // initialize brain
                 animationsManager.Initialize(animationsManager.playerAnimator);

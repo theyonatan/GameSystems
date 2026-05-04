@@ -85,7 +85,7 @@ public class cc_tpState : MovementState
         LocalData.OnRunningSpeedChanged += newRunningSpeed => sprintSpeed = newRunningSpeed;
         
         // Setup Animations
-        new AnimationsManager.Builder("tps_animator")
+        new AnimationsManager.Builder()
             .AddAnimation("Idle", connections: new [] {
                 Connection.To("Walking", customCrossfade: 0.06f).When("Walking", true),
             })
