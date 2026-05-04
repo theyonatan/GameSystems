@@ -503,6 +503,34 @@ public class SwapCamera : StoryCommand
     }
 }
 
+public class SwapPlayerSkin : StoryCommand
+{
+    private readonly int _playerId;
+    private readonly string _skinSourceName;
+    
+    // -1 = offline, single player id
+    public SwapPlayerSkin(string skinSourceName, int playerId)
+    {
+        _playerId = playerId;
+        _skinSourceName = skinSourceName;
+    }
+    
+    public bool Execute()
+    {
+        var player = Player.GetPlayer(_playerId);
+        if (!player)
+        {
+            Debug.LogError($"Couldn't find player with id {_playerId}!");
+            return true;
+        }
+        
+        player.SwapSkin(_skinSourceName);
+
+        // continue over story, should only take 3 frames so it's fine.
+        return true;
+    }
+}
+
 public class ShowMovieLines : StoryCommand
 {
     private float _duration;

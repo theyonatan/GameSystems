@@ -79,7 +79,6 @@ public class TP_CameraState : CameraState
 
     public override void RefreshPlayerReferences()
     {
-        Debug.LogError("References applied!");
         _cameraOrientation = Manager.GetComponentInChildren<CameraOrientation>().transform;
         _lookatTarget = GameObject.FindGameObjectWithTag("lookat").transform;
         

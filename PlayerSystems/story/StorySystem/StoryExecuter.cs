@@ -200,4 +200,9 @@ public class StoryExecuter : MonoBehaviour
         
         return Instantiate(systemPrefab, Vector3.zero, Quaternion.identity).SetUp();
     }
+
+    public Player GetPlayerOffline()
+    {
+        return Player.GetPlayer(-1);
+    }
 }

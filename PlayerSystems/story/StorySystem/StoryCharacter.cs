@@ -145,6 +145,9 @@ public class StoryCharacter : MonoBehaviour
         bool continueStoryOverCamera=true
         ) => _storyExecuter.addAction(new SwapCamera(
             vcam, speed, continueStoryOverCamera, instantCut, followTargetTransform));
+
+    public void SwapSkin(string skinSourceName, int playerId = -1)
+        => _storyExecuter.addAction(new SwapPlayerSkin(skinSourceName, playerId));
     
     public void ShowMovieBars(bool waitForCompletion = false, float duration = 0.6f)
         => _storyExecuter.addAction(new ShowMovieLines(
