@@ -112,11 +112,11 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         }
 
         public Builder AddAnimation(string animationName, bool lockLayer = false, string autoNextAnimation = null,
-            float autoNextCrossfade = -1f, bool loops = true, float entryCrossfade = 0f, UnityAction onEnd=null,
+            float autoNextCrossfade = -1f, bool loops = true, float entryCrossfade = 0f, bool onEndControlsTransition = false, UnityAction onEnd=null,
             params Connection[] connections)
         {
             _animations.Add(animationName,
-                new AnimationData(animationName, lockLayer, autoNextAnimation, autoNextCrossfade, loops, entryCrossfade, connections, onEnd));
+                new AnimationData(animationName, lockLayer, autoNextAnimation, autoNextCrossfade, loops, entryCrossfade, connections, onEndControlsTransition, onEnd));
 
             return this;
         }

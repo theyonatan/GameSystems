@@ -224,6 +224,10 @@ namespace SHG.AnimatorCoder
                 // above we can cancel the coroutine in case an overriding animation is played before reaching this
                 animationToPlay.OnEnd?.Invoke();
                 SetLocked(false, layer);
+                
+                if (animationToPlay.OnEndControlsTransition)
+                    yield break;
+                
                 EntryAnimation();
             }
         }
@@ -305,11 +309,14 @@ namespace SHG.AnimatorCoder
         /// <summary> Next animations with conditions </summary>
         public IReadOnlyList<Connection> FollowingAnimations;
 
+        /// <summary> When this animation ends, the onEnd callback decides what animation plays next. </summary>
+        public readonly bool OnEndControlsTransition;
+        
         /// <summary> Action to call when the animation finishes playing </summary>
         public readonly UnityAction OnEnd;
 
         /// <summary> Sets the animation data </summary>
-        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, float autoNextCrossfade = -1, bool loops = true, float entryCrossfade = 0, IReadOnlyList<Connection> conditions = null, UnityAction onEnd = null)
+        public AnimationData(string animationClipName = "RESET", bool lockLayer = false, string autoNextAnimation = null, float autoNextCrossfade = -1, bool loops = true, float entryCrossfade = 0, IReadOnlyList<Connection> conditions = null, bool onEndControlsTransition = false, UnityAction onEnd = null)
         {
             AnimationClipName = animationClipName;
             LockLayer = lockLayer;
@@ -318,6 +325,7 @@ namespace SHG.AnimatorCoder
             Loops = loops;
             EntryCrossfade = entryCrossfade;
             FollowingAnimations = conditions ?? new List<Connection>();
+            OnEndControlsTransition = onEndControlsTransition;
             OnEnd = onEnd;
             Hash = Animator.StringToHash(animationClipName);
         }
