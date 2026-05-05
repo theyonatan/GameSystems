@@ -525,13 +525,49 @@ public class SwapPlayerSkin : StoryCommand
         var player = Player.GetPlayer(_playerId);
         if (!player)
         {
-            Debug.LogError($"Couldn't find player with id {_playerId}!");
+            Debug.LogError($"SwapPlayerSkin StoryCommand: Couldn't find player with id {_playerId}!");
             return true;
         }
         
         player.SwapSkin(_skinSourceName);
 
         // continue over story, should only take 3 frames so it's fine.
+        return true;
+    }
+}
+
+public class ToggleEquipHandItem : StoryCommand
+{
+    private readonly int _playerId;
+    private readonly bool _shouldEquip;
+    
+    public ToggleEquipHandItem(bool shouldEquip, int playerId)
+    {
+        _shouldEquip = shouldEquip;
+        _playerId = playerId;
+    }
+    
+    public bool Execute()
+    {
+        var player = Player.GetPlayer(_playerId);
+        if (!player)
+        {
+            Debug.LogError($"EquipHandItem StoryCommand: Couldn't find player with id {_playerId}!");
+            return true;
+        }
+
+        var heldItemSlot = player.GetComponent<IEquipableHeldItem>();
+        if (heldItemSlot == null)
+        {
+            Debug.LogError($"EquipHandItem StoryCommand: Couldn't find IEquipableHeldItem! make sure a combat extension is present and inherits IEquipableHeldItem!");
+            return true;
+        }
+        
+        if (_shouldEquip)
+            heldItemSlot.Equip();
+        else
+            heldItemSlot.Unequip();
+        
         return true;
     }
 }
