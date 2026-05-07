@@ -536,19 +536,31 @@ public class SwapPlayerSkin : StoryCommand
     }
 }
 
-public class ToggleEquipHandItem : StoryCommand
+public class ToggleEquipItem : StoryCommand
 {
-    private readonly int _playerId;
-    private readonly bool _shouldEquip;
+    // equip or unequip
+    private readonly bool _toggleEquip;
     
-    public ToggleEquipHandItem(bool shouldEquip, int playerId)
+    // equip filters
+    private readonly int _playerId;
+    private readonly string _equipType;
+    private readonly string _equipLocation;
+    
+    public ToggleEquipItem(
+        bool toggleEquip,
+        int playerId,
+        string equipType = null,
+        string equipLocation = null)
     {
-        _shouldEquip = shouldEquip;
+        _toggleEquip = toggleEquip;
         _playerId = playerId;
+        _equipType = equipType;
+        _equipLocation = equipLocation;
     }
     
     public bool Execute()
     {
+        // get player
         var player = Player.GetPlayer(_playerId);
         if (!player)
         {
@@ -556,17 +568,31 @@ public class ToggleEquipHandItem : StoryCommand
             return true;
         }
 
-        var heldItemSlot = player.GetComponent<IEquipableHeldItem>();
-        if (heldItemSlot == null)
+        // find all matching equipables on this player
+        bool foundAny = false;
+        var equipables = player.GetComponents<IEquipableHeldItem>();
+        foreach (var equipable in equipables)
         {
-            Debug.LogError($"EquipHandItem StoryCommand: Couldn't find IEquipableHeldItem! make sure a combat extension is present and inherits IEquipableHeldItem!");
-            return true;
+            // check type (weapon, armour, hats...)
+            if (_equipType != null && equipable.EquipType != _equipType)
+                continue;
+
+            // check location (hands, backpack, hats...)
+            if (_equipLocation != null && equipable.EquipLocation != _equipLocation)
+                continue;
+
+            // found an item, toggle equip it
+            if (_toggleEquip)
+                equipable.Equip();
+            else
+                equipable.Unequip();
+
+            foundAny = true;
         }
         
-        if (_shouldEquip)
-            heldItemSlot.Equip();
-        else
-            heldItemSlot.Unequip();
+        // nothing matched the requested filters
+        if (!foundAny)
+            Debug.LogWarning($"No equipable item found. Type: {_equipType ?? "Any"}, Location: {_equipLocation ?? "Any"}");
         
         return true;
     }

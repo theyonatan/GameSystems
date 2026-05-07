@@ -149,11 +149,17 @@ public class StoryCharacter : MonoBehaviour
     public void SwapSkin(string skinSourceName, int playerId = -1)
         => _storyExecuter.addAction(new SwapPlayerSkin(skinSourceName, playerId));
 
-    public void EquipHeldItem(int playerId=-1)
-        => _storyExecuter.addAction(new ToggleEquipHandItem(true, playerId));
+    public void EquipItem(
+        int playerId=-1,
+        string equipType = null,
+        string equipLocation = null)
+        => _storyExecuter.addAction(new ToggleEquipItem(true, playerId, equipType, equipLocation));
     
-    public void UnEquipHeldItem(int playerId=-1)
-        => _storyExecuter.addAction(new ToggleEquipHandItem(true, playerId));
+    public void UnEquipItem(
+        int playerId=-1,
+        string equipType = null,
+        string equipLocation = null)
+        => _storyExecuter.addAction(new ToggleEquipItem(false, playerId, equipType, equipLocation));
     
     public void ShowMovieBars(bool waitForCompletion = false, float duration = 0.6f)
         => _storyExecuter.addAction(new ShowMovieLines(
