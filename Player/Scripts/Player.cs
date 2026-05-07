@@ -132,6 +132,10 @@ public class Player : MonoBehaviour
         // refresh animations assignables
         GetComponent<AnimationsManager>().RefreshPlayerAnimator();
         
+        // Refresh Equipped Items
+        foreach (var equipable in GetComponents<IEquipableHeldItem>())
+            equipable.RefreshEquippedVisuals();
+        
         // reenable player after everything is finished collecting
         EnablePlayerBehaviors();
     }
