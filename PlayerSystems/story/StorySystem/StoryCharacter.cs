@@ -122,7 +122,7 @@ public class StoryCharacter : MonoBehaviour
             Debug.LogError("no animator found when requested behave!");
             return;
         }
-        
+                
         _storyExecuter.addAction(new PlayAnimation(animator, animationName, continueStoryWhilePlaying));
     }
 
@@ -211,7 +211,13 @@ public class StoryCharacter : MonoBehaviour
     {
         _storyExecuter.addAction(new LoadScene(sceneName, loadingScreen, unloadActiveScene));
     }
-
+    
+    /// <summary>
+    /// NEVER use this!
+    /// instead, place the character in the scene from ahead, spawn it, and then use it.
+    /// otherwise you can't call story actions on it!
+    /// </summary>
+    [Obsolete("Use SpawnCharacter instead!")]
     public static void SpawnCharacter(GameObject character, Vector3 position, Quaternion? rotationDirection = null)
     {
         Quaternion quaternion = Quaternion.identity;
@@ -219,6 +225,16 @@ public class StoryCharacter : MonoBehaviour
             quaternion = rotationDirection.Value;
 
         Instantiate(character, position, quaternion);
+    }
+    
+    public void SpawnCharacter(StoryCharacter character, Transform spawnPoint, Transform parent = null)
+    {
+        _storyExecuter.addAction(new SpawnCharacter(character, spawnPoint, parent));
+    }
+
+    public void DespawnCharacter(StoryCharacter character)
+    {
+        _storyExecuter.addAction(new DespawnCharacter(character));
     }
     
     /// <summary>

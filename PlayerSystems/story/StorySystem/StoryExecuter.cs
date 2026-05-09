@@ -150,15 +150,6 @@ public class StoryExecuter : MonoBehaviour
         IsStoryRunning = true;
     }
 
-    public void ResetChapter()
-    {
-        CurrentChapter = "";
-        CurrentAction = null;
-        Story.Clear();
-        
-        SpeechManager.Instance.ResetSpeech();
-    }
-
     /// <summary>
     /// this object (story executer) lives throughout the entirety of the program and shouldn't die before then.
     /// this event will unsubscribe on its own.

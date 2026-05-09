@@ -57,7 +57,7 @@ public class StoryHelper
     {
         // Gather all characters in the scene
         StoryCharacter[] foundCharacters =
-            Object.FindObjectsByType<StoryCharacter>(FindObjectsSortMode.None);
+            Object.FindObjectsByType<StoryCharacter>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
         // verify characters are built correctly
         if (foundCharacters.Length == 0)

@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
@@ -803,5 +802,73 @@ public class LoadScene : StoryCommand
         }
         
         return false;
+    }
+}
+
+/// <summary>
+/// NEVER Call instantiate for story characters!!!
+/// LIKE IN PBB: First put them in the scene, disable them, and use this command to activate them.
+/// </summary>
+public class SpawnCharacter : StoryCommand
+{
+    private readonly StoryCharacter _character;
+    private readonly Transform _spawnPoint;
+    private readonly Transform _parent;
+
+    public SpawnCharacter(StoryCharacter character, Transform spawnPoint, Transform parent = null)
+    {
+        _character = character;
+        _spawnPoint = spawnPoint;
+        _parent = parent;
+    }
+
+    public bool Execute()
+    {
+        if (!_character)
+        {
+            Debug.LogError("[SpawnCharacter] Character is null!");
+            return true;
+        }
+
+        if (!_spawnPoint)
+        {
+            Debug.LogError($"[SpawnCharacter] Spawn point is null for {_character.name}!");
+            return true;
+        }
+
+        if (_parent)
+            _character.transform.SetParent(_parent);
+
+        _character.transform.SetPositionAndRotation(
+            _spawnPoint.position,
+            _spawnPoint.rotation
+        );
+
+        _character.gameObject.SetActive(true);
+
+        return true;
+    }
+}
+
+public class DespawnCharacter : StoryCommand
+{
+    private readonly StoryCharacter _character;
+
+    public DespawnCharacter(StoryCharacter character)
+    {
+        _character = character;
+    }
+
+    public bool Execute()
+    {
+        if (!_character)
+        {
+            Debug.LogError("[DespawnCharacter] Character is null!");
+            return true;
+        }
+
+        _character.gameObject.SetActive(false);
+
+        return true;
     }
 }

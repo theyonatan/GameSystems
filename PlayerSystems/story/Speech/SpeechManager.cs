@@ -123,11 +123,14 @@ public class SpeechManager : MonoBehaviour
 
     public void ResetSpeech()
     {
+        Finished = true;
+        
         SpeechCanvas activeCanvas = FindFirstObjectByType<SpeechCanvas>();
+        if (!activeCanvas)
+            return;
         
         activeCanvas.StopPointing();
         activeCanvas.ChatBubble.SetActive(false);
         activeCanvas.BubblePointer.gameObject.SetActive(false);
-        Finished = true;
     }
 }
