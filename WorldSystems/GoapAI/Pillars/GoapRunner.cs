@@ -97,13 +97,13 @@ public class GoapRunner
 
         if (_currentAction.Complete)
         {
-            Debug.Log($"GOAP: {_currentAction.Name} complete");
+            LogGoap($"GOAP: {_currentAction.Name} complete");
             _currentAction.Stop();
             _currentAction = null;
 
             if (_actionPlan.Actions.Count == 0)
             {
-                Debug.Log("GOAP: Plan complete");
+                LogGoap("GOAP: Plan complete");
                 _lastGoal = _currentGoal;
                 _currentGoal = null;
             }
@@ -119,7 +119,7 @@ public class GoapRunner
         // If we have a current goal, we only want to check goals with higher priority
         if (_currentGoal != null)
         {
-            Debug.Log("GOAP: Current goal exists, checking goals with higher priority");
+            LogGoap("GOAP: Current goal exists, checking goals with higher priority");
             goalsToCheck = new HashSet<AgentGoal>(_goals.Where(g => g.Priority > priorityLevel));
         }
 
@@ -143,7 +143,7 @@ public class GoapRunner
     {
         foreach (var precondition in _currentAction.Preconditions)
         {
-            Debug.Log($"GOAP: Precondition: {precondition.Name} - {precondition.Evaluate()}");
+            LogGoap($"GOAP: Precondition: {precondition.Name} - {precondition.Evaluate()}");
         }
     }
 
