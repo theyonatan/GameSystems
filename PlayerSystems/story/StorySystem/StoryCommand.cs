@@ -104,6 +104,7 @@ public class PlayAnimation : StoryCommand
     private Animator _animator;
     private string _animationName;
     private bool _continueStoryWhilePlaying;
+    private CountdownTimer _timer;
 
     private bool _startedPlayingAnimation;
     private bool _finishedAnimation;
@@ -113,35 +114,33 @@ public class PlayAnimation : StoryCommand
         _animator = animator;
         _animationName = animationName;
         _continueStoryWhilePlaying = continueStoryWhilePlaying;
+        
+        _timer = new CountdownTimer(GetAnimationLength(_animationName));
+        _timer.OnTimerStart += () => _animator.CrossFade(_animationName, 0.2f);
+        _timer.OnTimerStop += () => _finishedAnimation = true;
     }
     
     public bool Execute()
     {
+        _timer?.Tick(Time.deltaTime);
+        
         // wait for animation to finish
         if (_startedPlayingAnimation)
             return _finishedAnimation || _continueStoryWhilePlaying;
         
         // play animation once
-        CrossplayAnimationUsingTimer(_animationName, () =>
-        {
-            _finishedAnimation = true;
-        });
+        CrossplayAnimationUsingTimer();
         
         return false;
     }
     
-    private void CrossplayAnimationUsingTimer(string animationClipName, Action onAnimationFinished = null)
+    private void CrossplayAnimationUsingTimer()
     {
         if (_startedPlayingAnimation)
             return;
         _startedPlayingAnimation = true;
         
-        var timer = new CountdownTimer(GetAnimationLength(animationClipName));
-        timer.OnTimerStart += () => _animator.CrossFade(animationClipName, 0.2f);
-
-        timer.OnTimerStop += onAnimationFinished;
-
-        timer.Start();
+        _timer.Start();
     }
     
     private float GetAnimationLength(string animationClipName)
@@ -150,6 +149,7 @@ public class PlayAnimation : StoryCommand
         
         foreach (AnimationClip clip in _animator.runtimeAnimatorController.animationClips) {
             if (Animator.StringToHash(clip.name) == animationClipHash) {
+                Debug.Log("length: " + clip.length);
                 return clip.length;
             }
         }
