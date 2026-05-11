@@ -236,6 +236,9 @@ public class StoryCharacter : MonoBehaviour
     {
         _storyExecuter.addAction(new DespawnCharacter(character));
     }
+
+    public void SetActive(GameObject inactiveGameObject, bool activeState=true)
+    => DelayedAction(() => inactiveGameObject.SetActive(activeState));
     
     /// <summary>
     /// Non-Story actions
