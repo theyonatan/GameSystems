@@ -38,6 +38,17 @@ public class Player : MonoBehaviour
         return FindFirstObjectByType<Player>();
     }
 
+    /// <summary>
+    /// Kills self. resets all static items.
+    /// use at the end of scene
+    ///
+    /// does not kill the StoryExecuter
+    /// </summary>
+    public void KillSelf()
+    {
+        GetComponent<InputDirector>().KillSelf();
+    }
+
     public void SetAuthority(bool value)
     {
         ownsAuthority = value;

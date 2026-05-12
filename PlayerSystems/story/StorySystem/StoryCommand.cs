@@ -726,7 +726,7 @@ public class LoadScene : StoryCommand
 
     public bool Execute()
     {
-        // go on with the story
+        // when done loading - go on with the story
         if (_finished)
             return true;
 
@@ -755,6 +755,10 @@ public class LoadScene : StoryCommand
                 return true;
             }
         }
+        
+        // kill old scene player
+        Player player = Player.GetPlayer(-1);
+        player?.KillSelf();
 
         // load new scene
         if (_loadTargetSceneOp == null)

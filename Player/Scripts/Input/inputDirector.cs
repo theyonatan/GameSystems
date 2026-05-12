@@ -26,11 +26,17 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnFireStarted;
     public event Action OnFirePressed;
     public event Action OnFireReleased;
+    public event Action OnFireClicked;
     public event Action OnInteractPressed;
     public event Action OnCombatPressed;
     public event Action OnInventoryPressed;
     public event Action OnMainMenuPressed;
     public event Action OnPressedTimeChange;
+    
+    [SerializeField] private float clickDragThreshold = 8f;
+
+    private Vector2 _mouseDownPosition;
+    private bool _mouseWasDragged;
 
     private Action<Vector2> _onPlayerMoved;
     public event Action<Vector2> OnPlayerMoved
@@ -68,6 +74,9 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnMouseDragStarted;
     public event Action<float> OnMouseDragged;
     public event Action OnMouseDragFinished;
+
+    public event Action OnConfirmPressed;
+    public event Action OnBackPressed;
 
     // values
     public Vector2 MovementValue;
@@ -112,6 +121,9 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Inventory.performed += _ => OnInventoryPressed?.Invoke();
         _playerInput.Player.MainMenu.performed += _ => OnMainMenuPressed?.Invoke();
         _playerInput.Player.TimeSwap.performed += _ => OnPressedTimeChange?.Invoke();
+        
+        _playerInput.Player.Confirm.performed += _ => OnConfirmPressed?.Invoke();
+        _playerInput.Player.Back.performed += _ => OnBackPressed?.Invoke();
 
         // combat
         _playerInput.Player.Combat.performed += _ => OnCombatPressed?.Invoke();
@@ -226,13 +238,22 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
             _isMouseDragging = true;
-            _lastMouseX = Mouse.current.position.ReadValue().x;
+            _mouseWasDragged = false;
+
+            _mouseDownPosition = Mouse.current.position.ReadValue();
+            _lastMouseX = _mouseDownPosition.x;
+
             OnMouseDragStarted?.Invoke();
         }
 
         if (_isMouseDragging && Mouse.current.leftButton.isPressed)
         {
-            float currentMouseX = Mouse.current.position.ReadValue().x;
+            Vector2 currentMousePosition = Mouse.current.position.ReadValue();
+
+            if (Vector2.Distance(_mouseDownPosition, currentMousePosition) > clickDragThreshold)
+                _mouseWasDragged = true;
+
+            float currentMouseX = currentMousePosition.x;
             float deltaX = currentMouseX - _lastMouseX;
             _lastMouseX = currentMouseX;
 
@@ -244,6 +265,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         {
             _isMouseDragging = false;
             OnMouseDragFinished?.Invoke();
+
+            if (!_mouseWasDragged)
+                OnFireClicked?.Invoke();
         }
+    }
+
+    public void KillSelf()
+    {
+        OnDisablePlayer();
     }
 }
