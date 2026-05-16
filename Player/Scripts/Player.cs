@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Unity.Cinemachine;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -18,6 +19,11 @@ public class Player : MonoBehaviour
         if (!_cam)
             _cam = Camera.main;
         return _cam;
+    }
+
+    public CinemachineCamera GetCameraController()
+    {
+        return GetComponent<CameraManager>().CurrentCinemachineComponent;
     }
 
     public static Player GetPlayer(int playerId)
