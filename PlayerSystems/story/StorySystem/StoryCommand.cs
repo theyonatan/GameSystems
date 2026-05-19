@@ -819,7 +819,7 @@ public class SpawnCharacter : StoryCommand
     private readonly Transform _spawnPoint;
     private readonly Transform _parent;
 
-    public SpawnCharacter(StoryCharacter character, Transform spawnPoint, Transform parent = null)
+    public SpawnCharacter(StoryCharacter character, Transform spawnPoint=null, Transform parent = null)
     {
         _character = character;
         _spawnPoint = spawnPoint;
@@ -834,19 +834,16 @@ public class SpawnCharacter : StoryCommand
             return true;
         }
 
-        if (!_spawnPoint)
-        {
-            Debug.LogError($"[SpawnCharacter] Spawn point is null for {_character.name}!");
-            return true;
-        }
-
         if (_parent)
             _character.transform.SetParent(_parent);
 
-        _character.transform.SetPositionAndRotation(
-            _spawnPoint.position,
-            _spawnPoint.rotation
-        );
+        if (_spawnPoint)
+        {
+            _character.transform.SetPositionAndRotation(
+                _spawnPoint.position,
+                _spawnPoint.rotation
+            );
+        }
 
         _character.gameObject.SetActive(true);
 

@@ -227,15 +227,11 @@ public class StoryCharacter : MonoBehaviour
         Instantiate(character, position, quaternion);
     }
     
-    public void SpawnCharacter(StoryCharacter character, Transform spawnPoint, Transform parent = null)
-    {
-        _storyExecuter.addAction(new SpawnCharacter(character, spawnPoint, parent));
-    }
+    public void SpawnCharacter(StoryCharacter character, Transform spawnPoint=null, Transform parent = null)
+        => _storyExecuter.addAction(new SpawnCharacter(character, spawnPoint, parent));
 
     public void DespawnCharacter(StoryCharacter character)
-    {
-        _storyExecuter.addAction(new DespawnCharacter(character));
-    }
+        => _storyExecuter.addAction(new DespawnCharacter(character));
 
     public void SetActive(GameObject inactiveGameObject, bool activeState=true)
     => DelayedAction(() => inactiveGameObject.SetActive(activeState));
