@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TransitionsPlus;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -210,6 +211,16 @@ public class StoryCharacter : MonoBehaviour
     public void LoadScene(string sceneName, GameObject loadingScreen, bool unloadActiveScene = true)
     {
         _storyExecuter.addAction(new LoadScene(sceneName, loadingScreen, unloadActiveScene));
+    }
+
+    public void StartTransition(TransitionProfile transitionProfile)
+    {
+        _storyExecuter.addAction(new StartTransition(transitionProfile));
+    }
+
+    public void KillTransition()
+    {
+        _storyExecuter.addAction(new KillTransition());
     }
     
     /// <summary>

@@ -4,6 +4,11 @@ using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
+// Transitions
+#if TRANSITIONS_PLUS
+using TransitionsPlus;
+#endif
+
 public interface StoryCommand
 {
     public bool Execute();
@@ -808,6 +813,104 @@ public class LoadScene : StoryCommand
         return false;
     }
 }
+
+// Project Settings → Player → Scripting Define Symbols
+// add: TRANSITIONS_PLUS
+#if TRANSITIONS_PLUS
+
+public static class StoryTransitionMemory
+{
+    public static TransitionAnimator CurrentTransition;
+}
+
+public class StartTransition : StoryCommand
+{
+    private readonly TransitionProfile _profile;
+    private TransitionAnimator _animator;
+    private bool _started;
+
+    public StartTransition(TransitionProfile profile)
+    {
+        _profile = profile;
+    }
+
+    public bool Execute()
+    {
+        if (!_profile)
+        {
+            Debug.LogError("[StartTransition] TransitionProfile is null!");
+            return true;
+        }
+
+        if (!_started)
+        {
+            _started = true;
+
+            TransitionProfile runtimeProfile = Object.Instantiate(_profile);
+            runtimeProfile.invert = false;
+
+            _animator = TransitionAnimator.Start(
+                runtimeProfile,
+                autoDestroy: false
+            );
+
+            StoryTransitionMemory.CurrentTransition = _animator;
+
+            return false;
+        }
+
+        return !_animator || !_animator.isPlaying;
+    }
+}
+
+public class KillTransition : StoryCommand
+{
+    private readonly TransitionAnimator _transition;
+    private TransitionAnimator _reverseAnimator;
+    private bool _started;
+
+    public KillTransition(TransitionAnimator transition = null)
+    {
+        _transition = transition;
+    }
+
+    public bool Execute()
+    {
+        TransitionAnimator transitionToKill =
+            _transition ? _transition : StoryTransitionMemory.CurrentTransition;
+
+        if (!transitionToKill || !transitionToKill.profile)
+        {
+            Debug.LogWarning("[KillTransition] No active transition found.");
+            return true;
+        }
+
+        if (!_started)
+        {
+            _started = true;
+
+            TransitionProfile reverseProfile =
+                Object.Instantiate(transitionToKill.profile);
+
+            reverseProfile.invert = true;
+
+            _reverseAnimator = TransitionAnimator.Start(
+                reverseProfile,
+                autoDestroy: true
+            );
+
+            Object.Destroy(transitionToKill.gameObject);
+
+            StoryTransitionMemory.CurrentTransition = null;
+
+            return false;
+        }
+
+        return !_reverseAnimator || !_reverseAnimator.isPlaying;
+    }
+}
+
+#endif
 
 /// <summary>
 /// NEVER Call instantiate for story characters!!!
