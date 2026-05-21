@@ -147,6 +147,20 @@ public class StoryCharacter : MonoBehaviour
         ) => _storyExecuter.addAction(new SwapCamera(
             vcam, speed, continueStoryOverCamera, instantCut, followTargetTransform));
 
+    public void SwapCamera(
+        string vcamName,
+        Transform followTargetTransform = null,
+        float speed = 0.2f,
+        bool instantCut = false,
+        bool continueStoryOverCamera = true
+    )
+    {
+        var vcam = CutscenesHelper.LocateCamera(vcamName);
+        
+        _storyExecuter.addAction(new SwapCamera(
+            vcam, speed, continueStoryOverCamera, instantCut, followTargetTransform));
+    }
+
     public void SwapSkin(string skinSourceName, int playerId = -1)
         => _storyExecuter.addAction(new SwapPlayerSkin(skinSourceName, playerId));
 
