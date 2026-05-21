@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
@@ -11,6 +12,13 @@ using TransitionsPlus;
 
 public interface StoryCommand
 {
+    /// <summary>
+    /// returns true when the command ends and we can move to the next story command.
+    /// returns false if we haven't done yet
+    ///
+    /// this function is called every frame.
+    /// </summary>
+    /// <returns></returns>
     public bool Execute();
 }
 
@@ -160,6 +168,148 @@ public class PlayAnimation : StoryCommand
         }
 
         return -1f;
+    }
+}
+
+public class Teleport : StoryCommand
+{
+    private readonly Transform _character;
+    private readonly Vector3 _targetPosition;
+
+    public Teleport(Transform character, Vector3 targetPosition)
+    {
+        _character = character;
+        _targetPosition = targetPosition;
+    }
+
+    public bool Execute()
+    {
+        if (!_character)
+        {
+            Debug.LogError("[Teleport] Character is null!");
+            return true;
+        }
+
+        CharacterController controller = _character.GetComponent<CharacterController>();
+
+        if (controller)
+            controller.enabled = false;
+
+        _character.position = _targetPosition;
+
+        if (controller)
+            controller.enabled = true;
+
+        return true;
+    }
+}
+
+public class TeleportPlayer : StoryCommand
+{
+    private readonly Vector3 _targetPosition;
+    private bool _started;
+    private bool _finished;
+
+    public TeleportPlayer(Vector3 targetPosition)
+    {
+        _targetPosition = targetPosition;
+    }
+
+    public bool Execute()
+    {
+        if (_finished)
+            return true;
+
+        if (_started)
+            return false;
+
+        _started = true;
+
+        Player player = Player.GetPlayer(-1);
+        if (!player)
+        {
+            Debug.LogError("[TeleportPlayer] Couldn't find player!");
+            return true;
+        }
+
+        StoryExecuter.Instance.StartCoroutine(TeleportCoroutine(player));
+
+        return false;
+    }
+
+    private IEnumerator TeleportCoroutine(Player player)
+    {
+        CharacterController controller = player.GetComponent<CharacterController>();
+
+        if (controller)
+            controller.enabled = false;
+
+        player.transform.position = _targetPosition;
+
+        yield return null;
+
+        if (controller)
+            controller.enabled = true;
+
+        _finished = true;
+    }
+}
+
+/// <summary>
+/// for StoryCharacters use spawn and despawn
+/// </summary>
+public class HidePlayer : StoryCommand
+{
+    public bool Execute()
+    {
+        Player player = Player.GetPlayer(-1);
+
+        if (!player)
+        {
+            Debug.LogError("[HidePlayer] Couldn't find player!");
+            return true;
+        }
+
+        var renderer = player.GetComponentInChildren<SkinnedMeshRenderer>(true);
+
+        if (!renderer)
+        {
+            Debug.LogError("[HidePlayer] Couldn't find SkinnedMeshRenderer!");
+            return true;
+        }
+
+        renderer.enabled = false;
+
+        return true;
+    }
+}
+
+/// <summary>
+/// for StoryCharacters use spawn and despawn
+/// </summary>
+public class ShowPlayer : StoryCommand
+{
+    public bool Execute()
+    {
+        Player player = Player.GetPlayer(-1);
+
+        if (!player)
+        {
+            Debug.LogError("[ShowPlayer] Couldn't find player!");
+            return true;
+        }
+
+        var renderer = player.GetComponentInChildren<SkinnedMeshRenderer>(true);
+
+        if (!renderer)
+        {
+            Debug.LogError("[ShowPlayer] Couldn't find SkinnedMeshRenderer!");
+            return true;
+        }
+
+        renderer.enabled = true;
+
+        return true;
     }
 }
 
@@ -331,6 +481,31 @@ public class HideCursor : StoryCommand
     {
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
+        return true;
+    }
+}
+
+public class RotateTo : StoryCommand
+{
+    private readonly Transform _character;
+    private readonly Quaternion _rotation;
+
+    public RotateTo(Transform character, Quaternion rotation)
+    {
+        _character = character;
+        _rotation = rotation;
+    }
+
+    public bool Execute()
+    {
+        if (!_character)
+        {
+            Debug.LogError("[RotateTo] Character is null!");
+            return true;
+        }
+
+        _character.rotation = _rotation;
+
         return true;
     }
 }

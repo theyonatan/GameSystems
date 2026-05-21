@@ -95,14 +95,19 @@ public class StoryCharacter : MonoBehaviour
 
     public void RotateTo(Quaternion rotation)
     {
-
+        _storyExecuter.addAction(new RotateTo(transform, rotation));
     }
-
-    public void TeleportTo(Vector3 position)
+    
+    public void RotateTo(Transform targetTransform)
     {
-
+        _storyExecuter.addAction(new RotateTo(transform, targetTransform.rotation));
     }
-
+    
+    public void RotateTo(string storyObjectId)
+    {
+        if (StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject rotateObject))
+            _storyExecuter.addAction(new RotateTo(transform, rotateObject.transform.rotation));
+    }
 
     public void WaitForPlayerToGetTo(GameObject targetObject)
     {
@@ -126,6 +131,40 @@ public class StoryCharacter : MonoBehaviour
                 
         _storyExecuter.addAction(new PlayAnimation(animator, animationName, continueStoryWhilePlaying));
     }
+    
+    public void TeleportTo(Vector3 position)
+    {
+        _storyExecuter.addAction(new Teleport(transform, position));
+    }
+
+    public void TeleportTo(Transform targetTransform)
+    {
+        _storyExecuter.addAction(new Teleport(transform, targetTransform.position));
+    }
+
+    public void TeleportTo(string storyObjectId)
+    {
+        if (StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject teleportObject))
+            _storyExecuter.addAction(new Teleport(transform, teleportObject.GetLocation()));
+    }
+    
+    public void TeleportPlayer(Vector3 position)
+        => _storyExecuter.addAction(new TeleportPlayer(position));
+
+    public void TeleportPlayer(Transform targetTransform)
+        => _storyExecuter.addAction(new TeleportPlayer(targetTransform.position));
+
+    public void TeleportPlayer(string storyObjectId)
+    {
+        if (StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject teleportObject))
+            _storyExecuter.addAction(new TeleportPlayer(teleportObject.GetLocation()));
+    }
+
+    public void HidePlayer()
+        => _storyExecuter.addAction(new HidePlayer());
+
+    public void ShowPlayer()
+        => _storyExecuter.addAction(new ShowPlayer());
 
     /// <summary>
     /// Camera & Cutscene Controls
