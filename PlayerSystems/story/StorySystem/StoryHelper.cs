@@ -192,7 +192,7 @@ public class StoryHelper
     /// <returns>Dictionary: (StoryObject Id, StoryObject)</returns>
     public static Dictionary<string, StoryObject> GatherStoryObjects()
     {
-        StoryObject[] foundObjects = Object.FindObjectsOfType<StoryObject>();
+        StoryObject[] foundObjects = Object.FindObjectsByType<StoryObject>(FindObjectsInactive.Include, FindObjectsSortMode.InstanceID);
         
         if (foundObjects.Length == 0)
         {

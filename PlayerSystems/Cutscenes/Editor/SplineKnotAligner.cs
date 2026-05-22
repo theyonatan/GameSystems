@@ -18,6 +18,8 @@ public class SplineKnotAligner : Editor
         
         if (GUILayout.Button("Move Knot to SceneView Camera"))
             MoveSelectedKnotToCamera();
+        if (GUILayout.Button("Move SceneView Camera to Knot"))
+            MoveSceneViewCameraToSelectedKnot();
     }
     public void MoveSelectedKnotToCamera()
     {
@@ -73,5 +75,55 @@ public class SplineKnotAligner : Editor
         Undo.RecordObject(splineContainer, "Move Knot to SceneView Camera");
         splineContainer.Spline.SetKnot(active.KnotIndex, knot);
         EditorUtility.SetDirty(splineContainer);
+    }
+    
+    public void MoveSceneViewCameraToSelectedKnot()
+    {
+        if (Application.isPlaying)
+        {
+            Debug.LogWarning("Move SceneView Camera To Knot: run this in Edit mode, not Play mode.");
+            return;
+        }
+
+        var activeObject = Selection.activeGameObject;
+        if (!activeObject) return;
+
+        var splineContainer = activeObject.GetComponent<SplineContainer>();
+        if (!splineContainer) return;
+
+        List<SplineInfo> splineInfos = new List<SplineInfo>();
+
+        for (int i = 0; i < splineContainer.Splines.Count; i++)
+            splineInfos.Add(new SplineInfo(splineContainer, i));
+
+        var active = SplineSelection.GetActiveElement(splineInfos);
+
+        if (active == null)
+        {
+            Debug.LogWarning("No spline knot selected!");
+            return;
+        }
+
+        var spline = active.SplineInfo.Spline;
+        var knot = spline[active.KnotIndex];
+
+        var sceneView = SceneView.lastActiveSceneView;
+        if (!sceneView) return;
+
+        // Knot position/rotation are local to the SplineContainer,
+        // so convert them to world space.
+        Vector3 worldPos = splineContainer.transform.TransformPoint(knot.Position);
+        Quaternion worldRot = splineContainer.transform.rotation * knot.Rotation;
+
+        // Create temporary hidden object because AlignViewToObject needs a Transform.
+        GameObject temp = new GameObject("TEMP_SceneView_KnotAlign");
+        temp.hideFlags = HideFlags.HideAndDontSave;
+        temp.transform.position = worldPos;
+        temp.transform.rotation = worldRot;
+
+        sceneView.AlignViewToObject(temp.transform);
+        sceneView.Repaint();
+
+        DestroyImmediate(temp);
     }
 }

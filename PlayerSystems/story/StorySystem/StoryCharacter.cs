@@ -299,6 +299,12 @@ public class StoryCharacter : MonoBehaviour
 
     public void SetActive(GameObject inactiveGameObject, bool activeState=true)
     => DelayedAction(() => inactiveGameObject.SetActive(activeState));
+
+    public void SetActive(string inactiveStoryObject, bool activeState = true)
+    {
+        if (StoryHelper.FindStoryObjectInScene(inactiveStoryObject, out StoryObject storyObject))
+            DelayedAction(() => storyObject.gameObject.SetActive(activeState));
+    }
     
     /// <summary>
     /// Non-Story actions
