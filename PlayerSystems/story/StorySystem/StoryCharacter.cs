@@ -58,10 +58,14 @@ public class StoryCharacter : MonoBehaviour
     {
         _storyExecuter.addAction(new GoTo(transform, targetObject.GetLocation(), speed, _navMeshAgent));
     }
-    public void GoTo(string storyObjectId, float speed = 4f)
+    public void GoTo(string storyObjectId, float speed = 4f, bool withRotation=false)
     {
         if (StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject gotoObject))
+        {
             _storyExecuter.addAction(new GoTo(transform, gotoObject.GetLocation(), speed, _navMeshAgent));
+            if (withRotation)
+                _storyExecuter.addAction(new RotateTo(transform, gotoObject.transform.rotation));
+        }
     }
 
     public void LookAt(Transform targetTransform, float speed = 4f)
@@ -130,6 +134,40 @@ public class StoryCharacter : MonoBehaviour
         }
                 
         _storyExecuter.addAction(new PlayAnimation(animator, animationName, continueStoryWhilePlaying));
+    }
+    
+    public void BehaveBool(string parameterName, bool boolValue=true, float delayStoryForAnimation=0f)
+    {
+        var animator = GetComponent<Animator>();
+        if (animator == null)
+            animator = gameObject.GetComponentInChildren<Animator>();
+        if (animator == null)
+        {
+            Debug.LogError("no animator found when requested behave!");
+            return;
+        }
+        
+        _storyExecuter.addAction(new Behave(animator, parameterName, true, boolValue));
+        
+        if (delayStoryForAnimation > 0f)
+            _storyExecuter.addAction(new Delay(delayStoryForAnimation));
+    }
+    
+    public void BehaveTrigger(string parameterName, float delayStoryForAnimation=0f)
+    {
+        var animator = GetComponent<Animator>();
+        if (animator == null)
+            animator = gameObject.GetComponentInChildren<Animator>();
+        if (animator == null)
+        {
+            Debug.LogError("no animator found when requested behave!");
+            return;
+        }
+        
+        _storyExecuter.addAction(new Behave(animator, parameterName, false));
+        
+        if (delayStoryForAnimation > 0f)
+            _storyExecuter.addAction(new Delay(delayStoryForAnimation));
     }
     
     public void TeleportTo(Vector3 position)

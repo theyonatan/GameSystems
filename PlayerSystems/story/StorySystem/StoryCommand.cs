@@ -171,6 +171,36 @@ public class PlayAnimation : StoryCommand
     }
 }
 
+/// <summary>
+/// toggles a bool or trigger in the animator
+/// this runs and the story continues
+/// </summary>
+public class Behave : StoryCommand
+{
+    private readonly Animator _animator;
+    private readonly string _activatorName;
+    private readonly bool _isBool;
+    private readonly bool _activatorStatus;
+    
+    public Behave(Animator animator, string activatorName, bool isBool, bool activatorStatus=true)
+    {
+        _animator = animator;
+        _activatorName = activatorName;
+        _isBool = isBool;
+        _activatorStatus = activatorStatus;
+    }
+    
+    public bool Execute()
+    {
+        if (_isBool)
+            _animator.SetBool(_activatorName, _activatorStatus);
+        else
+            _animator.SetTrigger(_activatorName);
+        
+        return true;
+    }
+}
+
 public class Teleport : StoryCommand
 {
     private readonly Transform _character;
