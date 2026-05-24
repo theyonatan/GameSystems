@@ -60,12 +60,16 @@ public class StoryCharacter : MonoBehaviour
     }
     public void GoTo(string storyObjectId, float speed = 4f, bool withRotation=false)
     {
-        if (StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject gotoObject))
-        {
-            _storyExecuter.addAction(new GoTo(transform, gotoObject.GetLocation(), speed, _navMeshAgent));
-            if (withRotation)
-                _storyExecuter.addAction(new RotateTo(transform, gotoObject.transform.rotation));
-        }
+        var animator = GetComponent<Animator>();
+        if (animator == null)
+            animator = gameObject.GetComponentInChildren<Animator>();
+
+        if (!StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject gotoObject))
+            return;
+        
+        _storyExecuter.addAction(new GoTo(transform, gotoObject.GetLocation(), speed, _navMeshAgent, animator));
+        if (withRotation)
+            _storyExecuter.addAction(new RotateTo(transform, gotoObject.transform.rotation));
     }
 
     public void LookAt(Transform targetTransform, float speed = 4f)
@@ -332,6 +336,9 @@ public class StoryCharacter : MonoBehaviour
     public void SpawnCharacter(StoryCharacter character, Transform spawnPoint=null, Transform parent = null)
         => _storyExecuter.addAction(new SpawnCharacter(character, spawnPoint, parent));
 
+    public void DespawnCharacter()
+        => _storyExecuter.addAction(new DespawnCharacter(this));
+    
     public void DespawnCharacter(StoryCharacter character)
         => _storyExecuter.addAction(new DespawnCharacter(character));
 

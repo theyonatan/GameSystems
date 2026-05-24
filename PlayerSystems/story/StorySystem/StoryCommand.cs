@@ -75,37 +75,50 @@ public class Say : StoryCommand
 
 public class GoTo : StoryCommand
 {
+    private static readonly int MovingHash = Animator.StringToHash("Moving");
     private readonly Vector3 _targetPosition;
     private readonly Transform _character;
     private readonly float _speed;
 
     private bool _useNavmesh;
     private NavMeshAgent _agent;
+    
+    private Animator _animator;
 
-    public GoTo(Transform character, Vector3 position, float speed, NavMeshAgent agent=null)
+    public GoTo(Transform character, Vector3 position, float speed, NavMeshAgent agent=null, Animator animator=null)
     {
         _character = character;
         _targetPosition = position;
         _speed = speed;
         _agent = agent;
         _useNavmesh = agent;
+        _animator = animator;
     }
 
     public bool Execute()
     {
+        _animator?.SetBool(MovingHash, true);
+        
         if (_useNavmesh)
         {
             _agent.speed = _speed;
             _agent.SetDestination(_targetPosition);
-        
+
             if (!_agent.pathPending && _agent.remainingDistance < 0.4f && !_agent.hasPath)
+            {
+                _animator?.SetBool(MovingHash, false);
                 return true;
+            }
         }
         else
         {
             _character.position = Vector3.MoveTowards(_character.position, _targetPosition, Time.deltaTime * _speed);
             if (Vector3.Distance(_character.position, _targetPosition) < 0.4f)
+            {
+                // we finished
+                _animator?.SetBool(MovingHash, false);
                 return true;
+            }
         }
 
         return false;
