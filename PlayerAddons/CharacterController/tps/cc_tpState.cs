@@ -17,7 +17,7 @@ public class cc_tpState : MovementState
     private AnimationsManager _animator;
 
     [Header("Movement")]
-    [SerializeField] private float walkSpeed = 5f;
+    [SerializeField] private float walkSpeed = 2.8f;
     [SerializeField] private float sprintSpeed = 8f;
     [SerializeField] private float acceleration = 12f;
     [SerializeField] private float rotationSpeed = 12f;
