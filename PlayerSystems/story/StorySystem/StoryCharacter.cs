@@ -58,11 +58,13 @@ public class StoryCharacter : MonoBehaviour
     {
         _storyExecuter.addAction(new GoTo(transform, targetObject.GetLocation(), speed, _navMeshAgent));
     }
-    public void GoTo(string storyObjectId, float speed = 4f, bool withRotation=false)
+    public void GoTo(string storyObjectId, float speed = 4f, bool withRotation=false, bool withAnimation=true)
     {
         var animator = GetComponent<Animator>();
         if (animator == null)
             animator = gameObject.GetComponentInChildren<Animator>();
+        if (!withAnimation)
+            animator = null;
 
         if (!StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject gotoObject))
             return;
@@ -345,7 +347,7 @@ public class StoryCharacter : MonoBehaviour
     public void SetActive(GameObject inactiveGameObject, bool activeState=true)
     => DelayedAction(() => inactiveGameObject.SetActive(activeState));
 
-    public void SetActive(string inactiveStoryObject, bool activeState = true)
+    public void SetActiveStoryObject(string inactiveStoryObject, bool activeState = true)
     {
         if (StoryHelper.FindStoryObjectInScene(inactiveStoryObject, out StoryObject storyObject))
             DelayedAction(() => storyObject.gameObject.SetActive(activeState));

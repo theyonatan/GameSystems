@@ -98,9 +98,9 @@ public class cc_tpState : MovementState
                 Connection.To("Walking", customCrossfade: 0.2f).When("Running", false),
                 Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false)
             })
-            .AddAnimation("Jump", entryCrossfade: 0f, autoNextAnimation: "Fall", lockLayer: true, loops: false)
+            .AddAnimation("Jump", entryCrossfade: 0f, autoNextCrossfade: 4f, autoNextAnimation: "Fall", lockLayer: true, loops: false)
             .AddAnimation("Fall", connections:
-                Connection.To("Idle", customCrossfade: 0.03f).When("Falling", false))
+                Connection.To("Idle", customCrossfade: 0.1f).When("Falling", false))
             .AddParameter("Walking")
             .AddParameter("Falling")
             .AddParameter("Running")

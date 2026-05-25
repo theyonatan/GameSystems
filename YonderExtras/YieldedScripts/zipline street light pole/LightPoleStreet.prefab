@@ -129,7 +129,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   targetZip: {fileID: 0}
-  zipSpeed: 500
+  zipSpeed: 35
   zipScale: 0.2
   arrivalThreshold: 0.4
   cable: {fileID: 9156149433231965426}
