@@ -79,13 +79,14 @@ public class GoTo : StoryCommand
     private readonly Vector3 _targetPosition;
     private readonly Transform _character;
     private readonly float _speed;
+    private readonly float _gotoDistance;
 
     private bool _useNavmesh;
     private NavMeshAgent _agent;
     
     private Animator _animator;
 
-    public GoTo(Transform character, Vector3 position, float speed, NavMeshAgent agent=null, Animator animator=null)
+    public GoTo(Transform character, Vector3 position, float speed, NavMeshAgent agent=null, Animator animator=null, float gotoDistance=0.4f)
     {
         _character = character;
         _targetPosition = position;
@@ -93,6 +94,7 @@ public class GoTo : StoryCommand
         _agent = agent;
         _useNavmesh = agent;
         _animator = animator;
+        _gotoDistance = gotoDistance;
     }
 
     public bool Execute()
@@ -104,7 +106,7 @@ public class GoTo : StoryCommand
             _agent.speed = _speed;
             _agent.SetDestination(_targetPosition);
 
-            if (!_agent.pathPending && _agent.remainingDistance < 0.4f && !_agent.hasPath)
+            if (!_agent.pathPending && _agent.remainingDistance < _gotoDistance && !_agent.hasPath)
             {
                 _animator?.SetBool(MovingHash, false);
                 return true;
@@ -113,7 +115,8 @@ public class GoTo : StoryCommand
         else
         {
             _character.position = Vector3.MoveTowards(_character.position, _targetPosition, Time.deltaTime * _speed);
-            if (Vector3.Distance(_character.position, _targetPosition) < 0.4f)
+            Debug.Log(Vector3.Distance(_character.position, _targetPosition));
+            if (Vector3.Distance(_character.position, _targetPosition) < _gotoDistance)
             {
                 // we finished
                 _animator?.SetBool(MovingHash, false);

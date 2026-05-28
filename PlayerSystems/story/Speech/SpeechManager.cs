@@ -1,4 +1,5 @@
 using System.Collections;
+using EasyTextEffects;
 using UnityEngine;
 
 /// <summary>
@@ -59,7 +60,7 @@ public class SpeechManager : MonoBehaviour
         if (!activeCanvas)
         {
             Debug.Log("No active canvas found!");
-            canvasObject = Resources.Load<GameObject>("ActiveCanvas");
+            canvasObject = Resources.Load<GameObject>("ActiveCanvasBlack");
             if (!canvasObject)
                 Debug.LogError("SpeechManager: Failed to load canvasObject from Resources.");
             activeCanvas = Instantiate(canvasObject).GetComponent<SpeechCanvas>();
@@ -88,21 +89,29 @@ public class SpeechManager : MonoBehaviour
         
         LoadActiveCanvas(out SpeechCanvas activeCanvas, characterTransform);
         
-        // StopAllCoroutines();
-        StartCoroutine(AnimateText(activeCanvas, speechMessage, letterDelay));
+        var textEffect = activeCanvas.TextBox.GetComponent<TextEffect>();
+        
+        StartCoroutine(AnimateText(activeCanvas, speechMessage, letterDelay, textEffect));
     }
 
 
     /// <summary>
     /// animating the text letter by letter
     /// </summary>
-    IEnumerator AnimateText(SpeechCanvas activeCanvas, string fullMessage, float letterDelay)
+    IEnumerator AnimateText(SpeechCanvas activeCanvas, string fullMessage, float letterDelay, TextEffect effect)
     {
-        string curentText = "";
-        for (int i = 0; i < fullMessage.Length; i++)
+        activeCanvas.SetText(fullMessage);
+
+        var textBox = activeCanvas.TextBox;
+        textBox.maxVisibleCharacters = 0;
+        textBox.ForceMeshUpdate();
+        effect.Refresh();
+
+        int visibleCount = textBox.textInfo.characterCount;
+
+        for (int i = 0; i <= visibleCount; i++)
         {
-            curentText += fullMessage[i];
-            activeCanvas.SetText(curentText);
+            textBox.maxVisibleCharacters = i;
             yield return new WaitForSeconds(letterDelay);
         }
         
@@ -111,12 +120,15 @@ public class SpeechManager : MonoBehaviour
         {
             if (Input.GetMouseButtonDown(0))
             {
+                textBox.maxVisibleCharacters = int.MaxValue;
+
                 activeCanvas.StopPointing();
                 activeCanvas.ChatBubble.SetActive(false);
                 activeCanvas.BubblePointer.gameObject.SetActive(false);
                 Finished = true;
                 break;
             }
+
             yield return null;
         }
     }

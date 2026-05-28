@@ -58,7 +58,7 @@ public class StoryCharacter : MonoBehaviour
     {
         _storyExecuter.addAction(new GoTo(transform, targetObject.GetLocation(), speed, _navMeshAgent));
     }
-    public void GoTo(string storyObjectId, float speed = 4f, bool withRotation=false, bool withAnimation=true)
+    public void GoTo(string storyObjectId, float speed = 4f, bool withRotation=false, bool withAnimation=true, float gotoDistance=0.4f)
     {
         var animator = GetComponent<Animator>();
         if (animator == null)
@@ -69,7 +69,7 @@ public class StoryCharacter : MonoBehaviour
         if (!StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject gotoObject))
             return;
         
-        _storyExecuter.addAction(new GoTo(transform, gotoObject.GetLocation(), speed, _navMeshAgent, animator));
+        _storyExecuter.addAction(new GoTo(transform, gotoObject.GetLocation(), speed, _navMeshAgent, animator, gotoDistance));
         if (withRotation)
             _storyExecuter.addAction(new RotateTo(transform, gotoObject.transform.rotation));
     }
