@@ -535,11 +535,13 @@ public class RotateTo : StoryCommand
 {
     private readonly Transform _character;
     private readonly Quaternion _rotation;
+    private readonly float _speed;
 
-    public RotateTo(Transform character, Quaternion rotation)
+    public RotateTo(Transform character, Quaternion rotation, float speed = 0f)
     {
         _character = character;
         _rotation = rotation;
+        _speed = speed;
     }
 
     public bool Execute()
@@ -550,9 +552,25 @@ public class RotateTo : StoryCommand
             return true;
         }
 
-        _character.rotation = _rotation;
+        // Instant rotation (default behavior)
+        if (_speed <= 0f)
+        {
+            _character.rotation = _rotation;
+            return true;
+        }
 
-        return true;
+        // Smooth rotation
+        Quaternion newRotation = Quaternion.Slerp(
+            _character.rotation,
+            _rotation,
+            _speed * Time.deltaTime);
+
+        // Y-only rotation like LookAt
+        newRotation = Quaternion.Euler(0, newRotation.eulerAngles.y, 0);
+        _character.rotation = newRotation;
+
+        float angle = Quaternion.Angle(_character.rotation, _rotation);
+        return angle < 1f;
     }
 }
 

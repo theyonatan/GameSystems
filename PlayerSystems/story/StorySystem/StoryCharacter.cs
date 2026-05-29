@@ -84,6 +84,11 @@ public class StoryCharacter : MonoBehaviour
         _storyExecuter.addAction(new LookAt(transform, targetObject.transform, speed));
     }
     
+    public void LookAt(StoryCharacter targetTransform, float speed = 4f)
+    {
+        _storyExecuter.addAction(new LookAt(transform, targetTransform.transform, speed));
+    }
+    
     public void LookAt(StoryObject targetTransform, float speed = 4f)
     {
         _storyExecuter.addAction(new LookAt(transform, targetTransform.transform, speed));
@@ -103,20 +108,20 @@ public class StoryCharacter : MonoBehaviour
         Debug.Log("going (without rotating) to " + position);
     }
 
-    public void RotateTo(Quaternion rotation)
+    public void RotateTo(Quaternion rotation, float speed=0f)
     {
-        _storyExecuter.addAction(new RotateTo(transform, rotation));
+        _storyExecuter.addAction(new RotateTo(transform, rotation, speed));
     }
     
-    public void RotateTo(Transform targetTransform)
+    public void RotateTo(Transform targetTransform, float speed=0f)
     {
-        _storyExecuter.addAction(new RotateTo(transform, targetTransform.rotation));
+        _storyExecuter.addAction(new RotateTo(transform, targetTransform.rotation, speed));
     }
     
-    public void RotateTo(string storyObjectId)
+    public void RotateTo(string storyObjectId, float speed=0f)
     {
         if (StoryHelper.FindStoryObjectInScene(storyObjectId, out StoryObject rotateObject))
-            _storyExecuter.addAction(new RotateTo(transform, rotateObject.transform.rotation));
+            _storyExecuter.addAction(new RotateTo(transform, rotateObject.transform.rotation, speed));
     }
 
     public void WaitForPlayerToGetTo(GameObject targetObject)
