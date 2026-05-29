@@ -243,5 +243,17 @@ public class StoryHelper
         return false;
     }
 
+    public static StoryObject GatherStoryObject(string storyObjectId)
+    {
+        var objectsInScene = GatherStoryObjects();
+        if (objectsInScene.TryGetValue(storyObjectId, out var gotoObject))
+        {
+            return gotoObject;
+        }
+        
+        Debug.LogError($"Cannot find StoryObject {storyObjectId} in scene!");
+        return null;
+    }
+
     #endregion
 }
