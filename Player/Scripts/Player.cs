@@ -81,6 +81,8 @@ public class Player : MonoBehaviour
         }
     }
 
+    public Transform GetEyes() => GetComponentInChildren<CameraOrientation>().transform;
+
     private void Load(string stateName)
     {
         if (stateName != _currentState)
