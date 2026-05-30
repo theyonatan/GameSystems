@@ -122,7 +122,7 @@ public class Player : MonoBehaviour
         Skin newSkin = Resources.Load<Skin>($"Skins/{skinName}");
         if (!newSkin)
         {
-            Debug.LogError("new skin wasn't found!");
+            Debug.LogError($"new skin wasn't found! Skins/{skinName}");
             return;
         }
 

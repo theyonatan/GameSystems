@@ -340,6 +340,7 @@ public class StoryCharacter : MonoBehaviour
         Instantiate(character, position, quaternion);
     }
     
+    /// <summary>Applies both Transform Position And Rotation. </summary>
     public void SpawnCharacter(StoryCharacter character, Transform spawnPoint=null, Transform parent = null)
         => _storyExecuter.addAction(new SpawnCharacter(character, spawnPoint, parent));
 
