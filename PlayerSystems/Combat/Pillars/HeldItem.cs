@@ -7,18 +7,20 @@ public class HeldItem : MonoBehaviour
     
     public bool HasItem => _spawnedItem != null;
 
-    public void Equip(GameObject itemPrefab)
+    public GameObject Equip(GameObject itemPrefab)
     {
         if (_spawnedItem)
             Destroy(_spawnedItem);
 
         if (!itemPrefab)
-            return;
+            return null;
 
         _spawnedItem = Instantiate(itemPrefab, transform);
         _spawnedItem.transform.localPosition = Vector3.zero;
         _spawnedItem.transform.localRotation = Quaternion.identity;
         _spawnedItem.transform.localScale = Vector3.one;
+        
+        return _spawnedItem;
     }
     
     public void EquipDefault()
@@ -26,11 +28,12 @@ public class HeldItem : MonoBehaviour
         Equip(defaultItemPrefab);
     }
 
-    public void Unequip()
+    public void Unequip(bool destroyObject=true)
     {
         if (!_spawnedItem) return;
 
-        Destroy(_spawnedItem);
+        if (destroyObject)
+            Destroy(_spawnedItem);
         _spawnedItem = null;
     }
 }

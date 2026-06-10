@@ -41,7 +41,12 @@ public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable, IPlayerBehavi
         // Direction away from attacker
         Vector3 dir = (transform.position - attackingPosition);
         dir.y = 0f;
-        dir.Normalize();
+        
+        // if attacker/player positions are almost identical, Normalize() gives garbage/no direction.
+        if (dir.sqrMagnitude < 0.001f)
+            dir = -transform.forward;
+        else
+            dir.Normalize();
 
         // Bias backward more than upward
         Vector3 knockback =
