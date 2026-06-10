@@ -11,7 +11,7 @@ public class rb_ExtensionKnockback : MonoBehaviour, Knockbackable
         _rb = GetComponent<Rigidbody>();
     }
 
-    public void ApplyKnockback(Vector3 attackingPosition, float horizontalForce=0f, float verticalForce=0f)
+    public void ApplyKnockback(Vector3 attackingPosition, float kncokbackForce=0f, float launchAngle=0f)
     {
         Vector3 pushDirection = (transform.position - attackingPosition).normalized;
         Vector3 pushForce =  pushDirection * knockbackBackwardsForce;
