@@ -193,6 +193,24 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     {
         OnDisablePlayerMovement?.Invoke();
     }
+    
+    public void EnableMovementAction()
+    {
+        var movement = _playerInput.Player.Movement;
+        if (!movement.enabled)
+            movement.Enable();
+    }
+    
+    public void DisableMovementAction()
+    {
+        MovementValue = Vector2.zero;
+        _onPlayerMoved?.Invoke(Vector2.zero);
+        OnPlayerMovedFinished?.Invoke();
+
+        var movement = _playerInput.Player.Movement;
+        if (movement.enabled)
+            movement.Disable();
+    }
 
     public void EnableMouseUIInput()
     {
