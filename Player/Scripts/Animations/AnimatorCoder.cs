@@ -17,6 +17,12 @@ namespace SHG.AnimatorCoder
         protected void EntryAnimation() => OnDefaultAnimationRequested?.Invoke();
         protected readonly UnityEvent OnDefaultAnimationRequested = new ();
         
+        /// <summary>
+        /// Raised whenever an animation successfully begins playing.
+        /// External systems can observe playback without AnimatorCoder depending on them.
+        /// </summary>
+        public event Action<int, int, float> AnimationPlayed;
+        
         private Animator _animator;
 
         protected Dictionary<string, AnimationData> Animations; // all available animations for the current animator controller
@@ -171,6 +177,7 @@ namespace SHG.AnimatorCoder
             if (Mathf.Approximately(customCrossfade, -1))
                 customCrossfade = animationToPlay.EntryCrossfade;
             _animator.CrossFade(Animations[_currentAnimation[layer]].Hash, customCrossfade, layer);
+            AnimationPlayed?.Invoke(animationToPlay.Hash, layer, customCrossfade);
             
             // Handle if There's next animation
             if (animationToPlay.AutoNextAnimation == null)
