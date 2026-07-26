@@ -21,6 +21,31 @@ public sealed class NetworkAnimationRelay : NetworkBehaviour
         _animationsManager = GetComponent<AnimationsManager>();
         FindVisualAnimator();
     }
+    
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+
+        // Server-owned objects such as enemies have no owning client.
+        if (!Owner.IsValid)
+            _animationsManager.AnimationPlayed += OnServerAnimationPlayed;
+    }
+
+    public override void OnStopServer()
+    {
+        if (_animationsManager != null)
+            _animationsManager.AnimationPlayed -= OnServerAnimationPlayed;
+
+        base.OnStopServer();
+    }
+    
+    private void OnServerAnimationPlayed(
+        int stateHash,
+        int layer,
+        float crossfade)
+    {
+        RelayAnimationObserversRpc(stateHash, layer, crossfade);
+    }
 
     public override void OnStartClient()
     {
@@ -54,6 +79,10 @@ public sealed class NetworkAnimationRelay : NetworkBehaviour
     [ObserversRpc(ExcludeOwner = true)]
     private void RelayAnimationObserversRpc(int stateHash, int layer, float crossfade)
     {
+        // On a host, the server already played this animation locally.
+        if (IsServerStarted && !Owner.IsValid)
+            return;
+        
         if (!FindVisualAnimator())
             return;
 

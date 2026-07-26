@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(SphereCollider))]
@@ -11,6 +12,7 @@ public class Sensor : MonoBehaviour
     public bool ResetGoapOnTargetChange = true;
 
     private SphereCollider _detectionRange;
+    private readonly HashSet<GameObject> _targetsInRange = new();
 
     public event Action OnTargetChanged = delegate { };
 
@@ -48,25 +50,53 @@ public class Sensor : MonoBehaviour
 
     private void UpdateTargetPosition(GameObject target = null)
     {
+        bool targetChanged = _target != target;
+
         _target = target;
-        
-        if (IsTargetInRange && (_lastKnownPosition != TargetPosition || _lastKnownPosition != Vector3.zero))
-        {
-            _lastKnownPosition = TargetPosition;
-            OnTargetChanged.Invoke();
-        }
+
+        Vector3 currentPosition = TargetPosition;
+        bool positionChanged = _lastKnownPosition != currentPosition;
+
+        if (!targetChanged && !positionChanged)
+            return;
+
+        _lastKnownPosition = currentPosition;
+        OnTargetChanged.Invoke();
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag(detectionTag)) return;
+        if (!other.CompareTag(detectionTag))
+            return;
+
+        _targetsInRange.Add(other.gameObject);
+
+        // Preserve the existing behaviour: newest player becomes the target.
         UpdateTargetPosition(other.gameObject);
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if (!other.CompareTag(detectionTag)) return;
-        UpdateTargetPosition();
+        if (!other.CompareTag(detectionTag))
+            return;
+
+        _targetsInRange.Remove(other.gameObject);
+
+        // A different player left; keep chasing the current target.
+        if (other.gameObject != _target)
+            return;
+
+        UpdateTargetPosition(GetFallbackTarget());
+    }
+    
+    private GameObject GetFallbackTarget()
+    {
+        _targetsInRange.RemoveWhere(target => !target);
+
+        foreach (GameObject target in _targetsInRange)
+            return target;
+
+        return null;
     }
 
     private void OnDrawGizmos()
