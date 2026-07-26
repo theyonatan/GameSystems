@@ -26,12 +26,17 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
 
     public void OnEnablePlayer()
     {
-        if (!GetComponent<Player>().HasAuthority)
+        Player player = GetComponent<Player>();
+
+        // Player-owned AnimationsManagers should only initialize for their owner.
+        // Non-player characters do not have a Player component and may initialize normally.
+        if (player && !player.HasAuthority)
             return;
 
         playerAnimator = GetComponentInChildren<Animator>(true);
+
         if (!playerAnimator)
-            Debug.LogError($"[AnimationManager] animator on character not found!");
+            Debug.LogError($"[AnimationsManager] Animator not found on {name}!");
     }
 
     /// <summary>
