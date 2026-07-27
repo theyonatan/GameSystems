@@ -11,6 +11,7 @@ public class Sensor : MonoBehaviour
     [SerializeField] private Color sensorColor = Color.green;
     public bool ResetGoapOnTargetChange = true;
 
+    // Sensor can now detect multiple targets and follow one of them!
     private SphereCollider _detectionRange;
     private readonly HashSet<GameObject> _targetsInRange = new();
 
@@ -97,6 +98,16 @@ public class Sensor : MonoBehaviour
             return target;
 
         return null;
+    }
+    
+    // Sensor can now prioritize a given target!
+    public void PrioritizeTarget(GameObject target)
+    {
+        if (!target)
+            return;
+
+        _targetsInRange.Add(target);
+        UpdateTargetPosition(target);
     }
 
     private void OnDrawGizmos()

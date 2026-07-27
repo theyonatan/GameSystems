@@ -122,7 +122,12 @@ public abstract class IGoapAgent : MonoBehaviour
     // this will happen before a new action occurs
     protected virtual void PreActionReset()
     {
-        AgentNavmesh?.ResetPath();
+        if (AgentNavmesh &&
+            AgentNavmesh.enabled &&
+            AgentNavmesh.isOnNavMesh)
+        {
+            AgentNavmesh.ResetPath();
+        }
     }
 
     public void EnableGoap()
@@ -133,8 +138,14 @@ public abstract class IGoapAgent : MonoBehaviour
     public void DisableGoap()
     {
         ResetActionAndGoal();
-        AgentNavmesh?.ResetPath();
-        
+
+        if (AgentNavmesh &&
+            AgentNavmesh.enabled &&
+            AgentNavmesh.isOnNavMesh)
+        {
+            AgentNavmesh.ResetPath();
+        }
+
         goapAgentEnabled = false;
     }
 
