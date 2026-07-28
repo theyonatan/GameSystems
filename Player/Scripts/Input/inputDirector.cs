@@ -32,6 +32,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnInventoryPressed;
     public event Action OnMainMenuPressed;
     public event Action OnPressedTimeChange;
+    public event Action<int> OnEmotePressed;
     
     [SerializeField] private float clickDragThreshold = 8f;
 
@@ -181,7 +182,28 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         if (!_localPlayer || !_localPlayer.HasAuthority)
             return;
 
+        UpdateEmoteInput();
         UpdateMouseDrag();
+    }
+
+    private void UpdateEmoteInput()
+    {
+        if (Keyboard.current == null || _playerInput == null)
+            return;
+
+        // Keep emote input tied to the Player action map's enabled state.
+        if (!_playerInput.Player.enabled)
+            return;
+
+        if (Keyboard.current.digit1Key.wasPressedThisFrame) OnEmotePressed?.Invoke(0);
+        else if (Keyboard.current.digit2Key.wasPressedThisFrame) OnEmotePressed?.Invoke(1);
+        else if (Keyboard.current.digit3Key.wasPressedThisFrame) OnEmotePressed?.Invoke(2);
+        else if (Keyboard.current.digit4Key.wasPressedThisFrame) OnEmotePressed?.Invoke(3);
+        else if (Keyboard.current.digit5Key.wasPressedThisFrame) OnEmotePressed?.Invoke(4);
+        else if (Keyboard.current.digit6Key.wasPressedThisFrame) OnEmotePressed?.Invoke(5);
+        else if (Keyboard.current.digit7Key.wasPressedThisFrame) OnEmotePressed?.Invoke(6);
+        else if (Keyboard.current.digit8Key.wasPressedThisFrame) OnEmotePressed?.Invoke(7);
+        else if (Keyboard.current.digit9Key.wasPressedThisFrame) OnEmotePressed?.Invoke(8);
     }
 
     public void EnableInput()

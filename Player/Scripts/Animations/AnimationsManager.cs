@@ -73,6 +73,11 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
         ResetCurrentAnimationCache();
         EntryAnimation();
     }
+    
+    public void PlayDefaultAnimation()
+    {
+        EntryAnimation();
+    }
 
     // ===== Loading =====
 
