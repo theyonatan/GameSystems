@@ -98,7 +98,8 @@ uniform float _InteractorsLength;
 uniform float3 _CameraPositionWS;
 
 
-float3x3 _LocalToWorld;
+float4x4 _LocalToWorld;
+float4x4 _NormalToWorld;
 
 // ----------------------------------------
 // Helper Functions
@@ -166,6 +167,11 @@ void Main(uint id : SV_DispatchThreadID)
     // get the right data at the visible ids
     SourceVertex sv = _SourceVertices[usableID];
     float cut =_CutBuffer[usableID];
+
+    // Painted prefab data is stored in the GrassComputeScript's local space.
+    // Combined world batches send identity matrices instead.
+    sv.positionWS = mul(_LocalToWorld, float4(sv.positionWS, 1)).xyz;
+    sv.normalOS = normalize(mul((float3x3)_NormalToWorld, sv.normalOS));
 
     // fading on max distance
     float distanceFromCamera = distance(sv.positionWS, _CameraPositionWS);

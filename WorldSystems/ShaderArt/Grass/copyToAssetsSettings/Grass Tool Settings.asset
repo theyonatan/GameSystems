@@ -43,3 +43,11 @@ MonoBehaviour:
   normalLimit: 1
   grassAmountToGenerate: 100000
   generationDensity: 1
+  pointSpacing: 0.12
+  sculptStrength: 0.35
+  sculptTargetWidth: 0.15
+  sculptTargetHeight: 0.55
+  sculptWidthPerSecond: 0.1
+  sculptHeightPerSecond: 0.25
+  randomWidthAmount: 0.15
+  randomHeightAmount: 0.2

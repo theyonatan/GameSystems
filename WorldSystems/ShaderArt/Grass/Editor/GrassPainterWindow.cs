@@ -1,1306 +1,1411 @@
+using System;
 using System.Collections.Generic;
-using Unity.Burst;
-using Unity.Collections;
-using Unity.Jobs;
+using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class GrassPainterWindow : EditorWindow
+public sealed class GrassPainterWindow : EditorWindow
 {
-
-    // main tabs
-    readonly string[] mainTabBarStrings = { "Paint/Edit", "Flood", "Generate", "General Settings" };
-
-    int mainTab_current;
-    Vector2 scrollPos;
-
-    bool paintModeActive;
-
-    readonly string[] toolbarStrings = { "Add", "Remove", "Edit", "Reproject" };
-
-    readonly string[] toolbarStringsEdit = { "Edit Colors", "Edit Length/Width", "Both" };
-
-
-
-    Vector3 hitPos;
-    Vector3 hitNormal;
-
-    [SerializeField]
-    SO_GrassToolSettings toolSettings;
-
-
-    // options
-    [HideInInspector]
-    public int toolbarInt = 0;
-    [HideInInspector]
-    public int toolbarIntEdit = 0;
-
-    public Material mat;
-
-    public List<GrassData> grassData = new();
-
-    [HideInInspector]
-    int grassAmount = 0;
-
-
-    Ray ray;
-    // raycast vars
-    [HideInInspector]
-    public Vector3 hitPosGizmo;
-    Vector3 mousePos;
-
-    RaycastHit[] terrainHit;
-    private int flowTimer;
-    private Vector3 lastPosition = Vector3.zero;
-
-    [SerializeField]
-    GameObject grassObject;
-
-
-    GrassComputeScript grassCompute;
-
-    NativeArray<float> sizes;
-    NativeArray<float> cumulativeSizes;
-    NativeArray<float> total;
-
-    Vector3 cachedPos;
-
-    bool showLayers;
-
-    [MenuItem("Tools/Grass Tool")]
-    static void Init()
+    private enum ToolTab
     {
-        Debug.Log("init");
-        // Get existing open window or if none, make a new one:
-        GrassPainterWindow window = (GrassPainterWindow)EditorWindow.GetWindow(typeof(GrassPainterWindow), false, "Grass Tool", true);
-        var icon = EditorGUIUtility.FindTexture("tree_icon");
-        SO_GrassToolSettings m_toolSettings = (SO_GrassToolSettings)AssetDatabase.LoadAssetAtPath("Assets/GameSystems/WorldSystems/ShaderArt/Grass/grassToolSettings.asset", typeof(SO_GrassToolSettings));
-        if (m_toolSettings == null)
-        {
-            
-            Debug.Log("creating new one");
-            m_toolSettings = CreateInstance<SO_GrassToolSettings>();
+        Paint,
+        Sculpt,
+        Style,
+        Generate,
+        Utilities
+    }
 
-            AssetDatabase.CreateAsset(m_toolSettings, "Assets/GameSystems/WorldSystems/ShaderArt/Grass/grassToolSettings.asset");
-            m_toolSettings.CreateNewLayers();
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-        }
+    private enum PaintOperation
+    {
+        Add,
+        Remove
+    }
 
-        window.titleContent = new GUIContent("Grass Tool", icon);
-        window.toolSettings = m_toolSettings;
+    private enum SculptOperation
+    {
+        SetSize,
+        AddSize,
+        SmoothSize,
+        RandomizeSize,
+        PaintColor
+    }
+
+    private const double RebuildDelay = 0.08d;
+    private const int RaycastCapacity = 32;
+
+    [SerializeField] private GrassComputeScript grassCompute;
+    [SerializeField] private SO_GrassToolSettings toolSettings;
+    [SerializeField] private ToolTab currentTab;
+    [SerializeField] private PaintOperation paintOperation;
+    [SerializeField] private SculptOperation sculptOperation;
+    [SerializeField] private bool sceneBrushEnabled;
+    [SerializeField] private bool sculptHeight = true;
+    [SerializeField] private bool sculptWidth;
+    [SerializeField] private bool showValidation = true;
+    [SerializeField] private bool showTerrainLayers;
+    [SerializeField] private Vector2 scrollPosition;
+
+    private readonly RaycastHit[] raycastHits = new RaycastHit[RaycastCapacity];
+    private bool strokeActive;
+    private bool strokeChanged;
+    private bool rebuildRequested;
+    private bool fullRebuildRequested;
+    private double rebuildRequestedAt;
+    private double lastBrushTime;
+
+    [MenuItem("Tools/Grass Tool 2.0")]
+    private static void OpenWindow()
+    {
+        GrassPainterWindow window = GetWindow<GrassPainterWindow>(false, "Grass Tool 2.0", true);
+        window.minSize = new Vector2(390f, 520f);
+        Texture icon = EditorGUIUtility.FindTexture("tree_icon");
+        window.titleContent = new GUIContent("Grass Tool 2.0", icon);
         window.Show();
     }
 
-    private void OnGUI()
+    [MenuItem("Tools/Grass Tool")]
+    private static void OpenLegacyMenuPath()
     {
-        scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
-        if (GUILayout.Button("Manual Update"))
-        {
-            grassCompute.Reset();
-        }
-        grassObject = (GameObject)EditorGUILayout.ObjectField("Grass Compute Object", grassObject, typeof(GameObject), true);
-
-
-
-
-        if (grassObject == null)
-        {
-            grassObject = FindObjectOfType<GrassComputeScript>()?.gameObject;
-
-        }
-
-
-        if (grassObject != null)
-        {
-            grassCompute = grassObject.GetComponent<GrassComputeScript>();
-            grassCompute.currentPresets = (SO_GrassSettings)EditorGUILayout.ObjectField("Grass Settings Object", grassCompute.currentPresets, typeof(SO_GrassSettings), false);
-
-
-
-            if (grassCompute.SetGrassPaintedDataList.Count > 0)
-            {
-                grassData = grassCompute.SetGrassPaintedDataList;
-                grassAmount = grassData.Count;
-            }
-            else
-            {
-                grassData.Clear();
-            }
-
-
-            if (grassCompute.currentPresets == null)
-            {
-                EditorGUILayout.LabelField("No Grass Settings Set, create or assign one first. \n Create > Utility> Grass Settings", GUILayout.Height(150));
-                EditorGUILayout.EndScrollView();
-                return;
-            }
-        }
-        else
-        {
-
-            if (GUILayout.Button("Create Grass Object"))
-            {
-                if (EditorUtility.DisplayDialog("Create a new Grass Object?",
-                   "No Grass Object Found, create a new Object?", "Yes", "No"))
-                {
-                    CreateNewGrassObject();
-                }
-
-
-            }
-            EditorGUILayout.LabelField("No Grass System Holder found, create a new one", EditorStyles.label);
-            EditorGUILayout.EndScrollView();
-            return;
-
-        }
-        EditorGUILayout.Separator();
-
-        EditorGUILayout.BeginHorizontal();
-        grassCompute.currentPresets.materialToUse = (Material)EditorGUILayout.ObjectField("Grass Material", grassCompute.currentPresets.materialToUse, typeof(Material), false);
-
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Total Grass Amount: " + grassAmount.ToString(), EditorStyles.label);
-        EditorGUILayout.BeginHorizontal();
-        mainTab_current = GUILayout.Toolbar(mainTab_current, mainTabBarStrings, GUILayout.Height(30));
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.Separator();
-        EditorGUILayout.Separator();
-
-        switch (mainTab_current)
-        {
-            case 0: //paint
-                ShowPaintPanel();
-                break;
-            case 1: // flood
-                ShowFloodPanel();
-                break;
-
-            case 2: // generate
-                ShowGeneratePanel();
-                break;
-
-            case 3: //settings
-                ShowMainSettingsPanel();
-                break;
-        }
-
-        if (GUILayout.Button("Clear Grass"))
-        {
-            if (EditorUtility.DisplayDialog("Clear All Grass?",
-               "Are you sure you want to clear the grass?", "Clear", "Don't Clear"))
-            {
-                ClearMesh();
-            }
-        }
-
-        EditorGUILayout.EndScrollView();
-
-        EditorUtility.SetDirty(toolSettings);
-        EditorUtility.SetDirty(grassCompute.currentPresets);
-    }
-
-    void ShowFloodPanel()
-    {
-
-        EditorGUILayout.LabelField("Flood Options", EditorStyles.boldLabel);
-        EditorGUILayout.BeginHorizontal();
-
-        if (GUILayout.Button("Flood Length/Width"))
-        {
-            FloodLengthAndWidth();
-        }
-        if (GUILayout.Button("Flood Colors"))
-        {
-            FloodColor();
-        }
-        EditorGUILayout.EndHorizontal();
-
-
-        EditorGUILayout.Separator();
-
-        EditorGUILayout.LabelField("Width and Length ", EditorStyles.boldLabel);
-        toolSettings.sizeWidth = EditorGUILayout.Slider("Grass Width", toolSettings.sizeWidth, 0.01f, 2f);
-        toolSettings.sizeLength = EditorGUILayout.Slider("Grass Length", toolSettings.sizeLength, 0.01f, 2f);
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Color", EditorStyles.boldLabel);
-        toolSettings.AdjustedColor = EditorGUILayout.ColorField("Brush Color", toolSettings.AdjustedColor);
-        EditorGUILayout.LabelField("Random Color Variation", EditorStyles.boldLabel);
-        toolSettings.rangeR = EditorGUILayout.Slider("Red", toolSettings.rangeR, 0f, 1f);
-        toolSettings.rangeG = EditorGUILayout.Slider("Green", toolSettings.rangeG, 0f, 1f);
-        toolSettings.rangeB = EditorGUILayout.Slider("Blue", toolSettings.rangeB, 0f, 1f);
-    }
-
-    void ShowGeneratePanel()
-    {
-        toolSettings.grassAmountToGenerate = EditorGUILayout.IntField("Grass Place Max Amount", toolSettings.grassAmountToGenerate);
-        toolSettings.generationDensity = EditorGUILayout.Slider("Grass Place Density", toolSettings.generationDensity, 0.01f, 1f);
-
-        EditorGUILayout.Separator();
-        LayerMask tempMask0 = EditorGUILayout.MaskField("Blocking Mask", InternalEditorUtility.LayerMaskToConcatenatedLayersMask(toolSettings.paintBlockMask), InternalEditorUtility.layers);
-        toolSettings.paintBlockMask = InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(tempMask0);
-
-
-        toolSettings.VertexColorSettings = (SO_GrassToolSettings.VertexColorSetting)EditorGUILayout.EnumPopup("Block On vertex Colors", toolSettings.VertexColorSettings);
-        toolSettings.VertexFade = (SO_GrassToolSettings.VertexColorSetting)EditorGUILayout.EnumPopup("Fade on Vertex Colors", toolSettings.VertexFade);
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Width and Length ", EditorStyles.boldLabel);
-        toolSettings.sizeWidth = EditorGUILayout.Slider("Grass Width", toolSettings.sizeWidth, 0.01f, 2f);
-        toolSettings.sizeLength = EditorGUILayout.Slider("Grass Length", toolSettings.sizeLength, 0.01f, 2f);
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Color", EditorStyles.boldLabel);
-        toolSettings.AdjustedColor = EditorGUILayout.ColorField("Brush Color", toolSettings.AdjustedColor);
-        EditorGUILayout.LabelField("Random Color Variation", EditorStyles.boldLabel);
-        toolSettings.rangeR = EditorGUILayout.Slider("Red", toolSettings.rangeR, 0f, 1f);
-        toolSettings.rangeG = EditorGUILayout.Slider("Green", toolSettings.rangeG, 0f, 1f);
-        toolSettings.rangeB = EditorGUILayout.Slider("Blue", toolSettings.rangeB, 0f, 1f);
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Normal Limit", EditorStyles.boldLabel);
-        toolSettings.normalLimit = EditorGUILayout.Slider("Normal Limit", toolSettings.normalLimit, 0f, 1f);
-
-        EditorGUILayout.Separator();
-        showLayers = EditorGUILayout.Foldout(showLayers, "Layer Settings(Cutoff Value, Fade Height Toggle");
-
-        if (showLayers)
-        {
-            for (int i = 0; i < toolSettings.layerBlocking.Length; i++)
-            {
-                EditorGUILayout.BeginHorizontal();
-                toolSettings.layerBlocking[i] = EditorGUILayout.Slider(i.ToString(), toolSettings.layerBlocking[i], 0f, 1f);
-                toolSettings.layerFading[i] = EditorGUILayout.Toggle(toolSettings.layerFading[i]);
-                EditorGUILayout.EndHorizontal();
-            }
-        }
-
-
-        GameObject[] selection = Selection.gameObjects;
-
-        if (GUILayout.Button("Add Positions From Mesh"))
-        {
-            if (selection == null)
-            {
-                // no objects selected
-            }
-            else
-            {
-                Undo.RegisterCompleteObjectUndo(this, "Add new Positions from Mesh(es)");
-                for (int i = 0; i < selection.Length; i++)
-                {
-                    GeneratePositions(selection[i]);
-                }
-
-            }
-
-        }
-        if (GUILayout.Button("Regenerate on current Mesh (Clears Current)"))
-        {
-
-
-
-            if (selection == null)
-            {
-                // no object selected
-                return;
-            }
-            else
-            {
-                ClearMesh();
-                Undo.RegisterCompleteObjectUndo(this, "Regenerated Positions on Mesh(es)");
-                for (int i = 0; i < selection.Length; i++)
-                {
-                    GeneratePositions(selection[i]);
-                }
-            }
-        }
-
-
-        EditorGUILayout.Separator();
-    }
-
-    void ShowPaintPanel()
-    {
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Paint Mode:", EditorStyles.boldLabel);
-        paintModeActive = EditorGUILayout.Toggle(paintModeActive);
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Hit Settings", EditorStyles.boldLabel);
-        LayerMask tempMask = EditorGUILayout.MaskField("Hit Mask", InternalEditorUtility.LayerMaskToConcatenatedLayersMask(toolSettings.hitMask), InternalEditorUtility.layers);
-        toolSettings.hitMask = InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(tempMask);
-        LayerMask tempMask2 = EditorGUILayout.MaskField("Painting Mask", InternalEditorUtility.LayerMaskToConcatenatedLayersMask(toolSettings.paintMask), InternalEditorUtility.layers);
-        toolSettings.paintMask = InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(tempMask2);
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Paint Status (Right-Mouse Button to paint)", EditorStyles.boldLabel);
-        toolbarInt = GUILayout.Toolbar(toolbarInt, toolbarStrings);
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Brush Settings", EditorStyles.boldLabel);
-        toolSettings.brushSize = EditorGUILayout.Slider("Brush Size", toolSettings.brushSize, 0.1f, 50f);
-
-        if (toolbarInt == 0)
-        {
-
-            toolSettings.normalLimit = EditorGUILayout.Slider("Normal Limit", toolSettings.normalLimit, 0f, 1f);
-            toolSettings.density = EditorGUILayout.Slider("Density", toolSettings.density, 0.1f, 10f);
-        }
-
-        if (toolbarInt == 2)
-        {
-
-            toolbarIntEdit = GUILayout.Toolbar(toolbarIntEdit, toolbarStringsEdit);
-            EditorGUILayout.Separator();
-
-            EditorGUILayout.LabelField("Soft Falloff Settings", EditorStyles.boldLabel);
-            toolSettings.brushFalloffSize = EditorGUILayout.Slider("Brush Falloff Size", toolSettings.brushFalloffSize, 0.01f, 1f);
-            toolSettings.Flow = EditorGUILayout.Slider("Brush Flow", toolSettings.Flow, 0.1f, 10f);
-            EditorGUILayout.Separator();
-            EditorGUILayout.LabelField("Adjust Width and Length Gradually", EditorStyles.boldLabel);
-            toolSettings.adjustWidth = EditorGUILayout.Slider("Grass Width Adjustment", toolSettings.adjustWidth, -1f, 1f);
-            toolSettings.adjustLength = EditorGUILayout.Slider("Grass Length Adjustment", toolSettings.adjustLength, -1f, 1f);
-
-            toolSettings.adjustWidthMax = EditorGUILayout.Slider("Grass Width Adjustment Max Clamp", toolSettings.adjustWidthMax, 0.01f, 3f);
-            toolSettings.adjustHeightMax = EditorGUILayout.Slider("Grass Length Adjustment Max Clamp", toolSettings.adjustHeightMax, 0.01f, 3f);
-            EditorGUILayout.Separator();
-        }
-
-        if (toolbarInt == 0 || toolbarInt == 2)
-        {
-            EditorGUILayout.Separator();
-
-            if (toolbarInt == 0)
-            {
-                EditorGUILayout.LabelField("Width and Length ", EditorStyles.boldLabel);
-                toolSettings.sizeWidth = EditorGUILayout.Slider("Grass Width", toolSettings.sizeWidth, 0.01f, 2f);
-                toolSettings.sizeLength = EditorGUILayout.Slider("Grass Length", toolSettings.sizeLength, 0.01f, 2f);
-            }
-
-
-
-            EditorGUILayout.Separator();
-            EditorGUILayout.LabelField("Color", EditorStyles.boldLabel);
-            toolSettings.AdjustedColor = EditorGUILayout.ColorField("Brush Color", toolSettings.AdjustedColor);
-            EditorGUILayout.LabelField("Random Color Variation", EditorStyles.boldLabel);
-            toolSettings.rangeR = EditorGUILayout.Slider("Red", toolSettings.rangeR, 0f, 1f);
-            toolSettings.rangeG = EditorGUILayout.Slider("Green", toolSettings.rangeG, 0f, 1f);
-            toolSettings.rangeB = EditorGUILayout.Slider("Blue", toolSettings.rangeB, 0f, 1f);
-        }
-
-        if (toolbarInt == 3)
-        {
-            EditorGUILayout.Separator();
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Reprojection Y Offset", EditorStyles.boldLabel);
-
-            toolSettings.reprojectOffset = EditorGUILayout.FloatField(toolSettings.reprojectOffset);
-            EditorGUILayout.EndHorizontal();
-        }
-        EditorGUILayout.Separator();
-    }
-
-    void ShowMainSettingsPanel()
-    {
-        EditorGUILayout.LabelField("Blade Mix/Max Settings", EditorStyles.boldLabel);
-        EditorGUILayout.BeginHorizontal();
-        grassCompute.currentPresets.MinWidth = EditorGUILayout.FloatField(grassCompute.currentPresets.MinWidth);
-        grassCompute.currentPresets.MaxWidth = EditorGUILayout.FloatField(grassCompute.currentPresets.MaxWidth);
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.MinMaxSlider("Blade Width Min/Max", ref grassCompute.currentPresets.MinWidth, ref grassCompute.currentPresets.MaxWidth, 0.01f, 1f);
-        EditorGUILayout.BeginHorizontal();
-        grassCompute.currentPresets.MinHeight = EditorGUILayout.FloatField(grassCompute.currentPresets.MinHeight);
-        grassCompute.currentPresets.MaxHeight = EditorGUILayout.FloatField(grassCompute.currentPresets.MaxHeight);
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.MinMaxSlider("Blade Height Min/Max", ref grassCompute.currentPresets.MinHeight, ref grassCompute.currentPresets.MaxHeight, 0.01f, 1f);
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Random Height", EditorStyles.boldLabel);
-        grassCompute.currentPresets.grassRandomHeightMin = EditorGUILayout.FloatField("Min Random:", grassCompute.currentPresets.grassRandomHeightMin);
-        grassCompute.currentPresets.grassRandomHeightMax = EditorGUILayout.FloatField("Max Random:", grassCompute.currentPresets.grassRandomHeightMax);
-
-        EditorGUILayout.MinMaxSlider("Random Grass Height", ref grassCompute.currentPresets.grassRandomHeightMin, ref grassCompute.currentPresets.grassRandomHeightMax, -5f, 5f);
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Blade Shape Settings", EditorStyles.boldLabel);
-        grassCompute.currentPresets.bladeRadius = EditorGUILayout.Slider("Blade Radius", grassCompute.currentPresets.bladeRadius, 0f, 2f);
-        grassCompute.currentPresets.bladeForwardAmount = EditorGUILayout.Slider("Blade Forward", grassCompute.currentPresets.bladeForwardAmount, 0f, 2f);
-        grassCompute.currentPresets.bladeCurveAmount = EditorGUILayout.Slider("Blade Curve", grassCompute.currentPresets.bladeCurveAmount, 0f, 2f);
-        grassCompute.currentPresets.bottomWidth = EditorGUILayout.Slider("Bottom Width", grassCompute.currentPresets.bottomWidth, 0f, 2f);
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Blade Amount Settings", EditorStyles.boldLabel);
-        grassCompute.currentPresets.allowedBladesPerVertex = EditorGUILayout.IntSlider("Allowed Blades Per Vertex", grassCompute.currentPresets.allowedBladesPerVertex, 1, 10);
-        grassCompute.currentPresets.allowedSegmentsPerBlade = EditorGUILayout.IntSlider("Allowed Segments Per Blade", grassCompute.currentPresets.allowedSegmentsPerBlade, 1, 4);
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Wind Settings", EditorStyles.boldLabel);
-        grassCompute.currentPresets.windSpeed = EditorGUILayout.Slider("Wind Speed", grassCompute.currentPresets.windSpeed, -2f, 2f);
-        grassCompute.currentPresets.windStrength = EditorGUILayout.Slider("Wind Strength", grassCompute.currentPresets.windStrength, -2f, 2f);
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Tinting Settings", EditorStyles.boldLabel);
-        grassCompute.currentPresets.topTint = EditorGUILayout.ColorField("Top Tint", grassCompute.currentPresets.topTint);
-        grassCompute.currentPresets.bottomTint = EditorGUILayout.ColorField("Bottom Tint", grassCompute.currentPresets.bottomTint);
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("LOD/Culling Settings", EditorStyles.boldLabel);
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Show Culling Bounds:", EditorStyles.boldLabel);
-        grassCompute.currentPresets.drawBounds = EditorGUILayout.Toggle(grassCompute.currentPresets.drawBounds);
-        EditorGUILayout.EndHorizontal();
-        grassCompute.currentPresets.minFadeDistance = EditorGUILayout.FloatField("Min Fade Distance", grassCompute.currentPresets.minFadeDistance);
-        grassCompute.currentPresets.maxDrawDistance = EditorGUILayout.FloatField("Max Draw Distance", grassCompute.currentPresets.maxDrawDistance);
-        grassCompute.currentPresets.cullingTreeDepth = EditorGUILayout.IntField("Culling Tree Depth", grassCompute.currentPresets.cullingTreeDepth);
-
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.LabelField("Other Settings", EditorStyles.boldLabel);
-        grassCompute.currentPresets.affectStrength = EditorGUILayout.FloatField("Interactor Bend Strength", grassCompute.currentPresets.affectStrength);
-        grassCompute.currentPresets.castShadow = (UnityEngine.Rendering.ShadowCastingMode)EditorGUILayout.EnumPopup("Shadow Settings", grassCompute.currentPresets.castShadow);
-
-
-    }
-
-    void CreateNewGrassObject()
-    {
-        grassObject = new GameObject();
-        grassObject.name = "Grass System - Holder";
-        grassCompute = grassObject.AddComponent<GrassComputeScript>();
-
-        // setup object
-        grassData = new List<GrassData>();
-        grassCompute.SetGrassPaintedDataList = grassData;
-    }
-
-    void OnSceneGUI(SceneView sceneView)
-    {
-        if (this.hasFocus && paintModeActive)
-        {
-            DrawHandles();
-        }
-    }
-
-    RaycastHit[] m_Results = new RaycastHit[1];
-    // draw the painter handles
-    void DrawHandles()
-    {
-
-        //  Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
-
-        int hits = Physics.RaycastNonAlloc(ray, m_Results, 200f, toolSettings.hitMask.value);
-        for (int i = 0; i < hits; i++)
-        {
-            hitPos = m_Results[i].point;
-            hitNormal = m_Results[i].normal;
-        }
-
-        //base
-        Color discColor = Color.green;
-        Color discColor2 = new(0, 0.5f, 0, 0.4f);
-        switch (toolbarInt)
-        {
-
-            case 1:
-                discColor = Color.red;
-                discColor2 = new Color(0.5f, 0f, 0f, 0.4f);
-                break;
-            case 2:
-                discColor = Color.yellow;
-                discColor2 = new Color(0.5f, 0.5f, 0f, 0.4f);
-
-                Handles.color = discColor;
-                Handles.DrawWireDisc(hitPos, hitNormal, (toolSettings.brushFalloffSize * toolSettings.brushSize));
-                Handles.color = discColor2;
-                Handles.DrawSolidDisc(hitPos, hitNormal, (toolSettings.brushFalloffSize * toolSettings.brushSize));
-
-                break;
-            case 3:
-                discColor = Color.cyan;
-                discColor2 = new Color(0, 0.5f, 0.5f, 0.4f);
-                break;
-        }
-
-
-        Handles.color = discColor;
-        Handles.DrawWireDisc(hitPos, hitNormal, toolSettings.brushSize);
-        Handles.color = discColor2;
-        Handles.DrawSolidDisc(hitPos, hitNormal, toolSettings.brushSize);
-
-        if (hitPos != cachedPos)
-        {
-            SceneView.RepaintAll();
-            cachedPos = hitPos;
-        }
-
-
-    }
-
-#if UNITY_EDITOR
-    public void HandleUndo()
-    {
-        if (grassCompute != null)
-        {
-
-            SceneView.RepaintAll();
-            grassCompute.Reset();
-        }
+        OpenWindow();
     }
 
     private void OnEnable()
     {
-        SceneView.duringSceneGui += OnSceneGUI;
-        SceneView.duringSceneGui += this.OnScene;
-        Undo.undoRedoPerformed += this.HandleUndo;
-        terrainHit = new RaycastHit[1];
+        EnsureToolSettings();
+        SceneView.duringSceneGui += DuringSceneGUI;
+        Undo.undoRedoPerformed += HandleUndoRedo;
+        EditorApplication.update += EditorUpdate;
     }
 
-    void RemoveDelegates()
+    private void OnDisable()
     {
-        // When the window is destroyed, remove the delegate
-        // so that it will no longer do any drawing.
-        SceneView.duringSceneGui -= OnSceneGUI;
-        SceneView.duringSceneGui -= this.OnScene;
-        Undo.undoRedoPerformed -= this.HandleUndo;
+        FinishStroke();
+        SceneView.duringSceneGui -= DuringSceneGUI;
+        Undo.undoRedoPerformed -= HandleUndoRedo;
+        EditorApplication.update -= EditorUpdate;
     }
 
-    void OnDisable()
+    private void OnDestroy()
     {
-        RemoveDelegates();
+        OnDisable();
     }
 
-    void OnDestroy()
+    private void OnGUI()
     {
-        RemoveDelegates();
-    }
+        EnsureToolSettings();
 
-    public void ClearMesh()
-    {
-        Undo.RegisterCompleteObjectUndo(this, "Cleared Grass");
-        grassAmount = 0;
-        grassData.Clear();
-        grassCompute.SetGrassPaintedDataList = grassData;
-        grassCompute.Reset();
-        EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-    }
+        scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+        DrawHeader();
+        DrawSourcePanel();
 
-    public void GeneratePositions(GameObject selection)
-    {
-
-        // mesh
-        if (selection.TryGetComponent(out MeshFilter sourceMesh))
+        if (grassCompute == null)
         {
-
-            CalcAreas(sourceMesh.sharedMesh);
-            Matrix4x4 localToWorld = sourceMesh.transform.localToWorldMatrix;
-
-            var oTriangles = sourceMesh.sharedMesh.triangles;
-            var oVertices = sourceMesh.sharedMesh.vertices;
-            var oColors = sourceMesh.sharedMesh.colors;
-            var oNormals = sourceMesh.sharedMesh.normals;
-
-            var meshTriangles = new NativeArray<int>(oTriangles.Length, Allocator.Temp);
-            var meshVertices = new NativeArray<Vector4>(oVertices.Length, Allocator.Temp);
-            var meshColors = new NativeArray<Color>(oVertices.Length, Allocator.Temp);
-            var meshNormals = new NativeArray<Vector3>(oNormals.Length, Allocator.Temp);
-            for (int i = 0; i < meshTriangles.Length; i++)
-            {
-                meshTriangles[i] = oTriangles[i];
-            }
-
-            for (int i = 0; i < meshVertices.Length; i++)
-            {
-                meshVertices[i] = oVertices[i];
-                meshNormals[i] = oNormals[i];
-                if (oColors.Length == 0)
-                {
-                    meshColors[i] = Color.black;
-                }
-                else
-                {
-                    meshColors[i] = oColors[i];
-                }
-
-            }
-
-            var point = new NativeArray<Vector3>(1, Allocator.Temp);
-
-            var normals = new NativeArray<Vector3>(1, Allocator.Temp);
-
-            var lengthWidth = new NativeArray<float>(1, Allocator.Temp);
-            var job = new MyJob
-            {
-                CumulativeSizes = cumulativeSizes,
-                MeshColors = meshColors,
-                MeshTriangles = meshTriangles,
-                MeshVertices = meshVertices,
-                MeshNormals = meshNormals,
-                Total = total,
-                Sizes = sizes,
-                Point = point,
-                Normals = normals,
-                VertexColorSettings = toolSettings.VertexColorSettings,
-                VertexFade = toolSettings.VertexFade,
-                LengthWidth = lengthWidth,
-            };
-
-
-            Bounds bounds = sourceMesh.sharedMesh.bounds;
-
-            Vector3 meshSize = new Vector3(
-                bounds.size.x * sourceMesh.transform.lossyScale.x,
-                bounds.size.y * sourceMesh.transform.lossyScale.y,
-                bounds.size.z * sourceMesh.transform.lossyScale.z
-            );
-            meshSize += Vector3.one;
-
-            float meshVolume = meshSize.x * meshSize.y * meshSize.z;
-            int numPoints = Mathf.Min(Mathf.FloorToInt(meshVolume * toolSettings.generationDensity), toolSettings.grassAmountToGenerate);
-
-
-            for (int j = 0; j < numPoints; j++)
-            {
-                job.Execute();
-                GrassData newData = new();
-                Vector3 newPoint = point[0];
-                newData.position = localToWorld.MultiplyPoint3x4(newPoint);
-
-                Collider[] cols = Physics.OverlapBox(newData.position, Vector3.one * 0.2f, Quaternion.identity, toolSettings.paintBlockMask);
-                if (cols.Length > 0)
-                {
-                    newPoint = Vector3.zero;
-                }
-                // check normal limit
-
-                Vector3 worldNormal = selection.transform.TransformDirection(normals[0]);
-
-                if (worldNormal.y <= (1 + toolSettings.normalLimit) && worldNormal.y >= (1 - toolSettings.normalLimit))
-                {
-
-                    if (newPoint != Vector3.zero)
-                    {
-                        newData.color = GetRandomColor();
-                        newData.length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength) * lengthWidth[0];
-                        newData.normal = worldNormal;
-                        grassData.Add(newData);
-                    }
-                }
-
-
-
-            }
-
-            sizes.Dispose();
-            cumulativeSizes.Dispose();
-            total.Dispose();
-            meshColors.Dispose();
-            meshTriangles.Dispose();
-            meshVertices.Dispose();
-            meshNormals.Dispose();
-            point.Dispose();
-            lengthWidth.Dispose();
-
-            RebuildMesh();
+            EditorGUILayout.HelpBox(
+                "Choose the exact GrassComputeScript you want to author. The tool never silently switches to another grass object.",
+                MessageType.Info);
+            EditorGUILayout.EndScrollView();
+            return;
         }
 
-        else if (selection.TryGetComponent(out Terrain terrain))
+        DrawStatistics();
+        DrawValidation();
+
+        EditorGUILayout.Space(4f);
+        currentTab = (ToolTab)GUILayout.Toolbar((int)currentTab, Enum.GetNames(typeof(ToolTab)), GUILayout.Height(28f));
+        EditorGUILayout.Space(6f);
+
+        EditorGUI.BeginChangeCheck();
+        switch (currentTab)
         {
-            // terrainmesh
-
-
-
-            float meshVolume = terrain.terrainData.size.x * terrain.terrainData.size.y * terrain.terrainData.size.z;
-            int numPoints = Mathf.Min(Mathf.FloorToInt(meshVolume * toolSettings.generationDensity), toolSettings.grassAmountToGenerate);
-
-
-            for (int j = 0; j < numPoints; j++)
-            {
-                Matrix4x4 localToWorld = terrain.transform.localToWorldMatrix;
-                GrassData newData = new();
-                Vector3 newPoint = Vector3.zero;
-                Vector3 newNormal = Vector3.zero;
-                float[,,] maps = new float[0, 0, 0];
-                GetRandomPointOnTerrain(localToWorld, ref maps, terrain, terrain.terrainData.size, ref newPoint, ref newNormal);
-                newData.position = newPoint;
-
-                Collider[] cols = Physics.OverlapBox(newData.position, Vector3.one * 0.2f, Quaternion.identity, toolSettings.paintBlockMask);
-                if (cols.Length > 0)
-                {
-                    newPoint = Vector3.zero;
-                }
-
-
-                float getFadeMap = 0;
-                // check map layers
-                for (int i = 0; i < maps.Length; i++)
-                {
-                    getFadeMap += System.Convert.ToInt32(toolSettings.layerFading[i]) * maps[0, 0, i];
-                    if (maps[0, 0, i] > toolSettings.layerBlocking[i])
-                    {
-                        newPoint = Vector3.zero;
-                    }
-                }
-
-                if (newNormal.y <= (1 + toolSettings.normalLimit) && newNormal.y >= (1 - toolSettings.normalLimit))
-                {
-                    float fade = Mathf.Clamp((getFadeMap), 0, 1f);
-                    newData.color = GetRandomColor();
-                    newData.length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength * fade);
-                    newData.normal = newNormal;
-                    if (newPoint != Vector3.zero)
-                    {
-                        grassData.Add(newData);
-                    }
-                }
-
-
-            }
-            RebuildMesh();
+            case ToolTab.Paint:
+                DrawPaintPanel();
+                break;
+            case ToolTab.Sculpt:
+                DrawSculptPanel();
+                break;
+            case ToolTab.Style:
+                DrawStylePanel();
+                break;
+            case ToolTab.Generate:
+                DrawGeneratePanel();
+                break;
+            case ToolTab.Utilities:
+                DrawUtilitiesPanel();
+                break;
         }
 
-    }
-
-    Vector3 GetRandomColor()
-    {
-        Color newRandomCol = new(toolSettings.AdjustedColor.r + (Random.Range(0, 1.0f) * toolSettings.rangeR), toolSettings.AdjustedColor.g + (Random.Range(0, 1.0f) * toolSettings.rangeG), toolSettings.AdjustedColor.b + (Random.Range(0, 1.0f) * toolSettings.rangeB), 1);
-        Vector3 color = new(newRandomCol.r, newRandomCol.g, newRandomCol.b);
-        return color;
-    }
-
-    void GetRandomPointOnTerrain(Matrix4x4 localToWorld, ref float[,,] maps, Terrain terrain, Vector3 size, ref Vector3 point, ref Vector3 normal)
-    {
-        point = new Vector3(Random.Range(0, size.x), 0, Random.Range(0, size.z));
-        // sample layers wip
-
-        float pointSizeX = (point.x / size.x);
-        float pointSizeZ = (point.z / size.z);
-
-        Vector3 newScale2 = new(pointSizeX * terrain.terrainData.alphamapResolution, 0, pointSizeZ * terrain.terrainData.alphamapResolution);
-        int terrainx = Mathf.RoundToInt(newScale2.x);
-        int terrainz = Mathf.RoundToInt(newScale2.z);
-
-        maps = terrain.terrainData.GetAlphamaps(terrainx, terrainz, 1, 1);
-        normal = terrain.terrainData.GetInterpolatedNormal(pointSizeX, pointSizeZ);
-        point = localToWorld.MultiplyPoint3x4(point);
-        point.y = terrain.SampleHeight(point) + terrain.GetPosition().y;
-    }
-
-
-    public void CalcAreas(Mesh mesh)
-    {
-        sizes = GetTriSizes(mesh.triangles, mesh.vertices);
-        cumulativeSizes = new NativeArray<float>(sizes.Length, Allocator.Temp);
-        total = new NativeArray<float>(1, Allocator.Temp);
-
-        for (int i = 0; i < sizes.Length; i++)
+        if (EditorGUI.EndChangeCheck() && toolSettings != null)
         {
-            total[0] += sizes[i];
-            cumulativeSizes[i] = total[0];
+            toolSettings.EnsureValid();
+            EditorUtility.SetDirty(toolSettings);
+        }
+
+        EditorGUILayout.EndScrollView();
+    }
+
+    private void DrawHeader()
+    {
+        EditorGUILayout.HelpBox(
+            "Prefab-safe grass authoring. Painted points are stored on the selected component in local space; Style edits the referenced Grass Settings asset directly.",
+            MessageType.Info);
+    }
+
+    private void DrawSourcePanel()
+    {
+        EditorGUILayout.LabelField("Grass Source", EditorStyles.boldLabel);
+        EditorGUI.BeginChangeCheck();
+        GrassComputeScript selected = (GrassComputeScript)EditorGUILayout.ObjectField(
+            "Grass Compute", grassCompute, typeof(GrassComputeScript), true);
+        if (EditorGUI.EndChangeCheck())
+            SetSource(selected);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Use Selection"))
+            UseSelection();
+        if (GUILayout.Button("Create Grass Child"))
+            CreateGrassChild();
+        using (new EditorGUI.DisabledScope(grassCompute == null))
+        {
+            if (GUILayout.Button("Manual Update"))
+                RebuildNow(true);
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (grassCompute == null)
+            return;
+
+        EditorGUI.BeginChangeCheck();
+        SO_GrassSettings preset = (SO_GrassSettings)EditorGUILayout.ObjectField(
+            "Grass Settings", grassCompute.currentPresets, typeof(SO_GrassSettings), false);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(grassCompute, "Assign Grass Settings");
+            grassCompute.currentPresets = preset;
+            MarkGrassDirty();
+            RequestRebuild(true);
+        }
+
+        if (grassCompute.grassDataIsWorldSpace)
+        {
+            EditorGUILayout.HelpBox(
+                "This source is marked World Space. Prefab-authored grass should normally be Local Space. Use the conversion utility only when the existing points truly contain world coordinates.",
+                MessageType.Warning);
         }
     }
 
-    // Using BurstCompile to compile a Job with burst
-    // Set CompileSynchronously to true to make sure that the method will not be compiled asynchronously
-    // but on the first schedule
-    [BurstCompile(CompileSynchronously = true)]
-    private struct MyJob : IJob
+    private void DrawStatistics()
     {
-        [ReadOnly]
-        public NativeArray<float> Sizes;
+        int pointCount = Data.Count;
+        int bladesPerPoint = grassCompute.currentPresets != null
+            ? Mathf.Max(1, grassCompute.currentPresets.allowedBladesPerVertex)
+            : 0;
+        int segments = grassCompute.currentPresets != null
+            ? Mathf.Max(1, grassCompute.currentPresets.allowedSegmentsPerBlade)
+            : 0;
+        long blades = (long)pointCount * bladesPerPoint;
+        long trianglesPerBlade = segments > 0 ? ((segments - 1) * 2L) + 1L : 0L;
+        long triangles = blades * trianglesPerBlade;
 
-        [ReadOnly]
-        public NativeArray<float> Total;
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField(
+            "Saved State",
+            EditorUtility.IsDirty(grassCompute) ? "Unsaved grass changes" : "Saved");
+        EditorGUILayout.LabelField("Painted Points", pointCount.ToString("N0"));
+        EditorGUILayout.LabelField("Maximum Blades", blades.ToString("N0"));
+        EditorGUILayout.LabelField("Maximum Triangles", triangles.ToString("N0"));
+        EditorGUILayout.EndVertical();
+    }
 
-        [ReadOnly]
-        public NativeArray<float> CumulativeSizes;
+    private void DrawValidation()
+    {
+        showValidation = EditorGUILayout.Foldout(showValidation, "Setup Validation", true);
+        if (!showValidation)
+            return;
 
-        [ReadOnly]
-        public NativeArray<Color> MeshColors;
-
-        [ReadOnly]
-        public NativeArray<Vector4> MeshVertices;
-
-        [ReadOnly]
-        public NativeArray<Vector3> MeshNormals;
-
-        [ReadOnly]
-        public NativeArray<int> MeshTriangles;
-
-        [WriteOnly]
-        public NativeArray<Vector3> Point;
-
-        [WriteOnly]
-        public NativeArray<float> LengthWidth;
-
-        [WriteOnly]
-        public NativeArray<Vector3> Normals;
-
-        public SO_GrassToolSettings.VertexColorSetting VertexColorSettings;
-
-
-        public SO_GrassToolSettings.VertexColorSetting VertexFade;
-
-        public void Execute()
+        SO_GrassSettings preset = grassCompute.currentPresets;
+        if (preset == null)
         {
-            float randomsample = Random.value * Total[0];
-            int triIndex = -1;
+            EditorGUILayout.HelpBox("Assign a Grass Settings asset before rendering.", MessageType.Error);
+            return;
+        }
 
-            for (int i = 0; i < Sizes.Length; i++)
+        if (preset.shaderToUse == null)
+            EditorGUILayout.HelpBox("Grass Settings is missing GrassBlades.compute.", MessageType.Error);
+        if (preset.materialToUse == null)
+            EditorGUILayout.HelpBox("Grass Settings is missing its procedural grass material.", MessageType.Error);
+
+        if (preset.materialToUse != null &&
+            preset.materialToUse.HasProperty("_Blend") &&
+            preset.materialToUse.GetFloat("_Blend") > 0.5f)
+        {
+            EditorGUILayout.HelpBox("Material Blend is enabled and can make the procedural grass invisible.", MessageType.Warning);
+            if (GUILayout.Button("Disable Blend On Material"))
             {
-                if (randomsample <= CumulativeSizes[i])
-                {
-                    triIndex = i;
-                    break;
-                }
+                Undo.RecordObject(preset.materialToUse, "Disable Grass Material Blend");
+                preset.materialToUse.SetFloat("_Blend", 0f);
+                EditorUtility.SetDirty(preset.materialToUse);
+                RequestRebuild(true);
             }
-            if (triIndex == -1)
-                Debug.LogError("triIndex should never be -1");
+        }
 
-            switch (VertexColorSettings)
-            {
-                case SO_GrassToolSettings.VertexColorSetting.Red:
-                    if (MeshColors[MeshTriangles[triIndex * 3]].r > 0.5f)
-                    {
-                        Point[0] = Vector3.zero;
-                        return;
-                    }
-                    break;
-                case SO_GrassToolSettings.VertexColorSetting.Green:
-                    if (MeshColors[MeshTriangles[triIndex * 3]].g > 0.5f)
-                    {
-                        Point[0] = Vector3.zero;
-                        return;
-                    }
-                    break;
-                case SO_GrassToolSettings.VertexColorSetting.Blue:
-                    if (MeshColors[MeshTriangles[triIndex * 3]].b > 0.5f)
-                    {
-                        Point[0] = Vector3.zero;
-                        return;
-                    }
-                    break;
-            }
+        if (toolSettings.hitMask.value == 0)
+            EditorGUILayout.HelpBox("Hit Mask is empty; the scene brush cannot find a surface.", MessageType.Warning);
+        if (toolSettings.paintMask.value == 0)
+            EditorGUILayout.HelpBox("Painting Mask is empty; Add cannot place points.", MessageType.Warning);
 
-            switch (VertexFade)
-            {
-                case SO_GrassToolSettings.VertexColorSetting.Red:
-                    float red = MeshColors[MeshTriangles[triIndex * 3]].r;
-                    float red2 = MeshColors[MeshTriangles[triIndex * 3 + 1]].r;
-                    float red3 = MeshColors[MeshTriangles[triIndex * 3 + 2]].r;
+        Transform searchRoot = grassCompute.transform.root;
+        if (searchRoot.GetComponentInChildren<Collider>(true) == null)
+            EditorGUILayout.HelpBox("No Collider was found under this prefab root.", MessageType.Warning);
 
-                    LengthWidth[0] = 1.0f - ((red + red2 + red3) * 0.3f);
-                    break;
-                case SO_GrassToolSettings.VertexColorSetting.Green:
-                    float green = MeshColors[MeshTriangles[triIndex * 3]].g;
-                    float green2 = MeshColors[MeshTriangles[triIndex * 3 + 1]].g;
-                    float green3 = MeshColors[MeshTriangles[triIndex * 3 + 2]].g;
+        if (preset.MaxWidth < preset.MinWidth || preset.MaxHeight < preset.MinHeight)
+            EditorGUILayout.HelpBox("Grass Settings contains an invalid size range.", MessageType.Error);
+    }
 
-                    LengthWidth[0] = 1.0f - ((green + green2 + green3) * 0.3f);
-                    break;
-                case SO_GrassToolSettings.VertexColorSetting.Blue:
-                    float blue = MeshColors[MeshTriangles[triIndex * 3]].b;
-                    float blue2 = MeshColors[MeshTriangles[triIndex * 3 + 1]].b;
-                    float blue3 = MeshColors[MeshTriangles[triIndex * 3 + 2]].b;
+    private void DrawSceneBrushToggle()
+    {
+        Color previous = GUI.backgroundColor;
+        GUI.backgroundColor = sceneBrushEnabled ? new Color(0.45f, 0.9f, 0.55f) : previous;
+        if (GUILayout.Button(sceneBrushEnabled ? "Scene Brush Enabled" : "Enable Scene Brush", GUILayout.Height(30f)))
+        {
+            sceneBrushEnabled = !sceneBrushEnabled;
+            SceneView.RepaintAll();
+        }
+        GUI.backgroundColor = previous;
+        EditorGUILayout.LabelField("Right-click and drag in Scene view. Alt + mouse remains available for camera navigation.", EditorStyles.wordWrappedMiniLabel);
+    }
 
-                    LengthWidth[0] = 1.0f - ((blue + blue2 + blue3) * 0.3f);
-                    break;
-                case SO_GrassToolSettings.VertexColorSetting.None:
-                    LengthWidth[0] = 1.0f;
-                    break;
-            }
+    private void DrawPaintPanel()
+    {
+        DrawSceneBrushToggle();
+        paintOperation = (PaintOperation)GUILayout.Toolbar((int)paintOperation, Enum.GetNames(typeof(PaintOperation)));
 
-            Vector3 a = MeshVertices[MeshTriangles[triIndex * 3]];
-            Vector3 b = MeshVertices[MeshTriangles[triIndex * 3 + 1]];
-            Vector3 c = MeshVertices[MeshTriangles[triIndex * 3 + 2]];
+        DrawMaskFields();
+        toolSettings.brushSize = EditorGUILayout.Slider("Brush Radius", toolSettings.brushSize, 0.05f, 50f);
+        toolSettings.brushFalloffSize = EditorGUILayout.Slider("Soft Falloff", toolSettings.brushFalloffSize, 0f, 1f);
+        toolSettings.normalLimit = EditorGUILayout.Slider("Slope Tolerance", toolSettings.normalLimit, 0f, 1f);
+        EditorGUILayout.LabelField($"Minimum accepted upward normal: {(1f - toolSettings.normalLimit):0.00}", EditorStyles.miniLabel);
 
-            // Generate random barycentric coordinates
-            float r = Random.value;
-            float s = Random.value;
+        if (paintOperation == PaintOperation.Remove)
+            return;
 
-            if (r + s >= 1)
-            {
-                r = 1 - r;
-                s = 1 - s;
-            }
+        toolSettings.density = EditorGUILayout.Slider("Paint Density", toolSettings.density, 0.1f, 20f);
+        toolSettings.pointSpacing = EditorGUILayout.Slider("Minimum Spacing", toolSettings.pointSpacing, 0.01f, 2f);
 
-            Normals[0] = MeshNormals[MeshTriangles[triIndex * 3 + 1]];
+        DrawNewPointSizeFields();
+        DrawColorFields();
+    }
 
-            // Turn point back to a Vector3
-            Vector3 pointOnMesh = a + r * (b - a) + s * (c - a);
+    private void DrawSculptPanel()
+    {
+        DrawSceneBrushToggle();
+        sculptOperation = (SculptOperation)EditorGUILayout.EnumPopup("Operation", sculptOperation);
+        toolSettings.brushSize = EditorGUILayout.Slider("Brush Radius", toolSettings.brushSize, 0.05f, 50f);
+        toolSettings.brushFalloffSize = EditorGUILayout.Slider("Soft Falloff", toolSettings.brushFalloffSize, 0f, 1f);
+        toolSettings.sculptStrength = EditorGUILayout.Slider("Strength", toolSettings.sculptStrength, 0.01f, 1f);
 
-            Point[0] = pointOnMesh;
+        SO_GrassSettings preset = grassCompute.currentPresets;
+        float minWidth = preset != null ? preset.MinWidth : 0.001f;
+        float maxWidth = preset != null ? preset.MaxWidth : 3f;
+        float minHeight = preset != null ? preset.MinHeight : 0.001f;
+        float maxHeight = preset != null ? preset.MaxHeight : 5f;
 
+        switch (sculptOperation)
+        {
+            case SculptOperation.SetSize:
+                sculptHeight = EditorGUILayout.ToggleLeft("Edit Height", sculptHeight);
+                using (new EditorGUI.DisabledScope(!sculptHeight))
+                    toolSettings.sculptTargetHeight = EditorGUILayout.Slider("Target Height", toolSettings.sculptTargetHeight, minHeight, maxHeight);
+                sculptWidth = EditorGUILayout.ToggleLeft("Edit Width", sculptWidth);
+                using (new EditorGUI.DisabledScope(!sculptWidth))
+                    toolSettings.sculptTargetWidth = EditorGUILayout.Slider("Target Width", toolSettings.sculptTargetWidth, minWidth, maxWidth);
+                EditorGUILayout.HelpBox("Affected points move toward these exact visible values. Stored sizes are immediately clamped to the Grass Settings range.", MessageType.Info);
+                break;
+
+            case SculptOperation.AddSize:
+                sculptHeight = EditorGUILayout.ToggleLeft("Adjust Height", sculptHeight);
+                using (new EditorGUI.DisabledScope(!sculptHeight))
+                    toolSettings.sculptHeightPerSecond = EditorGUILayout.Slider("Height Change / Second", toolSettings.sculptHeightPerSecond, -2f, 2f);
+                sculptWidth = EditorGUILayout.ToggleLeft("Adjust Width", sculptWidth);
+                using (new EditorGUI.DisabledScope(!sculptWidth))
+                    toolSettings.sculptWidthPerSecond = EditorGUILayout.Slider("Width Change / Second", toolSettings.sculptWidthPerSecond, -1f, 1f);
+                EditorGUILayout.HelpBox("Positive values grow grass; negative values shrink it. Values stop at the visible preset limits—there is no hidden accumulated size.", MessageType.Info);
+                break;
+
+            case SculptOperation.SmoothSize:
+                sculptHeight = EditorGUILayout.ToggleLeft("Smooth Height", sculptHeight);
+                sculptWidth = EditorGUILayout.ToggleLeft("Smooth Width", sculptWidth);
+                break;
+
+            case SculptOperation.RandomizeSize:
+                sculptHeight = EditorGUILayout.ToggleLeft("Randomize Height", sculptHeight);
+                using (new EditorGUI.DisabledScope(!sculptHeight))
+                    toolSettings.randomHeightAmount = EditorGUILayout.Slider("Height Variation", toolSettings.randomHeightAmount, 0f, 1f);
+                sculptWidth = EditorGUILayout.ToggleLeft("Randomize Width", sculptWidth);
+                using (new EditorGUI.DisabledScope(!sculptWidth))
+                    toolSettings.randomWidthAmount = EditorGUILayout.Slider("Width Variation", toolSettings.randomWidthAmount, 0f, 1f);
+                break;
+
+            case SculptOperation.PaintColor:
+                DrawColorFields();
+                break;
         }
     }
 
-    public NativeArray<float> GetTriSizes(int[] tris, Vector3[] verts)
+    private void DrawStylePanel()
     {
-        int triCount = tris.Length / 3;
-        var sizes = new NativeArray<float>(triCount, Allocator.Temp);
-        for (int i = 0; i < triCount; i++)
+        SO_GrassSettings preset = grassCompute.currentPresets;
+        if (preset == null)
         {
-            sizes[i] = .5f * Vector3.Cross(
-                verts[tris[i * 3 + 1]] - verts[tris[i * 3]],
-                verts[tris[i * 3 + 2]] - verts[tris[i * 3]]).magnitude;
+            EditorGUILayout.HelpBox("Assign a Grass Settings asset above.", MessageType.Warning);
+            return;
         }
-        return sizes;
-    }
 
-    public void FloodColor()
-    {
-        Undo.RegisterCompleteObjectUndo(this, "Flooded Color");
-        for (int i = 0; i < grassData.Count; i++)
+        EditorGUILayout.HelpBox("Every field below edits the referenced Grass Settings asset directly and supports Undo.", MessageType.Info);
+
+        SerializedObject serializedPreset = new SerializedObject(preset);
+        serializedPreset.Update();
+        EditorGUI.BeginChangeCheck();
+
+        EditorGUILayout.LabelField("Resources", EditorStyles.boldLabel);
+        DrawPresetProperty(serializedPreset, "shaderToUse", "Compute Shader");
+        DrawPresetProperty(serializedPreset, "materialToUse", "Grass Material");
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("Visible Size Range", EditorStyles.boldLabel);
+        DrawPresetProperty(serializedPreset, "MinWidth", "Minimum Width");
+        DrawPresetProperty(serializedPreset, "MaxWidth", "Maximum Width");
+        DrawPresetProperty(serializedPreset, "MinHeight", "Minimum Height");
+        DrawPresetProperty(serializedPreset, "MaxHeight", "Maximum Height");
+        DrawPresetProperty(serializedPreset, "grassRandomHeightMin", "Random Height Minimum");
+        DrawPresetProperty(serializedPreset, "grassRandomHeightMax", "Random Height Maximum");
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("Blade Shape", EditorStyles.boldLabel);
+        DrawPresetProperty(serializedPreset, "allowedBladesPerVertex", "Blades Per Point");
+        DrawPresetProperty(serializedPreset, "allowedSegmentsPerBlade", "Segments Per Blade");
+        DrawPresetProperty(serializedPreset, "bladeRadius", "Blade Radius");
+        DrawPresetProperty(serializedPreset, "bladeForwardAmount", "Forward Bend");
+        DrawPresetProperty(serializedPreset, "bladeCurveAmount", "Curve");
+        DrawPresetProperty(serializedPreset, "bottomWidth", "Base Width Multiplier");
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("Colour", EditorStyles.boldLabel);
+        DrawPresetProperty(serializedPreset, "bottomTint", "Bottom Tint");
+        DrawPresetProperty(serializedPreset, "topTint", "Top Tint");
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("Wind and Interaction", EditorStyles.boldLabel);
+        DrawPresetProperty(serializedPreset, "windSpeed", "Wind Speed");
+        DrawPresetProperty(serializedPreset, "windStrength", "Wind Strength");
+        DrawPresetProperty(serializedPreset, "affectStrength", "Interactor Strength");
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("LOD and Rendering", EditorStyles.boldLabel);
+        DrawPresetProperty(serializedPreset, "minFadeDistance", "Fade Start");
+        DrawPresetProperty(serializedPreset, "maxDrawDistance", "Maximum Draw Distance");
+        DrawPresetProperty(serializedPreset, "cullingTreeDepth", "Culling Tree Depth");
+        DrawPresetProperty(serializedPreset, "castShadow", "Shadow Mode");
+        DrawPresetProperty(serializedPreset, "drawBounds", "Show Culling Bounds");
+        DrawPresetProperty(serializedPreset, "cuttingParticles", "Cutting Particles");
+
+        if (EditorGUI.EndChangeCheck())
         {
-            GrassData newData = grassData[i];
-            newData.color = GetRandomColor();
-            grassData[i] = newData;
-
+            serializedPreset.ApplyModifiedProperties();
+            NormalizePreset(preset);
+            EditorUtility.SetDirty(preset);
+            if (Data.Count > 0)
+                Undo.RecordObject(grassCompute, "Clamp Grass To Preset");
+            ClampAllPointSizesToPreset();
+            MarkGrassDirty();
+            RequestRebuild(true);
         }
-        RebuildMesh();
-    }
-
-    public void FloodLengthAndWidth()
-    {
-        Undo.RegisterCompleteObjectUndo(this, "Flooded Length/Width");
-        for (int i = 0; i < grassData.Count; i++)
+        else
         {
-            GrassData newData = grassData[i];
-            newData.length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength);
-            grassData[i] = newData;
-
+            serializedPreset.ApplyModifiedProperties();
         }
-        RebuildMesh();
     }
 
-    Ray RandomRay(Vector3 position, Vector3 normal, float radius, float falloff)
+    private void DrawGeneratePanel()
     {
-        Vector3 a = Vector3.zero;
-        Quaternion rotation = Quaternion.LookRotation(normal, Vector3.up);
+        EditorGUILayout.HelpBox("Select one or more MeshFilter or Terrain objects. Generated points are stored in the chosen Grass Compute object's local space.", MessageType.Info);
+        DrawMaskFields();
+        toolSettings.generationDensity = EditorGUILayout.FloatField("Points Per Square Unit", toolSettings.generationDensity);
+        toolSettings.grassAmountToGenerate = EditorGUILayout.IntField("Maximum Added Points", toolSettings.grassAmountToGenerate);
+        toolSettings.normalLimit = EditorGUILayout.Slider("Slope Tolerance", toolSettings.normalLimit, 0f, 1f);
+        DrawNewPointSizeFields();
+        DrawColorFields();
 
-        var rad = Random.Range(0f, 2 * Mathf.PI);
-        a.x = Mathf.Cos(rad);
-        a.y = Mathf.Sin(rad);
-
-        float r;
-
-        //In the case the curve isn't valid, only sample within the falloff range
-        r = Mathf.Sqrt(Random.Range(0f, falloff));
-
-        a = position + (rotation * (a.normalized * r * radius));
-        return new Ray(a + normal, -normal);
-    }
-
-    void OnScene(SceneView scene)
-    {
-        if (this != null && paintModeActive)
+        showTerrainLayers = EditorGUILayout.Foldout(showTerrainLayers, "Terrain / Vertex Colour Filters", true);
+        if (showTerrainLayers)
         {
+            toolSettings.VertexColorSettings = (SO_GrassToolSettings.VertexColorSetting)EditorGUILayout.EnumPopup("Block Vertex Channel", toolSettings.VertexColorSettings);
+            toolSettings.VertexFade = (SO_GrassToolSettings.VertexColorSetting)EditorGUILayout.EnumPopup("Fade Vertex Channel", toolSettings.VertexFade);
 
-            Event e = Event.current;
-            mousePos = e.mousePosition;
-            float ppp = EditorGUIUtility.pixelsPerPoint;
-            mousePos.y = scene.camera.pixelHeight - mousePos.y * ppp;
-            mousePos.x *= ppp;
-            mousePos.z = 0;
-
-            // ray for gizmo(disc)
-            ray = scene.camera.ScreenPointToRay(mousePos);
-            // undo system
-            if (e.type == EventType.MouseDown && e.button == 1)
+            for (int i = 0; i < toolSettings.layerBlocking.Length; i++)
             {
-                e.Use();
-                switch (toolbarInt)
-                {
-
-                    case 0:
-
-                        Undo.RegisterCompleteObjectUndo(this, "Added Grass");
-                        break;
-
-                    case 1:
-                        Undo.RegisterCompleteObjectUndo(this, "Removed Grass");
-                        break;
-
-                    case 2:
-                        Undo.RegisterCompleteObjectUndo(this, "Edited Grass");
-                        break;
-                    case 3:
-                        Undo.RegisterCompleteObjectUndo(this, "Reprojected Grass");
-                        break;
-
-
-
-                }
-            }
-            if (e.type == EventType.MouseDrag && e.button == 1)
-            {
-                switch (toolbarInt)
-                {
-
-                    case 0:
-                        AddGrassPainting(terrainHit, e);
-
-                        break;
-
-                    case 1:
-                        RemoveAtPoint(terrainHit, e);
-                        break;
-
-                    case 2:
-                        EditGrassPainting(terrainHit, e);
-                        break;
-                    case 3:
-                        ReprojectGrassPainting(terrainHit, e);
-                        break;
-
-
-
-                }
-                RebuildMeshFast();
-            }
-
-            // on up
-            if (e.type == EventType.MouseUp && e.button == 1)
-            {
-
-                RebuildMesh();
-
-
+                EditorGUILayout.BeginHorizontal();
+                toolSettings.layerBlocking[i] = EditorGUILayout.Slider($"Terrain Layer {i}", toolSettings.layerBlocking[i], 0f, 1f);
+                toolSettings.layerFading[i] = EditorGUILayout.ToggleLeft("Fade", toolSettings.layerFading[i], GUILayout.Width(55f));
+                EditorGUILayout.EndHorizontal();
             }
         }
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Add From Selection", GUILayout.Height(28f)))
+            GenerateFromSelection(false);
+        if (GUILayout.Button("Replace From Selection", GUILayout.Height(28f)))
+            GenerateFromSelection(true);
+        EditorGUILayout.EndHorizontal();
     }
 
-    private void RemovePositionsNearRaycastHit(Vector3 hitPoint, float radius)
+    private void DrawUtilitiesPanel()
     {
-        // Remove positions within the specified radius
-        grassData.RemoveAll(pos => Vector3.Distance(pos.position, hitPoint) <= radius);
-    }
-
-
-    public void RemoveAtPoint(RaycastHit[] terrainHit, Event e)
-    {
-
-        int hits = (Physics.RaycastNonAlloc(ray, terrainHit, 100f, toolSettings.hitMask.value));
-        for (int i = 0; i < hits; i++)
+        EditorGUILayout.LabelField("Whole Source Operations", EditorStyles.boldLabel);
+        DrawNewPointSizeFields();
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Set All Sizes"))
+            SetAllSizes();
+        if (GUILayout.Button("Clamp Sizes To Preset"))
         {
-            hitPos = terrainHit[i].point;
-            hitPosGizmo = hitPos;
-            hitNormal = terrainHit[i].normal;
-            RemovePositionsNearRaycastHit(hitPos, toolSettings.brushSize);
+            Undo.RegisterCompleteObjectUndo(grassCompute, "Clamp Grass Sizes");
+            ClampAllPointSizesToPreset();
+            CommitDataChange(true);
+        }
+        EditorGUILayout.EndHorizontal();
+
+        DrawColorFields();
+        if (GUILayout.Button("Set All Colours"))
+            SetAllColors();
+
+        EditorGUILayout.Space(6f);
+        DrawMaskFields();
+        toolSettings.reprojectOffset = EditorGUILayout.FloatField("Reproject Height", toolSettings.reprojectOffset);
+        if (GUILayout.Button("Reproject All To Painting Mask"))
+            ReprojectAll();
+
+        if (GUILayout.Button("Remove Points On Steep / Vertical Surfaces"))
+            RemoveInvalidNormals();
+
+        EditorGUILayout.Space(6f);
+        if (grassCompute.grassDataIsWorldSpace)
+        {
+            if (GUILayout.Button("Convert World Data To Local Space"))
+                ConvertWorldDataToLocal();
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("Data is stored in prefab-local space and will follow moved, rotated and generated instances.", MessageType.Info);
         }
 
-        e.Use();
-    }
-
-    public void AddGrassPainting(RaycastHit[] terrainHit, Event e)
-    {
-
-        // if the ray hits something thats on the layer mask,  within the grass limit and within the y normal limit
-        int hits = (Physics.RaycastNonAlloc(ray, terrainHit, 200f, toolSettings.hitMask.value));
-        for (int i = 0; i < hits; i++)
+        EditorGUILayout.Space(8f);
+        Color previous = GUI.backgroundColor;
+        GUI.backgroundColor = new Color(1f, 0.55f, 0.55f);
+        if (GUILayout.Button("Clear All Grass", GUILayout.Height(28f)) &&
+            EditorUtility.DisplayDialog("Clear All Grass?", "This removes every painted point from the selected Grass Compute object.", "Clear", "Cancel"))
         {
-            if ((toolSettings.paintMask.value & (1 << terrainHit[i].transform.gameObject.layer)) > 0)
-            {
-                int grassToPlace = (int)(toolSettings.density * toolSettings.brushSize);
-
-
-                for (int k = 0; k < grassToPlace; k++)
-                {
-                    if (terrainHit[i].normal != Vector3.zero)
-                    {
-
-                        Vector2 randomOffset = Random.insideUnitCircle * (toolSettings.brushSize * 10 / EditorGUIUtility.pixelsPerPoint);
-
-                        Vector2 mousePosition = e.mousePosition;
-                        Vector2 randomPosition = mousePosition + randomOffset;
-
-                        Ray ray2 = HandleUtility.GUIPointToWorldRay(randomPosition);
-
-
-                        int hits2 = (Physics.RaycastNonAlloc(ray2, terrainHit, 200f, toolSettings.hitMask.value));
-                        for (int l = 0; l < hits2; l++)
-                        {
-                            if ((toolSettings.paintMask.value & (1 << terrainHit[l].transform.gameObject.layer)) > 0 && terrainHit[l].normal.y <= (1 + toolSettings.normalLimit) && terrainHit[l].normal.y >= (1 - toolSettings.normalLimit))
-                            {
-                                hitPos = terrainHit[l].point;
-                                hitNormal = terrainHit[l].normal;
-
-                                if (k != 0)
-                                {
-                                    // can paint
-                                    GrassData newData = new GrassData();
-                                    newData.color = GetRandomColor();
-                                    newData.position = hitPos;
-                                    newData.length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength);
-                                    newData.normal = hitNormal;
-
-                                    grassData.Add(newData);
-
-                                }
-                                else
-                                {// to not place everything at once, check if the first placed point far enough away from the last placed first one
-                                    if (Vector3.Distance(terrainHit[l].point, lastPosition) > toolSettings.brushSize)
-                                    {
-
-                                        GrassData newData = new GrassData();
-                                        newData.color = GetRandomColor();
-                                        newData.position = hitPos;
-
-                                        newData.length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength);
-                                        newData.normal = hitNormal;
-                                        grassData.Add(newData);
-
-
-                                        if (k == 0)
-                                        {
-                                            lastPosition = hitPos;
-                                        }
-                                    }
-
-                                }
-                            }
-
-                        }
-                    }
-                }
-            }
+            Undo.RegisterCompleteObjectUndo(grassCompute, "Clear Grass");
+            Data.Clear();
+            CommitDataChange(true);
         }
-        e.Use();
+        GUI.backgroundColor = previous;
     }
 
-    void EditGrassPainting(RaycastHit[] terrainHit, Event e)
+    private void DrawMaskFields()
     {
+        LayerMask hitMask = EditorGUILayout.MaskField(
+            "Hit Mask",
+            InternalEditorUtility.LayerMaskToConcatenatedLayersMask(toolSettings.hitMask),
+            InternalEditorUtility.layers);
+        toolSettings.hitMask = InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(hitMask);
 
-        int hits = (Physics.RaycastNonAlloc(ray, terrainHit, 200f, toolSettings.hitMask.value));
-        for (int i = 0; i < hits; i++)
+        LayerMask paintMask = EditorGUILayout.MaskField(
+            "Painting Mask",
+            InternalEditorUtility.LayerMaskToConcatenatedLayersMask(toolSettings.paintMask),
+            InternalEditorUtility.layers);
+        toolSettings.paintMask = InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(paintMask);
 
+        LayerMask blockMask = EditorGUILayout.MaskField(
+            "Blocking Mask",
+            InternalEditorUtility.LayerMaskToConcatenatedLayersMask(toolSettings.paintBlockMask),
+            InternalEditorUtility.layers);
+        toolSettings.paintBlockMask = InternalEditorUtility.ConcatenatedLayersMaskToLayerMask(blockMask);
+    }
+
+    private void DrawNewPointSizeFields()
+    {
+        SO_GrassSettings preset = grassCompute.currentPresets;
+        if (preset != null)
         {
-            hitPos = terrainHit[i].point;
-            hitPosGizmo = hitPos;
-            hitNormal = terrainHit[i].normal;
-            for (int j = 0; j < grassData.Count; j++)
-            {
-                Vector3 pos = grassData[j].position;
-
-                //  pos += grassObject.transform.position;
-                float dist = Vector3.Distance(terrainHit[i].point, pos);
-
-                // if its within the radius of the brush, remove all info
-                if (dist <= toolSettings.brushSize)
-                {
-
-                    float falloff = Mathf.Clamp01((dist / (toolSettings.brushFalloffSize * toolSettings.brushSize)));
-
-                    //store the original color
-                    Vector3 OrigColor = grassData[j].color;
-
-                    // add in the new color
-                    Vector3 newCol = GetRandomColor();
-
-                    Vector2 origLength = grassData[j].length;
-                    Vector2 newLength = new Vector2(toolSettings.adjustWidth, toolSettings.adjustLength);
-
-
-                    flowTimer++;
-                    if (flowTimer > toolSettings.Flow)
-                    {
-                        // edit colors
-                        if (toolbarIntEdit == 0 || toolbarIntEdit == 2)
-                        {
-                            GrassData newData = grassData[j];
-                            newData.color = Vector3.Lerp(newCol, OrigColor, falloff);
-                            grassData[j] = newData;
-                        }
-                        // edit grass length
-                        if (toolbarIntEdit == 1 || toolbarIntEdit == 2)
-                        {
-                            GrassData newData = grassData[j];
-                            newData.length = Vector2.Lerp(origLength + newLength, origLength, falloff);
-                            newData.length.x = Mathf.Clamp(newData.length.x, 0, toolSettings.adjustWidthMax);
-                            newData.length.y = Mathf.Clamp(newData.length.y, 0, toolSettings.adjustHeightMax);
-                            grassData[j] = newData;
-                        }
-                        flowTimer = 0;
-                    }
-                }
-            }
+            toolSettings.sizeWidth = EditorGUILayout.Slider("Grass Width", toolSettings.sizeWidth, preset.MinWidth, preset.MaxWidth);
+            toolSettings.sizeLength = EditorGUILayout.Slider("Grass Height", toolSettings.sizeLength, preset.MinHeight, preset.MaxHeight);
+            EditorGUILayout.LabelField(
+                $"Visible limits — Width {preset.MinWidth:0.###}–{preset.MaxWidth:0.###}, Height {preset.MinHeight:0.###}–{preset.MaxHeight:0.###}",
+                EditorStyles.miniLabel);
         }
-        e.Use();
-    }
-
-    void ReprojectGrassPainting(RaycastHit[] terrainHit, Event e)
-    {
-        int hits = (Physics.RaycastNonAlloc(ray, terrainHit, 200f, toolSettings.hitMask.value));
-        for (int i = 0; i < hits; i++)
-
+        else
         {
-            hitPos = terrainHit[i].point;
-            hitPosGizmo = hitPos;
-            hitNormal = terrainHit[i].normal;
-
-            for (int j = 0; j < grassData.Count; j++)
-            {
-                Vector3 pos = grassData[j].position;
-                //  pos += grassObject.transform.position;
-                float dist = Vector3.Distance(terrainHit[i].point, pos);
-
-                // if its within the radius of the brush, raycast to a new position
-                if (dist <= toolSettings.brushSize)
-                {
-                    RaycastHit raycastHit;
-                    Vector3 meshPoint = new Vector3(pos.x, pos.y + toolSettings.reprojectOffset, pos.z);
-                    if (Physics.Raycast(meshPoint, Vector3.down, out raycastHit, 200f, toolSettings.paintMask.value))
-                    {
-                        GrassData newData = grassData[j];
-                        newData.position = raycastHit.point;
-                        grassData[j] = newData;
-                    }
-                }
-            }
+            toolSettings.sizeWidth = Mathf.Max(0.001f, EditorGUILayout.FloatField("Grass Width", toolSettings.sizeWidth));
+            toolSettings.sizeLength = Mathf.Max(0.001f, EditorGUILayout.FloatField("Grass Height", toolSettings.sizeLength));
         }
-        e.Use();
     }
 
-    private bool RemovePoints(GrassData point)
+    private void DrawColorFields()
     {
-        RaycastHit terrainHit;
-        if (Physics.Raycast(ray, out terrainHit, 100f, toolSettings.hitMask.value))
+        toolSettings.AdjustedColor = EditorGUILayout.ColorField("Painted Colour", toolSettings.AdjustedColor);
+        toolSettings.rangeR = EditorGUILayout.Slider("Red Variation", toolSettings.rangeR, 0f, 1f);
+        toolSettings.rangeG = EditorGUILayout.Slider("Green Variation", toolSettings.rangeG, 0f, 1f);
+        toolSettings.rangeB = EditorGUILayout.Slider("Blue Variation", toolSettings.rangeB, 0f, 1f);
+    }
+
+    private void DuringSceneGUI(SceneView sceneView)
+    {
+        if (!sceneBrushEnabled || grassCompute == null ||
+            (currentTab != ToolTab.Paint && currentTab != ToolTab.Sculpt))
+            return;
+
+        Event current = Event.current;
+        if (current == null)
+            return;
+
+        if (current.type == EventType.Layout)
+            HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
+
+        Ray mouseRay = HandleUtility.GUIPointToWorldRay(current.mousePosition);
+        bool hasHit = TryGetSurfaceHit(mouseRay, out RaycastHit hit, false);
+        if (hasHit)
+            DrawBrushHandle(hit);
+
+        if (current.alt)
+            return;
+
+        bool rightDown = current.type == EventType.MouseDown && current.button == 1;
+        bool rightDrag = current.type == EventType.MouseDrag && current.button == 1;
+        bool rightUp = current.type == EventType.MouseUp && current.button == 1;
+
+        if (rightDown && hasHit)
         {
-            hitPos = terrainHit.point;
-            hitPosGizmo = hitPos;
-            hitNormal = terrainHit.normal;
+            BeginStroke();
+            ApplyBrush(hit);
+            current.Use();
+        }
+        else if (rightDrag && strokeActive && hasHit)
+        {
+            ApplyBrush(hit);
+            current.Use();
+        }
+        else if (rightUp && strokeActive)
+        {
+            FinishStroke();
+            current.Use();
+        }
 
-            Vector3 pos = point.position;
-            // pos += grassObject.transform.position;
-            float dist = Vector3.Distance(terrainHit.point, pos);
+        if (current.type == EventType.MouseMove)
+            sceneView.Repaint();
+    }
 
-            // if its within the radius of the brush, remove all info
-            if (dist <= toolSettings.brushSize)
-            {
-                return true;
-            }
+    private void DrawBrushHandle(RaycastHit hit)
+    {
+        bool validPaintLayer = IsLayerInMask(hit.collider.gameObject.layer, toolSettings.paintMask);
+        bool validSlope = IsValidSlope(hit.normal);
+        Color color;
+
+        if (!validPaintLayer || !validSlope)
+            color = Color.red;
+        else if (currentTab == ToolTab.Paint && paintOperation == PaintOperation.Remove)
+            color = new Color(1f, 0.25f, 0.2f, 1f);
+        else if (currentTab == ToolTab.Sculpt)
+            color = new Color(1f, 0.75f, 0.15f, 1f);
+        else
+            color = new Color(0.2f, 1f, 0.35f, 1f);
+
+        Handles.color = color;
+        Handles.DrawWireDisc(hit.point, hit.normal, toolSettings.brushSize);
+        Color fill = color;
+        fill.a = 0.12f;
+        Handles.color = fill;
+        Handles.DrawSolidDisc(hit.point, hit.normal, toolSettings.brushSize);
+    }
+
+    private void BeginStroke()
+    {
+        if (strokeActive)
+            return;
+
+        strokeActive = true;
+        strokeChanged = false;
+        lastBrushTime = EditorApplication.timeSinceStartup;
+        Undo.RegisterCompleteObjectUndo(grassCompute, "Edit Grass");
+    }
+
+    private void FinishStroke()
+    {
+        if (!strokeActive)
+            return;
+
+        strokeActive = false;
+        if (strokeChanged)
+            CommitDataChange(true);
+        strokeChanged = false;
+    }
+
+    private void ApplyBrush(RaycastHit hit)
+    {
+        if (currentTab == ToolTab.Paint)
+        {
+            if (paintOperation == PaintOperation.Add)
+                AddAtHit(hit);
             else
-            {
-                return false;
-            }
+                RemoveAtHit(hit.point);
         }
-        return false;
+        else
+        {
+            SculptAtHit(hit.point);
+        }
     }
 
-    void RebuildMesh()
+    private void AddAtHit(RaycastHit centerHit)
     {
-        grassAmount = grassData.Count;
-        grassCompute.Reset();
-        EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        if (!IsLayerInMask(centerHit.collider.gameObject.layer, toolSettings.paintMask) || !IsValidSlope(centerHit.normal))
+            return;
 
+        double now = EditorApplication.timeSinceStartup;
+        float deltaTime = Mathf.Clamp((float)(now - lastBrushTime), 1f / 120f, 0.1f);
+        lastBrushTime = now;
+        int attempts = Mathf.Clamp(Mathf.CeilToInt(toolSettings.density * toolSettings.brushSize * deltaTime * 12f), 1, 128);
+
+        Vector3 normal = centerHit.normal.normalized;
+        Vector3 tangent = Vector3.Cross(normal, Mathf.Abs(Vector3.Dot(normal, Vector3.up)) > 0.95f ? Vector3.forward : Vector3.up).normalized;
+        Vector3 bitangent = Vector3.Cross(normal, tangent).normalized;
+
+        for (int i = 0; i < attempts; i++)
+        {
+            Vector2 disc = UnityEngine.Random.insideUnitCircle * toolSettings.brushSize;
+            Vector3 sampleCenter = centerHit.point + tangent * disc.x + bitangent * disc.y;
+            Ray sampleRay = new Ray(sampleCenter + normal * (toolSettings.brushSize + 2f), -normal);
+
+            if (!TryGetSurfaceHit(sampleRay, out RaycastHit sampleHit, true) || !IsValidSlope(sampleHit.normal))
+                continue;
+            if (!IsLayerInMask(sampleHit.collider.gameObject.layer, toolSettings.paintMask))
+                continue;
+            if (Vector3.Distance(sampleHit.point, centerHit.point) > toolSettings.brushSize * 1.2f)
+                continue;
+            if (IsBlocked(sampleHit.point))
+                continue;
+            if (!HasMinimumSpacing(sampleHit.point, toolSettings.pointSpacing))
+                continue;
+
+            Data.Add(CreateGrassData(sampleHit.point, sampleHit.normal, 1f));
+            strokeChanged = true;
+        }
+
+        if (strokeChanged)
+        {
+            MarkGrassDirty();
+            RequestRebuild(false);
+        }
     }
 
-    void RebuildMeshFast()
+    private void RemoveAtHit(Vector3 worldPoint)
     {
-        grassAmount = grassData.Count;
-        grassCompute.ResetFaster();
+        float radiusSquared = toolSettings.brushSize * toolSettings.brushSize;
+        bool removed = false;
 
+        for (int i = Data.Count - 1; i >= 0; i--)
+        {
+            Vector3 point = GetWorldPosition(Data[i]);
+            if ((point - worldPoint).sqrMagnitude > radiusSquared)
+                continue;
+
+            Data.RemoveAt(i);
+            removed = true;
+        }
+
+        if (!removed)
+            return;
+
+        strokeChanged = true;
+        MarkGrassDirty();
+        RequestRebuild(false);
     }
 
-#endif
+    private void SculptAtHit(Vector3 worldPoint)
+    {
+        List<int> affected = new List<int>();
+        float radius = Mathf.Max(0.001f, toolSettings.brushSize);
+        float radiusSquared = radius * radius;
+
+        for (int i = 0; i < Data.Count; i++)
+        {
+            if ((GetWorldPosition(Data[i]) - worldPoint).sqrMagnitude <= radiusSquared)
+                affected.Add(i);
+        }
+
+        if (affected.Count == 0)
+            return;
+
+        Vector2 averageSize = Vector2.zero;
+        for (int i = 0; i < affected.Count; i++)
+            averageSize += Data[affected[i]].length;
+        averageSize /= affected.Count;
+
+        double now = EditorApplication.timeSinceStartup;
+        float deltaTime = Mathf.Clamp((float)(now - lastBrushTime), 1f / 120f, 0.1f);
+        lastBrushTime = now;
+
+        for (int i = 0; i < affected.Count; i++)
+        {
+            int index = affected[i];
+            GrassData point = Data[index];
+            float distance = Vector3.Distance(GetWorldPosition(point), worldPoint);
+            float falloff = GetBrushFalloff(distance, radius);
+            float blend = Mathf.Clamp01(toolSettings.sculptStrength * falloff);
+
+            switch (sculptOperation)
+            {
+                case SculptOperation.SetSize:
+                    if (sculptWidth)
+                        point.length.x = Mathf.Lerp(point.length.x, toolSettings.sculptTargetWidth, blend);
+                    if (sculptHeight)
+                        point.length.y = Mathf.Lerp(point.length.y, toolSettings.sculptTargetHeight, blend);
+                    break;
+
+                case SculptOperation.AddSize:
+                    if (sculptWidth)
+                        point.length.x += toolSettings.sculptWidthPerSecond * deltaTime * blend;
+                    if (sculptHeight)
+                        point.length.y += toolSettings.sculptHeightPerSecond * deltaTime * blend;
+                    break;
+
+                case SculptOperation.SmoothSize:
+                    if (sculptWidth)
+                        point.length.x = Mathf.Lerp(point.length.x, averageSize.x, blend);
+                    if (sculptHeight)
+                        point.length.y = Mathf.Lerp(point.length.y, averageSize.y, blend);
+                    break;
+
+                case SculptOperation.RandomizeSize:
+                    if (sculptWidth)
+                    {
+                        float target = point.length.x * (1f + UnityEngine.Random.Range(-toolSettings.randomWidthAmount, toolSettings.randomWidthAmount));
+                        point.length.x = Mathf.Lerp(point.length.x, target, blend);
+                    }
+                    if (sculptHeight)
+                    {
+                        float target = point.length.y * (1f + UnityEngine.Random.Range(-toolSettings.randomHeightAmount, toolSettings.randomHeightAmount));
+                        point.length.y = Mathf.Lerp(point.length.y, target, blend);
+                    }
+                    break;
+
+                case SculptOperation.PaintColor:
+                    Vector3 targetColor = GetRandomColor();
+                    point.color = Vector3.Lerp(point.color, targetColor, blend);
+                    break;
+            }
+
+            ClampSize(ref point);
+            Data[index] = point;
+        }
+
+        strokeChanged = true;
+        MarkGrassDirty();
+        RequestRebuild(false);
+    }
+
+    private float GetBrushFalloff(float distance, float radius)
+    {
+        float softPortion = Mathf.Clamp01(toolSettings.brushFalloffSize);
+        if (softPortion <= 0f)
+            return 1f;
+
+        float softStart = radius * (1f - softPortion);
+        return 1f - Mathf.InverseLerp(softStart, radius, distance);
+    }
+
+    private bool TryGetSurfaceHit(Ray ray, out RaycastHit bestHit, bool requirePaintLayer)
+    {
+        int count = Physics.RaycastNonAlloc(ray, raycastHits, 500f, toolSettings.hitMask.value, QueryTriggerInteraction.Ignore);
+        float bestDistance = float.PositiveInfinity;
+        bestHit = default;
+        bool found = false;
+
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit candidate = raycastHits[i];
+            if (candidate.collider == null)
+                continue;
+            if (requirePaintLayer && !IsLayerInMask(candidate.collider.gameObject.layer, toolSettings.paintMask))
+                continue;
+            if (candidate.distance >= bestDistance)
+                continue;
+
+            bestDistance = candidate.distance;
+            bestHit = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool IsBlocked(Vector3 worldPoint)
+    {
+        if (toolSettings.paintBlockMask.value == 0)
+            return false;
+
+        return Physics.CheckSphere(
+            worldPoint,
+            Mathf.Max(0.02f, toolSettings.pointSpacing * 0.25f),
+            toolSettings.paintBlockMask.value,
+            QueryTriggerInteraction.Ignore);
+    }
+
+    private bool HasMinimumSpacing(Vector3 worldPoint, float spacing)
+    {
+        float spacingSquared = spacing * spacing;
+        for (int i = 0; i < Data.Count; i++)
+        {
+            if ((GetWorldPosition(Data[i]) - worldPoint).sqrMagnitude < spacingSquared)
+                return false;
+        }
+        return true;
+    }
+
+    private GrassData CreateGrassData(Vector3 worldPosition, Vector3 worldNormal, float sizeMultiplier)
+    {
+        GrassData point = new GrassData
+        {
+            position = grassCompute.grassDataIsWorldSpace
+                ? worldPosition
+                : grassCompute.transform.InverseTransformPoint(worldPosition),
+            normal = grassCompute.grassDataIsWorldSpace
+                ? worldNormal.normalized
+                : WorldNormalToLocal(worldNormal),
+            length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength) * sizeMultiplier,
+            color = GetRandomColor()
+        };
+        ClampSize(ref point);
+        return point;
+    }
+
+    private Vector3 GetWorldPosition(GrassData point)
+    {
+        return grassCompute.grassDataIsWorldSpace
+            ? point.position
+            : grassCompute.transform.TransformPoint(point.position);
+    }
+
+    private Vector3 GetWorldNormal(GrassData point)
+    {
+        if (grassCompute.grassDataIsWorldSpace)
+            return point.normal.normalized;
+
+        Matrix4x4 normalMatrix = grassCompute.transform.localToWorldMatrix.inverse.transpose;
+        Vector3 normal = normalMatrix.MultiplyVector(point.normal);
+        return normal.sqrMagnitude > 0.000001f ? normal.normalized : Vector3.up;
+    }
+
+    private Vector3 WorldNormalToLocal(Vector3 worldNormal)
+    {
+        Matrix4x4 worldToLocalNormal = grassCompute.transform.localToWorldMatrix.transpose;
+        Vector3 local = worldToLocalNormal.MultiplyVector(worldNormal);
+        return local.sqrMagnitude > 0.000001f ? local.normalized : Vector3.up;
+    }
+
+    private bool IsValidSlope(Vector3 worldNormal)
+    {
+        return worldNormal.normalized.y >= 1f - Mathf.Clamp01(toolSettings.normalLimit);
+    }
+
+    private static bool IsLayerInMask(int layer, LayerMask mask)
+    {
+        return (mask.value & (1 << layer)) != 0;
+    }
+
+    private Vector3 GetRandomColor()
+    {
+        Color source = toolSettings.AdjustedColor;
+        return new Vector3(
+            Mathf.Clamp01(source.r + UnityEngine.Random.Range(-toolSettings.rangeR, toolSettings.rangeR)),
+            Mathf.Clamp01(source.g + UnityEngine.Random.Range(-toolSettings.rangeG, toolSettings.rangeG)),
+            Mathf.Clamp01(source.b + UnityEngine.Random.Range(-toolSettings.rangeB, toolSettings.rangeB)));
+    }
+
+    private void ClampSize(ref GrassData point)
+    {
+        SO_GrassSettings preset = grassCompute.currentPresets;
+        if (preset == null)
+        {
+            point.length.x = Mathf.Max(0.001f, point.length.x);
+            point.length.y = Mathf.Max(0.001f, point.length.y);
+            return;
+        }
+
+        point.length.x = Mathf.Clamp(point.length.x, preset.MinWidth, preset.MaxWidth);
+        point.length.y = Mathf.Clamp(point.length.y, preset.MinHeight, preset.MaxHeight);
+    }
+
+    private void ClampAllPointSizesToPreset()
+    {
+        for (int i = 0; i < Data.Count; i++)
+        {
+            GrassData point = Data[i];
+            ClampSize(ref point);
+            Data[i] = point;
+        }
+
+        SO_GrassSettings preset = grassCompute.currentPresets;
+        if (preset != null)
+        {
+            toolSettings.sizeWidth = Mathf.Clamp(toolSettings.sizeWidth, preset.MinWidth, preset.MaxWidth);
+            toolSettings.sizeLength = Mathf.Clamp(toolSettings.sizeLength, preset.MinHeight, preset.MaxHeight);
+            toolSettings.sculptTargetWidth = Mathf.Clamp(toolSettings.sculptTargetWidth, preset.MinWidth, preset.MaxWidth);
+            toolSettings.sculptTargetHeight = Mathf.Clamp(toolSettings.sculptTargetHeight, preset.MinHeight, preset.MaxHeight);
+        }
+    }
+
+    private void GenerateFromSelection(bool replace)
+    {
+        GameObject[] selectedObjects = Selection.gameObjects;
+        if (selectedObjects == null || selectedObjects.Length == 0)
+        {
+            EditorUtility.DisplayDialog("Generate Grass", "Select at least one MeshFilter or Terrain object.", "OK");
+            return;
+        }
+
+        Undo.RegisterCompleteObjectUndo(grassCompute, replace ? "Replace Generated Grass" : "Generate Grass");
+        List<GrassData> previousData = replace ? new List<GrassData>(Data) : null;
+        if (replace)
+            Data.Clear();
+
+        int startingCount = Data.Count;
+        int remaining = Mathf.Max(0, toolSettings.grassAmountToGenerate);
+
+        for (int i = 0; i < selectedObjects.Length && remaining > 0; i++)
+        {
+            GameObject selected = selectedObjects[i];
+            MeshFilter meshFilter = selected.GetComponent<MeshFilter>();
+            Terrain terrain = selected.GetComponent<Terrain>();
+
+            int added = 0;
+            if (meshFilter != null && meshFilter.sharedMesh != null)
+                added = GenerateOnMesh(meshFilter, remaining);
+            else if (terrain != null && terrain.terrainData != null)
+                added = GenerateOnTerrain(terrain, remaining);
+
+            remaining -= added;
+        }
+
+        if (Data.Count == startingCount)
+        {
+            if (replace)
+            {
+                Data.Clear();
+                Data.AddRange(previousData);
+            }
+            EditorUtility.DisplayDialog("Generate Grass", "No valid points were generated. Check selection, masks and slope tolerance.", "OK");
+            return;
+        }
+
+        CommitDataChange(true);
+    }
+
+    private int GenerateOnMesh(MeshFilter meshFilter, int maximum)
+    {
+        Mesh mesh = meshFilter.sharedMesh;
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
+        Vector3[] normals = mesh.normals;
+        Color[] colors = mesh.colors;
+        int triangleCount = triangles.Length / 3;
+        if (triangleCount == 0 || vertices.Length == 0)
+            return 0;
+
+        float[] cumulativeAreas = new float[triangleCount];
+        float totalArea = 0f;
+        for (int i = 0; i < triangleCount; i++)
+        {
+            Vector3 a = vertices[triangles[i * 3]];
+            Vector3 b = vertices[triangles[i * 3 + 1]];
+            Vector3 c = vertices[triangles[i * 3 + 2]];
+            Vector3 worldA = meshFilter.transform.TransformPoint(a);
+            Vector3 worldB = meshFilter.transform.TransformPoint(b);
+            Vector3 worldC = meshFilter.transform.TransformPoint(c);
+            totalArea += Vector3.Cross(worldB - worldA, worldC - worldA).magnitude * 0.5f;
+            cumulativeAreas[i] = totalArea;
+        }
+
+        int requested = Mathf.Min(maximum, Mathf.CeilToInt(totalArea * Mathf.Max(0.001f, toolSettings.generationDensity)));
+        int added = 0;
+
+        for (int i = 0; i < requested; i++)
+        {
+            float sample = UnityEngine.Random.value * totalArea;
+            int triangleIndex = Array.BinarySearch(cumulativeAreas, sample);
+            if (triangleIndex < 0)
+                triangleIndex = ~triangleIndex;
+            triangleIndex = Mathf.Clamp(triangleIndex, 0, triangleCount - 1);
+
+            int ia = triangles[triangleIndex * 3];
+            int ib = triangles[triangleIndex * 3 + 1];
+            int ic = triangles[triangleIndex * 3 + 2];
+            float r1 = Mathf.Sqrt(UnityEngine.Random.value);
+            float r2 = UnityEngine.Random.value;
+            float wa = 1f - r1;
+            float wb = r1 * (1f - r2);
+            float wc = r1 * r2;
+
+            Vector3 localPosition = vertices[ia] * wa + vertices[ib] * wb + vertices[ic] * wc;
+            Vector3 localNormal;
+            if (normals != null && normals.Length == vertices.Length)
+                localNormal = (normals[ia] * wa + normals[ib] * wb + normals[ic] * wc).normalized;
+            else
+                localNormal = Vector3.Cross(vertices[ib] - vertices[ia], vertices[ic] - vertices[ia]).normalized;
+
+            Vector3 worldPosition = meshFilter.transform.TransformPoint(localPosition);
+            Matrix4x4 normalMatrix = meshFilter.transform.localToWorldMatrix.inverse.transpose;
+            Vector3 worldNormal = normalMatrix.MultiplyVector(localNormal).normalized;
+
+            if (!IsValidSlope(worldNormal) || IsBlocked(worldPosition))
+                continue;
+            if (!IsLayerInMask(meshFilter.gameObject.layer, toolSettings.paintMask))
+                continue;
+
+            Color vertexColor = colors != null && colors.Length == vertices.Length
+                ? colors[ia] * wa + colors[ib] * wb + colors[ic] * wc
+                : Color.black;
+            if (GetVertexChannel(vertexColor, toolSettings.VertexColorSettings) > 0.5f)
+                continue;
+
+            float sizeMultiplier = 1f - GetVertexChannel(vertexColor, toolSettings.VertexFade);
+            Data.Add(CreateGrassData(worldPosition, worldNormal, Mathf.Clamp01(sizeMultiplier)));
+            added++;
+        }
+
+        return added;
+    }
+
+    private int GenerateOnTerrain(Terrain terrain, int maximum)
+    {
+        TerrainData terrainData = terrain.terrainData;
+        Vector3 size = terrainData.size;
+        float area = size.x * size.z;
+        int requested = Mathf.Min(maximum, Mathf.CeilToInt(area * Mathf.Max(0.001f, toolSettings.generationDensity)));
+        int added = 0;
+
+        for (int i = 0; i < requested; i++)
+        {
+            float normalizedX = UnityEngine.Random.value;
+            float normalizedZ = UnityEngine.Random.value;
+            Vector3 worldPosition = terrain.transform.position + new Vector3(normalizedX * size.x, 0f, normalizedZ * size.z);
+            worldPosition.y = terrain.SampleHeight(worldPosition) + terrain.transform.position.y;
+            Vector3 worldNormal = terrainData.GetInterpolatedNormal(normalizedX, normalizedZ).normalized;
+
+            if (!IsValidSlope(worldNormal) || IsBlocked(worldPosition))
+                continue;
+            if (!IsLayerInMask(terrain.gameObject.layer, toolSettings.paintMask))
+                continue;
+
+            float sizeMultiplier = GetTerrainSizeMultiplier(terrainData, normalizedX, normalizedZ, out bool blocked);
+            if (blocked)
+                continue;
+
+            Data.Add(CreateGrassData(worldPosition, worldNormal, sizeMultiplier));
+            added++;
+        }
+
+        return added;
+    }
+
+    private float GetTerrainSizeMultiplier(TerrainData terrainData, float normalizedX, float normalizedZ, out bool blocked)
+    {
+        blocked = false;
+        if (terrainData.alphamapLayers == 0)
+            return 1f;
+
+        int x = Mathf.Clamp(Mathf.FloorToInt(normalizedX * terrainData.alphamapWidth), 0, terrainData.alphamapWidth - 1);
+        int z = Mathf.Clamp(Mathf.FloorToInt(normalizedZ * terrainData.alphamapHeight), 0, terrainData.alphamapHeight - 1);
+        float[,,] maps = terrainData.GetAlphamaps(x, z, 1, 1);
+        float fade = 0f;
+
+        int layers = Mathf.Min(maps.GetLength(2), toolSettings.layerBlocking.Length);
+        for (int i = 0; i < layers; i++)
+        {
+            float weight = maps[0, 0, i];
+            if (weight > toolSettings.layerBlocking[i])
+                blocked = true;
+            if (toolSettings.layerFading[i])
+                fade += weight;
+        }
+
+        return Mathf.Clamp01(1f - fade);
+    }
+
+    private static float GetVertexChannel(Color color, SO_GrassToolSettings.VertexColorSetting channel)
+    {
+        switch (channel)
+        {
+            case SO_GrassToolSettings.VertexColorSetting.Red: return color.r;
+            case SO_GrassToolSettings.VertexColorSetting.Green: return color.g;
+            case SO_GrassToolSettings.VertexColorSetting.Blue: return color.b;
+            default: return 0f;
+        }
+    }
+
+    private void SetAllSizes()
+    {
+        Undo.RegisterCompleteObjectUndo(grassCompute, "Set All Grass Sizes");
+        for (int i = 0; i < Data.Count; i++)
+        {
+            GrassData point = Data[i];
+            point.length = new Vector2(toolSettings.sizeWidth, toolSettings.sizeLength);
+            ClampSize(ref point);
+            Data[i] = point;
+        }
+        CommitDataChange(true);
+    }
+
+    private void SetAllColors()
+    {
+        Undo.RegisterCompleteObjectUndo(grassCompute, "Set All Grass Colours");
+        for (int i = 0; i < Data.Count; i++)
+        {
+            GrassData point = Data[i];
+            point.color = GetRandomColor();
+            Data[i] = point;
+        }
+        CommitDataChange(true);
+    }
+
+    private void ReprojectAll()
+    {
+        Undo.RegisterCompleteObjectUndo(grassCompute, "Reproject Grass");
+        bool changed = false;
+        float offset = Mathf.Max(0.01f, toolSettings.reprojectOffset);
+
+        for (int i = 0; i < Data.Count; i++)
+        {
+            GrassData point = Data[i];
+            Vector3 worldPosition = GetWorldPosition(point);
+            Ray ray = new Ray(worldPosition + Vector3.up * offset, Vector3.down);
+            if (!TryGetSurfaceHit(ray, out RaycastHit hit, true) || !IsValidSlope(hit.normal))
+                continue;
+
+            point.position = grassCompute.grassDataIsWorldSpace
+                ? hit.point
+                : grassCompute.transform.InverseTransformPoint(hit.point);
+            point.normal = grassCompute.grassDataIsWorldSpace
+                ? hit.normal.normalized
+                : WorldNormalToLocal(hit.normal);
+            Data[i] = point;
+            changed = true;
+        }
+
+        if (changed)
+            CommitDataChange(true);
+    }
+
+    private void RemoveInvalidNormals()
+    {
+        Undo.RegisterCompleteObjectUndo(grassCompute, "Remove Invalid Grass Normals");
+        int removed = Data.RemoveAll(point => !IsValidSlope(GetWorldNormal(point)));
+        if (removed > 0)
+            CommitDataChange(true);
+    }
+
+    private void ConvertWorldDataToLocal()
+    {
+        if (!EditorUtility.DisplayDialog(
+                "Convert World Data To Local?",
+                "Use this only when the stored positions are truly world-space legacy data. The operation supports Undo.",
+                "Convert",
+                "Cancel"))
+            return;
+
+        Undo.RegisterCompleteObjectUndo(grassCompute, "Convert Grass To Local Space");
+        for (int i = 0; i < Data.Count; i++)
+        {
+            GrassData point = Data[i];
+            point.position = grassCompute.transform.InverseTransformPoint(point.position);
+            point.normal = WorldNormalToLocal(point.normal);
+            Data[i] = point;
+        }
+        grassCompute.grassDataIsWorldSpace = false;
+        CommitDataChange(true);
+    }
+
+    private void SetSource(GrassComputeScript source)
+    {
+        FinishStroke();
+        grassCompute = source;
+        if (grassCompute != null && grassCompute.SetGrassPaintedDataList == null)
+            grassCompute.SetGrassPaintedDataList = new List<GrassData>();
+        Repaint();
+        SceneView.RepaintAll();
+    }
+
+    private void UseSelection()
+    {
+        GameObject selected = Selection.activeGameObject;
+        if (selected == null)
+        {
+            EditorUtility.DisplayDialog("Grass Tool", "Select a Grass object or a prefab containing one.", "OK");
+            return;
+        }
+
+        GrassComputeScript source = selected.GetComponent<GrassComputeScript>();
+        if (source == null)
+            source = selected.GetComponentInChildren<GrassComputeScript>(true);
+        if (source == null)
+            source = selected.GetComponentInParent<GrassComputeScript>();
+
+        if (source == null)
+            EditorUtility.DisplayDialog("Grass Tool", "No GrassComputeScript was found on the selection.", "OK");
+        else
+            SetSource(source);
+    }
+
+    private void CreateGrassChild()
+    {
+        GameObject selected = Selection.activeGameObject;
+        if (selected == null)
+        {
+            EditorUtility.DisplayDialog("Grass Tool", "Select the prefab or scene root that should own the Grass child.", "OK");
+            return;
+        }
+
+        GameObject child = new GameObject("Grass");
+        Undo.RegisterCreatedObjectUndo(child, "Create Grass Child");
+        child.transform.SetParent(selected.transform, false);
+        GrassComputeScript source = Undo.AddComponent<GrassComputeScript>(child);
+        source.grassDataIsWorldSpace = false;
+        SetSource(source);
+        Selection.activeGameObject = child;
+        MarkGrassDirty();
+    }
+
+    private List<GrassData> Data
+    {
+        get
+        {
+            if (grassCompute.SetGrassPaintedDataList == null)
+                grassCompute.SetGrassPaintedDataList = new List<GrassData>();
+            return grassCompute.SetGrassPaintedDataList;
+        }
+    }
+
+    private void CommitDataChange(bool fullRebuild)
+    {
+        MarkGrassDirty();
+        RebuildNow(fullRebuild);
+    }
+
+    private void MarkGrassDirty()
+    {
+        if (grassCompute == null)
+            return;
+
+        EditorUtility.SetDirty(grassCompute);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(grassCompute);
+        Scene scene = grassCompute.gameObject.scene;
+        if (scene.IsValid())
+            EditorSceneManager.MarkSceneDirty(scene);
+    }
+
+    private void RequestRebuild(bool full)
+    {
+        rebuildRequested = true;
+        fullRebuildRequested |= full;
+        rebuildRequestedAt = EditorApplication.timeSinceStartup;
+    }
+
+    private void EditorUpdate()
+    {
+        if (!rebuildRequested || EditorApplication.timeSinceStartup - rebuildRequestedAt < RebuildDelay)
+            return;
+
+        bool full = fullRebuildRequested;
+        rebuildRequested = false;
+        fullRebuildRequested = false;
+        RebuildNow(full);
+    }
+
+    private void RebuildNow(bool full)
+    {
+        if (grassCompute == null)
+            return;
+
+        if (full)
+            grassCompute.Reset();
+        else
+            grassCompute.ResetFaster();
+
+        SceneView.RepaintAll();
+        Repaint();
+    }
+
+    private void HandleUndoRedo()
+    {
+        if (grassCompute != null)
+            RebuildNow(true);
+    }
+
+    private void EnsureToolSettings()
+    {
+        if (toolSettings == null)
+            toolSettings = FindOrCreateToolSettings();
+
+        if (toolSettings != null)
+            toolSettings.EnsureValid();
+    }
+
+    private static SO_GrassToolSettings FindOrCreateToolSettings()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:SO_GrassToolSettings");
+        SO_GrassToolSettings fallback = null;
+
+        for (int i = 0; i < guids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            SO_GrassToolSettings candidate = AssetDatabase.LoadAssetAtPath<SO_GrassToolSettings>(path);
+            if (candidate == null)
+                continue;
+
+            if (string.Equals(Path.GetFileNameWithoutExtension(path), "grassToolSettings", StringComparison.OrdinalIgnoreCase))
+                return candidate;
+            if (fallback == null)
+                fallback = candidate;
+        }
+
+        if (fallback != null)
+            return fallback;
+
+        SO_GrassToolSettings created = CreateInstance<SO_GrassToolSettings>();
+        created.CreateNewLayers();
+        string assetPath = AssetDatabase.GenerateUniqueAssetPath("Assets/grassToolSettings.asset");
+        AssetDatabase.CreateAsset(created, assetPath);
+        AssetDatabase.SaveAssets();
+        return created;
+    }
+
+    private static void DrawPresetProperty(SerializedObject serializedPreset, string propertyName, string label)
+    {
+        SerializedProperty property = serializedPreset.FindProperty(propertyName);
+        if (property != null)
+            EditorGUILayout.PropertyField(property, new GUIContent(label));
+    }
+
+    private static void NormalizePreset(SO_GrassSettings preset)
+    {
+        preset.MinWidth = Mathf.Max(0.001f, preset.MinWidth);
+        preset.MinHeight = Mathf.Max(0.001f, preset.MinHeight);
+        preset.MaxWidth = Mathf.Max(preset.MinWidth, preset.MaxWidth);
+        preset.MaxHeight = Mathf.Max(preset.MinHeight, preset.MaxHeight);
+        preset.allowedBladesPerVertex = Mathf.Clamp(preset.allowedBladesPerVertex, 1, 8);
+        preset.allowedSegmentsPerBlade = Mathf.Clamp(preset.allowedSegmentsPerBlade, 1, 4);
+        preset.cullingTreeDepth = Mathf.Max(1, preset.cullingTreeDepth);
+        preset.minFadeDistance = Mathf.Max(0f, preset.minFadeDistance);
+        preset.maxDrawDistance = Mathf.Max(preset.minFadeDistance + 0.01f, preset.maxDrawDistance);
+    }
 }
-

@@ -8,19 +8,19 @@ public class SO_GrassSettings : ScriptableObject
     public Material materialToUse;
     // Blade
     [Header("Blade")]
-    [Range(0, 5)] public float grassRandomHeightMin = 0.0f;
-    [Range(0, 5)] public float grassRandomHeightMax = 0.0f;
+    public float grassRandomHeightMin = 0.0f;
+    public float grassRandomHeightMax = 0.0f;
     [Range(0, 1)] public float bladeRadius = 0.2f;
     [Range(0, 1)] public float bladeForwardAmount = 0.38f;
     [Range(1, 5)] public float bladeCurveAmount = 2;
 
     [Range(0, 1)] public float bottomWidth = 0.1f;
 
-    [Range(0.01f, 1)] public float MinWidth = 0.01f;
-    [Range(0.01f, 1)] public float MinHeight = 0.01f;
+    [Min(0.001f)] public float MinWidth = 0.01f;
+    [Min(0.001f)] public float MinHeight = 0.01f;
 
-    [Range(0.01f, 1)] public float MaxWidth = 1f;
-    [Range(0.01f, 1)] public float MaxHeight = 1f;
+    [Min(0.001f)] public float MaxWidth = 1f;
+    [Min(0.001f)] public float MaxHeight = 1f;
 
 
     // Wind
@@ -30,7 +30,7 @@ public class SO_GrassSettings : ScriptableObject
 
     [Header("Grass")]
     [Range(1, 8)] public int allowedBladesPerVertex = 4;
-    [Range(1, 5)] public int allowedSegmentsPerBlade = 4;
+    [Range(1, 4)] public int allowedSegmentsPerBlade = 4;
     // Interactor
 
     [Header("Interactor Strength")]
@@ -57,5 +57,16 @@ public class SO_GrassSettings : ScriptableObject
     [Header("Other")]
     public UnityEngine.Rendering.ShadowCastingMode castShadow;
 
-
+    private void OnValidate()
+    {
+        MinWidth = Mathf.Max(0.001f, MinWidth);
+        MinHeight = Mathf.Max(0.001f, MinHeight);
+        MaxWidth = Mathf.Max(MinWidth, MaxWidth);
+        MaxHeight = Mathf.Max(MinHeight, MaxHeight);
+        allowedBladesPerVertex = Mathf.Clamp(allowedBladesPerVertex, 1, 8);
+        allowedSegmentsPerBlade = Mathf.Clamp(allowedSegmentsPerBlade, 1, 4);
+        cullingTreeDepth = Mathf.Max(1, cullingTreeDepth);
+        minFadeDistance = Mathf.Max(0f, minFadeDistance);
+        maxDrawDistance = Mathf.Max(minFadeDistance + 0.01f, maxDrawDistance);
+    }
 }

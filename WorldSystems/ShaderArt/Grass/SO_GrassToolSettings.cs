@@ -61,6 +61,16 @@ public class SO_GrassToolSettings : ScriptableObject
 
     public float generationDensity = 1;
 
+    [Header("Grass Tool 2.0")]
+    [Min(0.001f)] public float pointSpacing = 0.12f;
+    [Range(0.01f, 1f)] public float sculptStrength = 0.35f;
+    [Min(0.001f)] public float sculptTargetWidth = 0.15f;
+    [Min(0.001f)] public float sculptTargetHeight = 0.55f;
+    public float sculptWidthPerSecond = 0.1f;
+    public float sculptHeightPerSecond = 0.25f;
+    [Range(0f, 1f)] public float randomWidthAmount = 0.15f;
+    [Range(0f, 1f)] public float randomHeightAmount = 0.2f;
+
 
     public void CreateNewLayers()
     {
@@ -72,5 +82,38 @@ public class SO_GrassToolSettings : ScriptableObject
         }
         layerFading = new bool[8];
         layerFading[0] = true;
+    }
+
+    private void OnValidate()
+    {
+        EnsureValid();
+    }
+
+    public void EnsureValid()
+    {
+        if (layerBlocking == null || layerBlocking.Length != 8)
+        {
+            float[] previous = layerBlocking;
+            layerBlocking = new float[8];
+            for (int i = 0; i < layerBlocking.Length; i++)
+                layerBlocking[i] = previous != null && i < previous.Length ? previous[i] : 1f;
+        }
+
+        if (layerFading == null || layerFading.Length != 8)
+        {
+            bool[] previous = layerFading;
+            layerFading = new bool[8];
+            for (int i = 0; i < layerFading.Length; i++)
+                layerFading[i] = previous != null && i < previous.Length && previous[i];
+        }
+
+        brushSize = Mathf.Max(0.05f, brushSize);
+        pointSpacing = Mathf.Max(0.001f, pointSpacing);
+        sizeWidth = Mathf.Max(0.001f, sizeWidth);
+        sizeLength = Mathf.Max(0.001f, sizeLength);
+        sculptTargetWidth = Mathf.Max(0.001f, sculptTargetWidth);
+        sculptTargetHeight = Mathf.Max(0.001f, sculptTargetHeight);
+        grassAmountToGenerate = Mathf.Max(1, grassAmountToGenerate);
+        generationDensity = Mathf.Max(0.001f, generationDensity);
     }
 }

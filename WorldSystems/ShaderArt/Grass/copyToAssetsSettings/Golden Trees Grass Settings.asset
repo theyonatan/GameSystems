@@ -10,27 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f5d8f0be47d2bf647a7171bbd8e6fbf6, type: 3}
-  m_Name: Grass Settings
+  m_Name: Golden Trees Grass Settings
   m_EditorClassIdentifier: Assembly-CSharp::SO_GrassSettings
   shaderToUse: {fileID: 7200000, guid: 67ce2a945e59e184e92a5294b7a55539, type: 3}
-  materialToUse: {fileID: 0}
-  grassRandomHeightMin: 0
-  grassRandomHeightMax: 0
-  bladeRadius: 0.2
-  bladeForwardAmount: 0.38
+  materialToUse: {fileID: 2100000, guid: d9521414d238b084b81c599fec7c9077, type: 2}
+  grassRandomHeightMin: 0.1
+  grassRandomHeightMax: 0.5
+  bladeRadius: 0.157
+  bladeForwardAmount: 0.971
   bladeCurveAmount: 2
-  bottomWidth: 0.1
+  bottomWidth: 0.539
   MinWidth: 0.01
-  MinHeight: 0.01
-  MaxWidth: 1
-  MaxHeight: 1
-  windSpeed: 10
-  windStrength: 0.05
-  allowedBladesPerVertex: 4
-  allowedSegmentsPerBlade: 4
+  MinHeight: 0.1
+  MaxWidth: 0.06
+  MaxHeight: 0.2
+  windSpeed: 2
+  windStrength: 0.02
+  allowedBladesPerVertex: 3
+  allowedSegmentsPerBlade: 3
   affectStrength: 1
-  topTint: {r: 1, g: 1, b: 1, a: 1}
-  bottomTint: {r: 0, g: 0, b: 1, a: 1}
+  topTint: {r: 0.14150941, g: 0.14150941, b: 0, a: 1}
+  bottomTint: {r: 0.039215688, g: 0.036135234, b: 0, a: 1}
   drawBounds: 0
   minFadeDistance: 40
   maxDrawDistance: 125
