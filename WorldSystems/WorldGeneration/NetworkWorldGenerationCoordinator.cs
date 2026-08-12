@@ -18,16 +18,16 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     [SerializeField] private IslandGrassRouteBridge grassBridge;
     [SerializeField] private WorldGrassManager worldGrassManager;
 
+    [Header("Events")]
+    [SerializeField] private RunEventDirector eventDirector;
+
     [Header("Generation")]
     [SerializeField, Min(1)] private int maximumSeedAttempts = 12;
 
     [Header("Client Readiness")]
     [SerializeField, Min(5f)] private float clientReadyTimeout = 45f;
     [SerializeField] private bool disconnectClientOnFailure = true;
-    
-    [Header("Diagnostics")]
-    [SerializeField] private bool logWorldHashDiagnostics = true;
-    
+
     private readonly Dictionary<int, NetworkConnection>
         _registeredClients = new();
 
@@ -63,6 +63,23 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         if (worldGrassManager == null)
             worldGrassManager =
                 FindFirstObjectByType<WorldGrassManager>();
+
+        if (eventDirector == null)
+        {
+            RunEventDirector[] directors =
+                FindObjectsByType<RunEventDirector>(
+                    FindObjectsInactive.Include,
+                    FindObjectsSortMode.None);
+
+            for (int i = 0; i < directors.Length; i++)
+            {
+                if (directors[i].gameObject.scene != gameObject.scene)
+                    continue;
+
+                eventDirector = directors[i];
+                break;
+            }
+        }
 
         // The coordinator is now the only system allowed to start generation.
         if (routeGenerator != null)
@@ -156,6 +173,26 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             return;
         }
 
+        if (eventDirector != null)
+        {
+            if (!eventDirector.ValidateConfiguration(
+                    out string eventValidation))
+            {
+                FailServerGeneration(
+                    $"Event configuration is invalid:\n" +
+                    eventValidation);
+                return;
+            }
+
+            if (eventDirector.RouteGenerator != routeGenerator)
+            {
+                FailServerGeneration(
+                    "The Event Director and World Generation Coordinator " +
+                    "must reference the same Route Generator.");
+                return;
+            }
+        }
+
         bool generated = false;
 
         for (int attempt = 1;
@@ -182,6 +219,19 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     this);
 
                 continue;
+            }
+
+            // Event planning is deterministic for this exact route. A plan
+            // failure is a configuration problem, so do not hide it by trying
+            // another seed or rerolling an invalid event.
+            if (eventDirector != null &&
+                !eventDirector.EnsurePlanForCurrentRoute(
+                    out string eventPlanError))
+            {
+                FailServerGeneration(
+                    $"The generated route has no valid event plan:\n" +
+                    eventPlanError);
+                return;
             }
 
             if (!backgroundGenerator.GenerateBackground())
@@ -241,13 +291,6 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         WorldHash = CalculateWorldHash(pieces);
-        if (logWorldHashDiagnostics)
-        {
-            LogWorldHashDiagnostics(
-                $"SERVER seed={WorldSeed}",
-                pieces,
-                WorldHash);
-        }
         ServerWorldGenerated = true;
 
         Debug.Log(
@@ -280,8 +323,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     GeneratedWorldNetworkPiece>();
 
             NetworkObject root = marker.GetComponent<NetworkObject>();
-            
-            root.transform.SetParent(null, true);
+
             ServerManager.Spawn(root);
 
             if (!root.IsSpawned)
@@ -315,7 +357,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     GeneratedWorldNetworkPiece>();
 
             NetworkObject root = marker.GetComponent<NetworkObject>();
-            root.transform.SetParent(null, true);
+
             ServerManager.Spawn(root);
 
             if (!root.IsSpawned)
@@ -521,14 +563,6 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
         if (localHash != expectedHash)
         {
-            if (logWorldHashDiagnostics)
-            {
-                LogWorldHashDiagnostics(
-                    $"CLIENT seed={seed}",
-                    pieces,
-                    localHash);
-            }
-
             ServerReportWorldReady(
                 seed,
                 localHash,
@@ -852,102 +886,5 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         _spawnedWorldRoots.Clear();
-    }
-
-    private static void LogWorldHashDiagnostics(
-        string side,
-        List<GeneratedWorldNetworkPiece> pieces,
-        int finalHash)
-    {
-        uint rollingHash = 2166136261;
-
-        AddHash(ref rollingHash, pieces.Count);
-
-        Debug.Log(
-            $"[World Hash][{side}] BEGIN " +
-            $"count={pieces.Count}, " +
-            $"hashAfterCount={unchecked((int)rollingHash)}, " +
-            $"finalHash={finalHash}");
-
-        for (int i = 0; i < pieces.Count; i++)
-        {
-            GeneratedWorldNetworkPiece piece = pieces[i];
-            Transform root = piece.transform;
-
-            Vector3 position = root.position;
-            Vector3 scale = root.lossyScale;
-            Quaternion rotation = root.rotation;
-
-            // q and -q represent the same rotation.
-            if (rotation.w < 0f)
-            {
-                rotation.x = -rotation.x;
-                rotation.y = -rotation.y;
-                rotation.z = -rotation.z;
-                rotation.w = -rotation.w;
-            }
-
-            int px = Mathf.RoundToInt(position.x * 100f);
-            int py = Mathf.RoundToInt(position.y * 100f);
-            int pz = Mathf.RoundToInt(position.z * 100f);
-
-            int rx = Mathf.RoundToInt(rotation.x * 10000f);
-            int ry = Mathf.RoundToInt(rotation.y * 10000f);
-            int rz = Mathf.RoundToInt(rotation.z * 10000f);
-            int rw = Mathf.RoundToInt(rotation.w * 10000f);
-
-            int sx = Mathf.RoundToInt(scale.x * 1000f);
-            int sy = Mathf.RoundToInt(scale.y * 1000f);
-            int sz = Mathf.RoundToInt(scale.z * 1000f);
-
-            // Keep this in exactly the same order as CalculateWorldHash().
-            AddHash(ref rollingHash, piece.GenerationOrder);
-            AddHash(ref rollingHash, (int)piece.Kind);
-            AddHash(ref rollingHash, (int)piece.Biome);
-            AddHash(ref rollingHash, piece.IsMainIsland ? 1 : 0);
-            AddHash(ref rollingHash, piece.MainIslandIndex);
-            AddHash(ref rollingHash, piece.IsBeacon ? 1 : 0);
-            AddHash(ref rollingHash, piece.IsClusterPiece ? 1 : 0);
-            AddHash(ref rollingHash, (int)piece.BackgroundLayer);
-
-            AddHash(ref rollingHash, px);
-            AddHash(ref rollingHash, py);
-            AddHash(ref rollingHash, pz);
-
-            AddHash(ref rollingHash, rx);
-            AddHash(ref rollingHash, ry);
-            AddHash(ref rollingHash, rz);
-            AddHash(ref rollingHash, rw);
-
-            AddHash(ref rollingHash, sx);
-            AddHash(ref rollingHash, sy);
-            AddHash(ref rollingHash, sz);
-
-            Debug.Log(
-                $"[World Hash][{side}] " +
-                $"row={i:000} " +
-                $"rolling={unchecked((int)rollingHash)} " +
-                $"name='{piece.name}' " +
-                $"order={piece.GenerationOrder} " +
-                $"kind={(int)piece.Kind} " +
-                $"biome={(int)piece.Biome} " +
-                $"main={(piece.IsMainIsland ? 1 : 0)} " +
-                $"mainIndex={piece.MainIslandIndex} " +
-                $"beacon={(piece.IsBeacon ? 1 : 0)} " +
-                $"cluster={(piece.IsClusterPiece ? 1 : 0)} " +
-                $"layer={(int)piece.BackgroundLayer} " +
-                $"posQ=({px},{py},{pz}) " +
-                $"rotQ=({rx},{ry},{rz},{rw}) " +
-                $"scaleQ=({sx},{sy},{sz}) " +
-                $"posRaw=({position.x:F6},{position.y:F6},{position.z:F6}) " +
-                $"rotRaw=({rotation.x:F6},{rotation.y:F6}," +
-                $"{rotation.z:F6},{rotation.w:F6}) " +
-                $"scaleRaw=({scale.x:F6},{scale.y:F6},{scale.z:F6})");
-        }
-
-        Debug.Log(
-            $"[World Hash][{side}] END " +
-            $"calculated={unchecked((int)rollingHash)}, " +
-            $"expectedCalculation={finalHash}");
     }
 }

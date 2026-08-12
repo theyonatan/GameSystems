@@ -18,7 +18,7 @@ public class Float : MonoBehaviour
     private float _startY;
     private float _offset;
 
-    private void Start()
+    private void OnEnable()
     {
         _startY = transform.localPosition.y;
 
