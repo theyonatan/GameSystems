@@ -21,6 +21,9 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     [Header("Events")]
     [SerializeField] private RunEventDirector eventDirector;
 
+    [Header("Runtime Navigation")]
+    [SerializeField] private RuntimeRouteNavMesh runtimeRouteNavMesh;
+
     [Header("Generation")]
     [SerializeField, Min(1)] private int maximumSeedAttempts = 12;
 
@@ -77,6 +80,23 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     continue;
 
                 eventDirector = directors[i];
+                break;
+            }
+        }
+
+        if (runtimeRouteNavMesh == null)
+        {
+            RuntimeRouteNavMesh[] builders =
+                FindObjectsByType<RuntimeRouteNavMesh>(
+                    FindObjectsInactive.Include,
+                    FindObjectsSortMode.None);
+
+            for (int i = 0; i < builders.Length; i++)
+            {
+                if (builders[i].gameObject.scene != gameObject.scene)
+                    continue;
+
+                runtimeRouteNavMesh = builders[i];
                 break;
             }
         }
@@ -191,6 +211,34 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     "must reference the same Route Generator.");
                 return;
             }
+
+            if (eventDirector.RuntimeRouteNavMesh != runtimeRouteNavMesh)
+            {
+                FailServerGeneration(
+                    "The Event Director and World Generation Coordinator " +
+                    "must reference the same Runtime Route NavMesh.");
+                return;
+            }
+        }
+
+        if (runtimeRouteNavMesh != null)
+        {
+            if (!runtimeRouteNavMesh.ValidateConfiguration(
+                    out string navMeshValidation))
+            {
+                FailServerGeneration(
+                    "Runtime route NavMesh configuration is invalid:\n" +
+                    navMeshValidation);
+                return;
+            }
+
+            if (runtimeRouteNavMesh.RouteGenerator != routeGenerator)
+            {
+                FailServerGeneration(
+                    "Runtime Route NavMesh and World Generation Coordinator " +
+                    "must reference the same Route Generator.");
+                return;
+            }
         }
 
         bool generated = false;
@@ -202,6 +250,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             int candidateSeed = CreateSeed();
 
             backgroundGenerator.ClearGeneratedBackground();
+            if (runtimeRouteNavMesh != null)
+                runtimeRouteNavMesh.ClearBuiltNavMesh();
             routeGenerator.ClearGeneratedRoute();
 
             routeGenerator.Generation.UseRandomSeed = false;
@@ -219,6 +269,18 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     this);
 
                 continue;
+            }
+
+            // Build once from the complete generated route hierarchy. Event
+            // planning is intentionally blocked until this exact bake exists.
+            if (runtimeRouteNavMesh != null &&
+                !runtimeRouteNavMesh.EnsureBuiltForCurrentRoute(
+                    out string navMeshBuildError))
+            {
+                FailServerGeneration(
+                    "The generated route runtime NavMesh could not be built:\n" +
+                    navMeshBuildError);
+                return;
             }
 
             // Event planning is deterministic for this exact route. A plan
@@ -831,10 +893,10 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             rotation.w = -rotation.w;
         }
 
-        AddHash(ref hash, Mathf.RoundToInt(rotation.x * 1000f));
-        AddHash(ref hash, Mathf.RoundToInt(rotation.y * 1000f));
-        AddHash(ref hash, Mathf.RoundToInt(rotation.z * 1000f));
-        AddHash(ref hash, Mathf.RoundToInt(rotation.w * 1000f));
+        AddHash(ref hash, Mathf.RoundToInt(rotation.x * 10000f));
+        AddHash(ref hash, Mathf.RoundToInt(rotation.y * 10000f));
+        AddHash(ref hash, Mathf.RoundToInt(rotation.z * 10000f));
+        AddHash(ref hash, Mathf.RoundToInt(rotation.w * 10000f));
     }
 
     private static void AddHash(ref uint hash, int value)
