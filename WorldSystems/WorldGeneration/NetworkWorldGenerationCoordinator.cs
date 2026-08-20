@@ -934,7 +934,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         Debug.LogError(
             $"[World Generation] {reason}",
             this);
-    }
+    }   
 
     [Server]
     private void DespawnPartiallySpawnedWorld()

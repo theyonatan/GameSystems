@@ -6,6 +6,10 @@ public class HeldItem : MonoBehaviour
     private GameObject _spawnedItem;
     
     public bool HasItem => _spawnedItem != null;
+    
+    private bool _visualsVisible = true;
+
+    #region Equipping
 
     public GameObject Equip(GameObject itemPrefab)
     {
@@ -19,6 +23,8 @@ public class HeldItem : MonoBehaviour
         _spawnedItem.transform.localPosition = Vector3.zero;
         _spawnedItem.transform.localRotation = Quaternion.identity;
         _spawnedItem.transform.localScale = Vector3.one;
+        
+        ApplyVisualVisibility();
         
         return _spawnedItem;
     }
@@ -36,4 +42,32 @@ public class HeldItem : MonoBehaviour
             Destroy(_spawnedItem);
         _spawnedItem = null;
     }
+    
+    #endregion
+    
+    #region Visuals
+
+    public void SetVisualsVisible(bool visible)
+    {
+        _visualsVisible = visible;
+        ApplyVisualVisibility();
+    }
+
+    private void ApplyVisualVisibility()
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+
+        foreach (Renderer itemRenderer in renderers)
+        {
+            if (itemRenderer)
+                itemRenderer.enabled = _visualsVisible;
+        }
+    }
+
+    private void OnTransformChildrenChanged()
+    {
+        ApplyVisualVisibility();
+    }
+    
+    #endregion
 }
