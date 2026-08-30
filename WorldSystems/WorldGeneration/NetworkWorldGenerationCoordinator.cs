@@ -13,6 +13,12 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     [Header("Level Configuration")]
     [SerializeField] private LevelConfiguration assignedLevelConfiguration;
 
+    [Tooltip(
+        "When Wind exists, resolve its selected Level ID before server world " +
+        "generation. This is the normal Lobby-to-SkyKingdom path.")]
+    [SerializeField]
+    private bool applyWindSelectedLevel = true;
+
     [Tooltip("Apply the assigned level before server validation and generation. Leave off to use the Route Generator and Event Director exactly as configured in the scene.")]
     [SerializeField] private bool applyAssignedLevelOnStart;
 
@@ -110,7 +116,36 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             }
         }
 
-        if (applyAssignedLevelOnStart)
+        bool attemptedWindSelection =
+            applyWindSelectedLevel && Wind.Instance != null;
+
+        if (attemptedWindSelection)
+        {
+            if (!Wind.Instance.TryGetSelectedLevelConfiguration(
+                    out LevelConfiguration selectedLevel,
+                    out string selectionError))
+            {
+                _assignedLevelApplyError =
+                    "Could not resolve Wind's selected level: " +
+                    selectionError;
+            }
+            else if (!ApplyLevelConfiguration(
+                         selectedLevel,
+                         out _assignedLevelApplyError))
+            {
+                _assignedLevelApplyError =
+                    "Could not apply Wind's selected level: " +
+                    _assignedLevelApplyError;
+            }
+            else
+            {
+                Debug.Log(
+                    $"[World Generation] Applied Wind level " +
+                    $"'{selectedLevel.LevelId}' ({selectedLevel.name}).",
+                    this);
+            }
+        }
+        else if (applyAssignedLevelOnStart)
         {
             if (assignedLevelConfiguration == null)
             {
@@ -127,12 +162,13 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     _assignedLevelApplyError;
             }
 
-            if (!string.IsNullOrEmpty(_assignedLevelApplyError))
-            {
-                Debug.LogError(
-                    "[World Generation] " + _assignedLevelApplyError,
-                    this);
-            }
+        }
+
+        if (!string.IsNullOrEmpty(_assignedLevelApplyError))
+        {
+            Debug.LogError(
+                "[World Generation] " + _assignedLevelApplyError,
+                this);
         }
 
         // The coordinator is now the only system allowed to start generation.
