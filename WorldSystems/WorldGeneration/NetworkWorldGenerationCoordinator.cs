@@ -1024,6 +1024,10 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         {
             GeneratedWorldNetworkPiece piece = pieces[i];
 
+            // Hash only context explicitly synchronized by
+            // GeneratedWorldNetworkPiece. Spawn transforms are replicated by
+            // FishNet and may differ slightly after client-side parenting,
+            // interpolation or animation, so they are not readiness data.
             AddHash(ref hash, piece.GenerationOrder);
             AddHash(ref hash, (int)piece.Kind);
             AddHash(ref hash, (int)piece.Biome);
@@ -1032,44 +1036,9 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             AddHash(ref hash, piece.IsBeacon ? 1 : 0);
             AddHash(ref hash, piece.IsClusterPiece ? 1 : 0);
             AddHash(ref hash, (int)piece.BackgroundLayer);
-
-            Transform root = piece.transform;
-
-            AddVector(ref hash, root.position, 100f);
-            AddRotation(ref hash, root.rotation);
-            AddVector(ref hash, root.lossyScale, 1000f);
         }
 
         return unchecked((int)hash);
-    }
-
-    private static void AddVector(
-        ref uint hash,
-        Vector3 value,
-        float precision)
-    {
-        AddHash(ref hash, Mathf.RoundToInt(value.x * precision));
-        AddHash(ref hash, Mathf.RoundToInt(value.y * precision));
-        AddHash(ref hash, Mathf.RoundToInt(value.z * precision));
-    }
-
-    private static void AddRotation(
-        ref uint hash,
-        Quaternion rotation)
-    {
-        // q and -q represent the same rotation.
-        if (rotation.w < 0f)
-        {
-            rotation.x = -rotation.x;
-            rotation.y = -rotation.y;
-            rotation.z = -rotation.z;
-            rotation.w = -rotation.w;
-        }
-
-        AddHash(ref hash, Mathf.RoundToInt(rotation.x * 10000f));
-        AddHash(ref hash, Mathf.RoundToInt(rotation.y * 10000f));
-        AddHash(ref hash, Mathf.RoundToInt(rotation.z * 10000f));
-        AddHash(ref hash, Mathf.RoundToInt(rotation.w * 10000f));
     }
 
     private static void AddHash(ref uint hash, int value)
