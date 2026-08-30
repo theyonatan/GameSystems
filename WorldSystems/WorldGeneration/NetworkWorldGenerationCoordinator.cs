@@ -10,6 +10,12 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkObject))]
 public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 {
+    [Header("Level Configuration")]
+    [SerializeField] private LevelConfiguration assignedLevelConfiguration;
+
+    [Tooltip("Apply the assigned level before server validation and generation. Leave off to use the Route Generator and Event Director exactly as configured in the scene.")]
+    [SerializeField] private bool applyAssignedLevelOnStart;
+
     [Header("Generators")]
     [SerializeField] private IslandRouteGenerator routeGenerator;
     [SerializeField] private BackgroundIslandGenerator backgroundGenerator;
@@ -39,6 +45,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     private readonly List<NetworkObject> _spawnedWorldRoots = new();
 
     private Coroutine _clientReadyRoutine;
+    private string _assignedLevelApplyError = string.Empty;
 
     public bool ServerWorldGenerated { get; private set; }
     public bool ServerWorldGenerationFailed { get; private set; }
@@ -47,6 +54,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     public int WorldSeed { get; private set; }
     public int WorldHash { get; private set; }
     public int SpawnedPieceCount { get; private set; }
+    public LevelConfiguration AssignedLevelConfiguration =>
+        assignedLevelConfiguration;
 
     public event Action<NetworkConnection> ServerClientWorldReady;
     public event Action<NetworkConnection, string> ServerClientWorldFailed;
@@ -101,12 +110,134 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             }
         }
 
+        if (applyAssignedLevelOnStart)
+        {
+            if (assignedLevelConfiguration == null)
+            {
+                _assignedLevelApplyError =
+                    "Apply Assigned Level On Start is enabled, but no " +
+                    "Level Configuration is assigned.";
+            }
+            else if (!ApplyLevelConfiguration(
+                         assignedLevelConfiguration,
+                         out _assignedLevelApplyError))
+            {
+                _assignedLevelApplyError =
+                    "Could not apply assigned level: " +
+                    _assignedLevelApplyError;
+            }
+
+            if (!string.IsNullOrEmpty(_assignedLevelApplyError))
+            {
+                Debug.LogError(
+                    "[World Generation] " + _assignedLevelApplyError,
+                    this);
+            }
+        }
+
         // The coordinator is now the only system allowed to start generation.
         if (routeGenerator != null)
             routeGenerator.Generation.GenerateOnStart = false;
 
         if (backgroundGenerator != null)
             backgroundGenerator.Integration.GenerateWithRoute = false;
+    }
+
+    /// <summary>
+    /// Applies the route and event halves of one level before world generation.
+    /// Direct-scene testing and Wind selection will both use this entry point.
+    /// </summary>
+    public bool ApplyLevelConfiguration(
+        LevelConfiguration level,
+        out string error)
+    {
+        if (level == null)
+        {
+            error = "Level Configuration is null.";
+            return false;
+        }
+
+        if (level.RouteConfiguration == null)
+        {
+            error = $"Level '{level.name}' has no Route Configuration.";
+            return false;
+        }
+
+        if (level.EventConfiguration == null)
+        {
+            error = $"Level '{level.name}' has no Event Configuration.";
+            return false;
+        }
+
+        if (!ApplyConfigurations(
+                level.RouteConfiguration,
+                level.EventConfiguration,
+                out error))
+        {
+            error =
+                $"Could not apply level '{level.name}': " + error;
+            return false;
+        }
+
+        assignedLevelConfiguration = level;
+        error = string.Empty;
+        return true;
+    }
+
+    /// <summary>
+    /// Applies a route/event pair before the server starts generation. This is
+    /// used by direct-scene development tests that do not need to create a
+    /// complete LevelConfiguration asset first.
+    /// </summary>
+    public bool ApplyConfigurations(
+        RouteConfiguration routeConfiguration,
+        RunEventConfiguration eventConfiguration,
+        out string error)
+    {
+        if (routeGenerator == null)
+        {
+            error = "Route Generator is missing.";
+            return false;
+        }
+
+        if (eventDirector == null)
+        {
+            error = "Event Director is missing.";
+            return false;
+        }
+
+        if (routeConfiguration == null)
+        {
+            error = "Route Configuration is null.";
+            return false;
+        }
+
+        if (eventConfiguration == null)
+        {
+            error = "Run Event Configuration is null.";
+            return false;
+        }
+
+        if (!routeGenerator.ApplyConfiguration(routeConfiguration))
+        {
+            error =
+                $"Could not apply route configuration " +
+                $"'{routeConfiguration.name}'.";
+            return false;
+        }
+
+        if (!eventDirector.ApplyConfiguration(eventConfiguration))
+        {
+            error =
+                $"Could not apply event configuration " +
+                $"'{eventConfiguration.name}'.";
+            return false;
+        }
+
+        assignedLevelConfiguration = null;
+        _assignedLevelApplyError = string.Empty;
+        error = string.Empty;
+        return true;
     }
 
     public override void OnStartServer()
@@ -168,6 +299,12 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         ServerWorldGenerated = false;
         ServerWorldGenerationFailed = false;
         ServerFailureReason = string.Empty;
+
+        if (!string.IsNullOrEmpty(_assignedLevelApplyError))
+        {
+            FailServerGeneration(_assignedLevelApplyError);
+            return;
+        }
 
         if (routeGenerator == null || backgroundGenerator == null)
         {

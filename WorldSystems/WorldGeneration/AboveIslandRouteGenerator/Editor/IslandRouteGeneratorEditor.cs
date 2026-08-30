@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using UnityEditor;
@@ -11,6 +12,20 @@ using UnityEngine;
 [CustomEditor(typeof(IslandRouteGenerator))]
 public sealed class IslandRouteGeneratorEditor : Editor
 {
+    private static readonly string[] ConfigurationPropertyPaths =
+    {
+        "generation",
+        "rhythm",
+        "routeShape",
+        "detours",
+        "biomePhases",
+        "clusterPhases",
+        "islandPrefabs",
+        "connectionPrefabs",
+        "specialIslands"
+    };
+
+    private SerializedProperty routeConfiguration;
     private SerializedProperty generation;
     private SerializedProperty rhythm;
     private SerializedProperty routeShape;
@@ -43,6 +58,7 @@ public sealed class IslandRouteGeneratorEditor : Editor
 
     private void OnEnable()
     {
+        routeConfiguration = serializedObject.FindProperty("routeConfiguration");
         generation = serializedObject.FindProperty("generation");
         rhythm = serializedObject.FindProperty("rhythm");
         routeShape = serializedObject.FindProperty("routeShape");
@@ -72,6 +88,8 @@ public sealed class IslandRouteGeneratorEditor : Editor
             "The generator plans the complete route before instantiating anything. " +
             "1.5 organizes island chances by Biome → Medium/Small. Percentages are normalized only among prefabs that are valid for the requested biome, size, phase, sockets, spacing and placement.",
             MessageType.Info);
+
+        DrawRouteConfigurationControls();
 
         DrawPropertyFoldout("Generation", generation, ref showGeneration);
         DrawPropertyFoldout("Island Rhythm", rhythm, ref showRhythm);
@@ -127,6 +145,210 @@ public sealed class IslandRouteGeneratorEditor : Editor
 
         EditorGUILayout.Space(8f);
         DrawActions();
+    }
+
+    private void DrawRouteConfigurationControls()
+    {
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField(
+            "Reusable Route Configuration",
+            EditorStyles.boldLabel);
+
+        EditorGUILayout.PropertyField(
+            routeConfiguration,
+            new GUIContent(
+                "Configuration Asset",
+                "An authored snapshot which may be applied before route generation."));
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Save Current As New"))
+                SaveCurrentConfigurationAsNew();
+
+            using (new EditorGUI.DisabledScope(
+                       routeConfiguration.objectReferenceValue == null))
+            {
+                if (GUILayout.Button("Overwrite Assigned"))
+                    OverwriteAssignedConfiguration();
+
+                if (GUILayout.Button("Apply Assigned"))
+                    ApplyAssignedConfiguration();
+            }
+        }
+
+        EditorGUILayout.HelpBox(
+            "Route Start and Generated Parent remain scene references on this " +
+            "generator. They are intentionally not stored in the asset.",
+            MessageType.None);
+        EditorGUILayout.Space(4f);
+    }
+
+    private void SaveCurrentConfigurationAsNew()
+    {
+        string path = EditorUtility.SaveFilePanelInProject(
+            "Save Route Configuration",
+            "RouteConfiguration",
+            "asset",
+            "Choose where to save this reusable route configuration.");
+
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        RouteConfiguration asset =
+            CreateInstance<RouteConfiguration>();
+        AssetDatabase.CreateAsset(asset, path);
+
+        CopyConfiguration(
+            serializedObject,
+            new SerializedObject(asset),
+            preserveDestinationSceneAnchors: false);
+
+        SetDefaultIdentity(asset, Path.GetFileNameWithoutExtension(path));
+
+        routeConfiguration.objectReferenceValue = asset;
+        serializedObject.ApplyModifiedProperties();
+
+        EditorUtility.SetDirty(asset);
+        EditorUtility.SetDirty(target);
+        AssetDatabase.SaveAssets();
+        EditorSceneManager.MarkSceneDirty(
+            ((IslandRouteGenerator)target).gameObject.scene);
+        EditorGUIUtility.PingObject(asset);
+    }
+
+    private void OverwriteAssignedConfiguration()
+    {
+        RouteConfiguration asset =
+            routeConfiguration.objectReferenceValue as RouteConfiguration;
+        if (asset == null)
+            return;
+
+        Undo.RecordObject(asset, "Overwrite Route Configuration");
+
+        CopyConfiguration(
+            serializedObject,
+            new SerializedObject(asset),
+            preserveDestinationSceneAnchors: false);
+
+        EditorUtility.SetDirty(asset);
+        AssetDatabase.SaveAssets();
+        EditorGUIUtility.PingObject(asset);
+
+        Debug.Log(
+            $"Saved the current generator settings to '{asset.name}'.",
+            asset);
+    }
+
+    private void ApplyAssignedConfiguration()
+    {
+        RouteConfiguration asset =
+            routeConfiguration.objectReferenceValue as RouteConfiguration;
+        if (asset == null)
+            return;
+
+        IslandRouteGenerator generator =
+            (IslandRouteGenerator)target;
+
+        Undo.RecordObject(generator, "Apply Route Configuration");
+
+        CopyConfiguration(
+            new SerializedObject(asset),
+            serializedObject,
+            preserveDestinationSceneAnchors: true);
+
+        EditorUtility.SetDirty(generator);
+        EditorSceneManager.MarkSceneDirty(generator.gameObject.scene);
+        Repaint();
+
+        Debug.Log(
+            $"Applied route configuration '{asset.name}'.",
+            generator);
+    }
+
+    private static void CopyConfiguration(
+        SerializedObject source,
+        SerializedObject destination,
+        bool preserveDestinationSceneAnchors)
+    {
+        source.Update();
+        destination.Update();
+
+        UnityEngine.Object routeStart = null;
+        UnityEngine.Object generatedParent = null;
+
+        SerializedProperty destinationGeneration =
+            destination.FindProperty("generation");
+
+        if (preserveDestinationSceneAnchors)
+        {
+            routeStart = destinationGeneration
+                .FindPropertyRelative("RouteStart")
+                .objectReferenceValue;
+            generatedParent = destinationGeneration
+                .FindPropertyRelative("GeneratedParent")
+                .objectReferenceValue;
+        }
+
+        for (int i = 0; i < ConfigurationPropertyPaths.Length; i++)
+        {
+            SerializedProperty sourceProperty =
+                source.FindProperty(ConfigurationPropertyPaths[i]);
+
+            if (sourceProperty != null)
+                destination.CopyFromSerializedProperty(sourceProperty);
+        }
+
+        destinationGeneration = destination.FindProperty("generation");
+        destinationGeneration
+            .FindPropertyRelative("RouteStart")
+            .objectReferenceValue = preserveDestinationSceneAnchors
+                ? routeStart
+                : null;
+        destinationGeneration
+            .FindPropertyRelative("GeneratedParent")
+            .objectReferenceValue = preserveDestinationSceneAnchors
+                ? generatedParent
+                : null;
+
+        destination.ApplyModifiedProperties();
+    }
+
+    private static void SetDefaultIdentity(
+        RouteConfiguration asset,
+        string fileName)
+    {
+        SerializedObject serializedAsset = new SerializedObject(asset);
+        serializedAsset.Update();
+
+        serializedAsset.FindProperty("routeId").stringValue =
+            MakeRouteId(fileName);
+        serializedAsset.FindProperty("displayName").stringValue =
+            ObjectNames.NicifyVariableName(fileName);
+
+        serializedAsset.ApplyModifiedProperties();
+    }
+
+    private static string MakeRouteId(string value)
+    {
+        StringBuilder result = new StringBuilder();
+        bool previousWasSeparator = false;
+
+        for (int i = 0; i < value.Length; i++)
+        {
+            char character = char.ToLowerInvariant(value[i]);
+            if (char.IsLetterOrDigit(character))
+            {
+                result.Append(character);
+                previousWasSeparator = false;
+            }
+            else if (!previousWasSeparator && result.Length > 0)
+            {
+                result.Append('_');
+                previousWasSeparator = true;
+            }
+        }
+
+        return result.ToString().Trim('_');
     }
 
     private void DrawActions()

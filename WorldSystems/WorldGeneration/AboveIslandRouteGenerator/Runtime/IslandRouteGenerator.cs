@@ -7,6 +7,11 @@ using Random = System.Random;
 
 public sealed class IslandRouteGenerator : MonoBehaviour
 {
+    [Header("Reusable Configuration")]
+    [Tooltip("Optional authored route configuration. Runtime systems may apply this asset before generation.")]
+    [SerializeField]
+    private RouteConfiguration routeConfiguration;
+
     [SerializeField]
     private IslandGenerationSettings generation = new IslandGenerationSettings();
 
@@ -50,7 +55,9 @@ public sealed class IslandRouteGenerator : MonoBehaviour
 
     private GameObject generatedRoot;
     private readonly List<AboveRoutePiece> generatedInstances = new List<AboveRoutePiece>();
+    private RouteConfiguration runtimeConfigurationCopy;
 
+    public RouteConfiguration AssignedConfiguration => routeConfiguration;
     public IslandGenerationSettings Generation => generation;
     public IslandRhythmSettings Rhythm => rhythm;
     public IslandRouteShapeSettings RouteShape => routeShape;
@@ -69,6 +76,66 @@ public sealed class IslandRouteGenerator : MonoBehaviour
     public event Action<AboveRoutePiece> PieceInstantiated;
     public event Action RouteGenerated;
     public event Action RouteCleared;
+
+    /// <summary>
+    /// Applies an authored configuration without sharing mutable settings with
+    /// the ScriptableObject asset. Scene-only anchors remain on this generator.
+    /// Call this before GenerateRoute.
+    /// </summary>
+    public bool ApplyConfiguration(RouteConfiguration configuration)
+    {
+        if (configuration == null)
+        {
+            Debug.LogError(
+                "Cannot apply a null RouteConfiguration.",
+                this);
+            return false;
+        }
+
+        Transform routeStart = generation.RouteStart;
+        Transform generatedParent = generation.GeneratedParent;
+
+        if (runtimeConfigurationCopy != null)
+        {
+            if (Application.isPlaying)
+                Destroy(runtimeConfigurationCopy);
+            else
+                DestroyImmediate(runtimeConfigurationCopy);
+        }
+
+        // Instantiate performs a serialized deep copy of the managed settings
+        // and lists while preserving prefab references.
+        runtimeConfigurationCopy = Instantiate(configuration);
+        runtimeConfigurationCopy.hideFlags = HideFlags.DontSave;
+
+        generation = runtimeConfigurationCopy.Generation;
+        rhythm = runtimeConfigurationCopy.Rhythm;
+        routeShape = runtimeConfigurationCopy.RouteShape;
+        detours = runtimeConfigurationCopy.Detours;
+        biomePhases = runtimeConfigurationCopy.BiomePhases;
+        clusterPhases = runtimeConfigurationCopy.ClusterPhases;
+        islandPrefabs = runtimeConfigurationCopy.IslandPrefabs;
+        connectionPrefabs = runtimeConfigurationCopy.ConnectionPrefabs;
+        specialIslands = runtimeConfigurationCopy.SpecialIslands;
+
+        // Assets cannot safely own references to scene Transforms.
+        generation.RouteStart = routeStart;
+        generation.GeneratedParent = generatedParent;
+        routeConfiguration = configuration;
+
+        return true;
+    }
+
+    private void OnDestroy()
+    {
+        if (runtimeConfigurationCopy == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(runtimeConfigurationCopy);
+        else
+            DestroyImmediate(runtimeConfigurationCopy);
+    }
 
     private void Start()
     {
