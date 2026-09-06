@@ -76,55 +76,108 @@ public class Say : StoryCommand
 public class GoTo : StoryCommand
 {
     private static readonly int MovingHash = Animator.StringToHash("Moving");
+
     private readonly Vector3 _targetPosition;
     private readonly Transform _character;
     private readonly float _speed;
     private readonly float _gotoDistance;
+    private readonly bool _continueStoryWhileMoving;
 
-    private bool _useNavmesh;
-    private NavMeshAgent _agent;
-    
-    private Animator _animator;
+    private readonly bool _useNavmesh;
+    private readonly NavMeshAgent _agent;
+    private readonly Animator _animator;
 
-    public GoTo(Transform character, Vector3 position, float speed, NavMeshAgent agent=null, Animator animator=null, float gotoDistance=0.4f)
+    private bool _startedBackgroundMovement;
+
+    public GoTo(
+        Transform character,
+        Vector3 position,
+        float speed,
+        NavMeshAgent agent = null,
+        Animator animator = null,
+        float gotoDistance = 0.4f,
+        bool continueStoryWhileMoving = false)
     {
         _character = character;
         _targetPosition = position;
         _speed = speed;
         _agent = agent;
-        _useNavmesh = agent;
+        _useNavmesh = agent != null;
         _animator = animator;
         _gotoDistance = gotoDistance;
+        _continueStoryWhileMoving = continueStoryWhileMoving;
     }
 
     public bool Execute()
     {
+        if (_continueStoryWhileMoving)
+        {
+            if (!_startedBackgroundMovement)
+            {
+                _startedBackgroundMovement = true;
+                StoryExecuter.Instance.StartCoroutine(MoveInBackground());
+            }
+
+            // Movement continues in the coroutine while the story advances.
+            return true;
+        }
+
+        // Normal behavior: block the story until movement finishes.
+        return MoveCharacter();
+    }
+
+    private IEnumerator MoveInBackground()
+    {
+        while (!MoveCharacter())
+            yield return null;
+    }
+
+    private bool MoveCharacter()
+    {
+        if (!_character)
+            return true;
+
         _animator?.SetBool(MovingHash, true);
-        
+
         if (_useNavmesh)
         {
+            if (!_agent || !_agent.isOnNavMesh)
+            {
+                _animator?.SetBool(MovingHash, false);
+                return true;
+            }
+
             _agent.speed = _speed;
             _agent.SetDestination(_targetPosition);
 
-            if (!_agent.pathPending && _agent.remainingDistance < _gotoDistance && !_agent.hasPath)
+            if (!_agent.pathPending &&
+                _agent.remainingDistance < _gotoDistance &&
+                !_agent.hasPath)
             {
-                _animator?.SetBool(MovingHash, false);
+                FinishMovement();
                 return true;
             }
         }
         else
         {
-            _character.position = Vector3.MoveTowards(_character.position, _targetPosition, Time.deltaTime * _speed);
-            Debug.Log(Vector3.Distance(_character.position, _targetPosition));
+            _character.position = Vector3.MoveTowards(
+                _character.position,
+                _targetPosition,
+                Time.deltaTime * _speed);
+
             if (Vector3.Distance(_character.position, _targetPosition) < _gotoDistance)
             {
-                // we finished
-                _animator?.SetBool(MovingHash, false);
+                FinishMovement();
                 return true;
             }
         }
 
         return false;
+    }
+
+    private void FinishMovement()
+    {
+        _animator?.SetBool(MovingHash, false);
     }
 }
 
