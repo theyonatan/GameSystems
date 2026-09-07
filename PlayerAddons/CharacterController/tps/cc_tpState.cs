@@ -282,7 +282,7 @@ public class cc_tpState : MovementState
     private void OnPlayerMoved(Vector2 movementValue)
     {
         _moveInput = movementValue;
-        _animator.SetBool("Walking", true);
+        _animator.SetBool("Walking", movementValue.sqrMagnitude > 0.01f);
     }
 
     private void OnPlayerMovedFinished()
