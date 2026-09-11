@@ -61,25 +61,31 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
         }
     }
 
-    // Update is called once per frame
     public void UpdatePlayer()
     {
-        Ray r = new(InteractorSource.position, _camTransform.forward);
-        if (DisplayDebugInteract) 
-            Debug.DrawRay(r.origin, r.direction * InteractRange, Color.mediumPurple);
-        if (Physics.Raycast(r, out RaycastHit hitInfo, InteractRange, _interactionMask))
+        Ray ray = new(InteractorSource.position, _camTransform.forward);
+
+        if (DisplayDebugInteract)
+            Debug.DrawRay(
+                ray.origin,
+                ray.direction * InteractRange,
+                Color.mediumPurple);
+
+        Interactable currentTarget = null;
+
+        if (Physics.Raycast(
+                ray, out RaycastHit hitInfo, InteractRange, _interactionMask))
         {
-            if (TryGetInteractable(hitInfo, out var interactObj))
-            {
-                interactObj.MarkAsInteractable();
-                _lastInteractedObj = interactObj;
-            }
-            else if (_lastInteractedObj != null)
-            {
-                _lastInteractedObj.StopMarking();
-                _lastInteractedObj = null;
-            }
+            TryGetInteractable(hitInfo, out currentTarget);
         }
+
+        if (!ReferenceEquals(_lastInteractedObj, currentTarget))
+        {
+            _lastInteractedObj?.StopMarking();
+            _lastInteractedObj = currentTarget;
+        }
+
+        currentTarget?.MarkAsInteractable();
     }
 
     public void OnDestroyPlayer()
@@ -98,19 +104,46 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
     
     private bool TryGetInteractable(RaycastHit hit, out Interactable interactable)
     {
-        if (hit.collider.gameObject.TryGetComponent(out Interactable interactObj))
+        interactable = null;
+
+        if (hit.collider == null)
+            return false;
+        
+        // Normal case: collider and Interactable are on the same GameObject.
+        if (hit.collider.TryGetComponent(out Interactable directInteractable))
+            return ValidateInteractable(directInteractable, out interactable);
+        
+        // Compound object: (Check Parent) collider is on a direct child of the Interactable.
+        Transform parent = hit.collider.transform.parent;
+
+        if (parent != null &&
+            parent.TryGetComponent(out Interactable parentInteractable))
         {
-            if (InteractableTypes.Contains(interactObj.InteractableType))
-            {
-                interactable = interactObj;
-                return true;
-            }
-            if (string.IsNullOrEmpty(interactObj.InteractableType))
-                Debug.LogError($"Forgot To Assign InteractableType to {interactObj.GetType()}");
+            return ValidateInteractable(parentInteractable, out interactable);
         }
 
-        interactable = null;
         return false;
+    }
+    
+    private bool ValidateInteractable(
+        Interactable candidate,
+        out Interactable interactable)
+    {
+        interactable = null;
+
+        if (string.IsNullOrEmpty(candidate.InteractableType))
+        {
+            Debug.LogError(
+                $"Forgot to assign InteractableType to {candidate.GetType()}");
+
+            return false;
+        }
+
+        if (!InteractableTypes.Contains(candidate.InteractableType))
+            return false;
+
+        interactable = candidate;
+        return true;
     }
 
     public void RefreshPlayerReferences()
