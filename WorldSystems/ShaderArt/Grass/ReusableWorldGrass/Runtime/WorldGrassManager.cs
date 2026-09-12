@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[DefaultExecutionOrder(10000)]
+[DefaultExecutionOrder(-9000)]
 [DisallowMultipleComponent]
 public sealed class WorldGrassManager : MonoBehaviour
 {
@@ -50,13 +50,16 @@ public sealed class WorldGrassManager : MonoBehaviour
         DestroyBatches();
     }
 
-    private void LateUpdate()
+    // Run after GrassSource registers (-10000), but before GrassComputeScript
+    // queues GPU draws (0). Releasing buffers in LateUpdate invalidates draws
+    // already queued by the old batches during Update.
+    private void Update()
     {
         if (!rebuildRequested)
             return;
 
         rebuildRequested = false;
-        RebuildNow();
+        RebuildBatches();
     }
 
     public static void NotifySourcesChanged()
@@ -76,6 +79,19 @@ public sealed class WorldGrassManager : MonoBehaviour
 
     [ContextMenu("Rebuild World Grass Now")]
     public void RebuildNow()
+    {
+        // Route generation can finish at any point in the frame. At runtime,
+        // perform the replacement at the next safe point before grass draws.
+        if (Application.isPlaying)
+        {
+            RequestRebuild();
+            return;
+        }
+
+        RebuildBatches();
+    }
+
+    private void RebuildBatches()
     {
         rebuildRequested = false;
 
@@ -152,15 +168,17 @@ public sealed class WorldGrassManager : MonoBehaviour
     private void CreateBatch(SO_GrassSettings preset, List<GrassData> points)
     {
         GameObject batchObject = new GameObject($"Grass - {preset.name}");
+        // OnEnable allocates buffers and uploads the preset. Configure all
+        // source data before allowing it to run even once.
+        batchObject.SetActive(false);
         batchObject.layer = gameObject.layer;
         batchObject.transform.SetParent(batchRoot, false);
 
         GrassComputeScript renderer = batchObject.AddComponent<GrassComputeScript>();
-        renderer.enabled = false;
         renderer.currentPresets = preset;
         renderer.grassDataIsWorldSpace = true;
         renderer.SetGrassPaintedDataList = points;
-        renderer.enabled = true;
+        batchObject.SetActive(true);
 
         activeBatches.Add(renderer);
     }

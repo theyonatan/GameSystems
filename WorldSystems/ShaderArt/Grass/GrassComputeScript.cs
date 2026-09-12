@@ -49,6 +49,7 @@ public class GrassComputeScript : MonoBehaviour
     // buffer that contains the ids of all visible instances
     private ComputeBuffer m_VisibleIDBuffer;
     [SerializeField] Material m_InstantiatedMaterial;
+    private MaterialPropertyBlock m_DrawProperties;
     // The id of the kernel in the grass compute shader
     private int m_IdGrassKernel;
     // The x dispatch size for the grass compute shader
@@ -214,6 +215,7 @@ public class GrassComputeScript : MonoBehaviour
         // Instantiate the shaders so they can point to their own buffers
         m_InstantiatedComputeShader = Instantiate(currentPresets.shaderToUse);
         m_InstantiatedMaterial = Instantiate(currentPresets.materialToUse);
+        m_DrawProperties = new MaterialPropertyBlock();
 
         int numSourceVertices = grassData.Count;
 
@@ -274,6 +276,7 @@ public class GrassComputeScript : MonoBehaviour
         // added for cutting
         m_InstantiatedComputeShader.SetBuffer(m_IdGrassKernel, "_CutBuffer", m_CutBuffer);
         m_InstantiatedMaterial.SetBuffer("_DrawTriangles", m_DrawBuffer);
+        m_DrawProperties.SetBuffer("_DrawTriangles", m_DrawBuffer);
         // Set vertex data
         m_InstantiatedComputeShader.SetInt("_NumSourceVertices", numSourceVertices);
         // cache shader property to int id for interactivity;
@@ -407,6 +410,7 @@ public class GrassComputeScript : MonoBehaviour
             m_CutBuffer?.Release();
         }
         m_Initialized = false;
+        m_DrawProperties = null;
         allocatedDrawTriangleCount = 0;
     }
 
@@ -451,11 +455,16 @@ public class GrassComputeScript : MonoBehaviour
         }
         if (m_DispatchSize > 0)
         {
+            // Each queued draw must carry its own batch data. Multiple island
+            // and combined renderers use the same shader, whose tint/buffer
+            // uniforms are not declared as material properties.
+            m_DrawProperties.SetVector("_TopTint", currentPresets.topTint);
+            m_DrawProperties.SetVector("_BottomTint", currentPresets.bottomTint);
             // Dispatch the grass shader. It will run on the GPU
             m_InstantiatedComputeShader.Dispatch(m_IdGrassKernel, m_DispatchSize, 1, 1);
             // DrawProceduralIndirect queues a draw call up for our generated mesh
             Graphics.DrawProceduralIndirect(m_InstantiatedMaterial, bounds, MeshTopology.Triangles,
-            m_ArgsBuffer, 0, null, null, currentPresets.castShadow, true, gameObject.layer);
+            m_ArgsBuffer, 0, null, m_DrawProperties, currentPresets.castShadow, true, gameObject.layer);
         }
     }
 
