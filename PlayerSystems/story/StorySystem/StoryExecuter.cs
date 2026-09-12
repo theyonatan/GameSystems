@@ -142,7 +142,13 @@ public class StoryExecuter : MonoBehaviour
         
         if (Story.Count is 0)
         {
-            Debug.Log("Chapter is empty! story will not play anything.");
+            // Skipped chapters still complete their lifecycle and notify listeners.
+            string finishedChapter = CurrentChapter;
+            IsStoryRunning = false;
+            CurrentChapter = "";
+            CurrentAction = null;
+            if (!string.IsNullOrEmpty(finishedChapter))
+                _onChapterFinished?.Invoke(finishedChapter);
             return;
         }
         
