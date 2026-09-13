@@ -14,6 +14,11 @@ public sealed class RouteConfiguration : ScriptableObject
     [SerializeField]
     private string displayName = "New Route";
 
+    [Header("Items")]
+    [Tooltip("Maximum item spawns across the whole run. 0 disables items; -1 uses every eligible spawn point.")]
+    [SerializeField, Min(-1)]
+    private int maximumItemSpawnsPerRun = -1;
+
     [Header("Route Settings")]
     [SerializeField]
     private IslandGenerationSettings generation =
@@ -53,6 +58,7 @@ public sealed class RouteConfiguration : ScriptableObject
 
     public string RouteId => routeId;
     public string DisplayName => displayName;
+    public int MaximumItemSpawnsPerRun => maximumItemSpawnsPerRun;
     public IslandGenerationSettings Generation => generation;
     public IslandRhythmSettings Rhythm => rhythm;
     public IslandRouteShapeSettings RouteShape => routeShape;

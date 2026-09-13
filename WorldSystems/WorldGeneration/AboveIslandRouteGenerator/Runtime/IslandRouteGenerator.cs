@@ -58,6 +58,9 @@ public sealed class IslandRouteGenerator : MonoBehaviour
     private RouteConfiguration runtimeConfigurationCopy;
 
     public RouteConfiguration AssignedConfiguration => routeConfiguration;
+    public int MaximumItemSpawnsPerRun => runtimeConfigurationCopy != null
+        ? runtimeConfigurationCopy.MaximumItemSpawnsPerRun
+        : routeConfiguration != null ? routeConfiguration.MaximumItemSpawnsPerRun : -1;
     public IslandGenerationSettings Generation => generation;
     public IslandRhythmSettings Rhythm => rhythm;
     public IslandRouteShapeSettings RouteShape => routeShape;

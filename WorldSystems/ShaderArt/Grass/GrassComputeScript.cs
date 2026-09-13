@@ -293,6 +293,8 @@ public class GrassComputeScript : MonoBehaviour
         UpdateBounds();
         SetupQuadTree(full);
         transform.hasChanged = false;
+        // Recreated visibility buffers need an upload even if the camera did not move.
+        m_cachedCamPos = new Vector3(float.PositiveInfinity, 0f, 0f);
     }
 
     void UpdateBounds()
@@ -460,6 +462,7 @@ public class GrassComputeScript : MonoBehaviour
             // uniforms are not declared as material properties.
             m_DrawProperties.SetVector("_TopTint", currentPresets.topTint);
             m_DrawProperties.SetVector("_BottomTint", currentPresets.bottomTint);
+            WorldGrassGroundBlend.Apply(this, m_InstantiatedMaterial, m_DrawProperties);
             // Dispatch the grass shader. It will run on the GPU
             m_InstantiatedComputeShader.Dispatch(m_IdGrassKernel, m_DispatchSize, 1, 1);
             // DrawProceduralIndirect queues a draw call up for our generated mesh

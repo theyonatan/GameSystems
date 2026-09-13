@@ -7,6 +7,7 @@ public sealed class RouteConfigurationEditor : Editor
 {
     private SerializedProperty routeId;
     private SerializedProperty displayName;
+    private SerializedProperty maximumItemSpawnsPerRun;
     private SerializedProperty generation;
     private SerializedProperty rhythm;
     private SerializedProperty routeShape;
@@ -23,6 +24,7 @@ public sealed class RouteConfigurationEditor : Editor
     {
         routeId = serializedObject.FindProperty("routeId");
         displayName = serializedObject.FindProperty("displayName");
+        maximumItemSpawnsPerRun = serializedObject.FindProperty("maximumItemSpawnsPerRun");
         generation = serializedObject.FindProperty("generation");
         rhythm = serializedObject.FindProperty("rhythm");
         routeShape = serializedObject.FindProperty("routeShape");
@@ -41,6 +43,7 @@ public sealed class RouteConfigurationEditor : Editor
         EditorGUILayout.LabelField("Identity", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(routeId);
         EditorGUILayout.PropertyField(displayName);
+        EditorGUILayout.PropertyField(maximumItemSpawnsPerRun);
 
         if (string.IsNullOrWhiteSpace(routeId.stringValue))
         {

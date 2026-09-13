@@ -94,6 +94,7 @@ public sealed class WorldGrassManager : MonoBehaviour
     private void RebuildBatches()
     {
         rebuildRequested = false;
+        WorldGrassGroundBlend.RequestSceneRefresh(gameObject.scene);
 
         Dictionary<SO_GrassSettings, List<GrassData>> groupedData =
             new Dictionary<SO_GrassSettings, List<GrassData>>();
