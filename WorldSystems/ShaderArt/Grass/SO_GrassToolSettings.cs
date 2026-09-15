@@ -68,6 +68,7 @@ public class SO_GrassToolSettings : ScriptableObject
     [Min(0.001f)] public float sculptTargetHeight = 0.55f;
     public float sculptWidthPerSecond = 0.1f;
     public float sculptHeightPerSecond = 0.25f;
+    [Min(0.001f)] public float heightStep = 0.025f;
     [Range(0f, 1f)] public float randomWidthAmount = 0.15f;
     [Range(0f, 1f)] public float randomHeightAmount = 0.2f;
 
@@ -113,6 +114,7 @@ public class SO_GrassToolSettings : ScriptableObject
         sizeLength = Mathf.Max(0.001f, sizeLength);
         sculptTargetWidth = Mathf.Max(0.001f, sculptTargetWidth);
         sculptTargetHeight = Mathf.Max(0.001f, sculptTargetHeight);
+        heightStep = Mathf.Max(0.001f, heightStep);
         grassAmountToGenerate = Mathf.Max(1, grassAmountToGenerate);
         generationDensity = Mathf.Max(0.001f, generationDensity);
     }

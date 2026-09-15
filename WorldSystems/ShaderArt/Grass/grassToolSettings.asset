@@ -25,7 +25,7 @@ MonoBehaviour:
   VertexColorSettings: 0
   VertexFade: 0
   sizeWidth: 0.037
-  sizeLength: 0.195
+  sizeLength: 0.2
   adjustWidth: -0
   adjustLength: 0
   adjustWidthMax: 2.003
@@ -44,10 +44,10 @@ MonoBehaviour:
   paintMask:
     serializedVersion: 2
     m_Bits: 8
-  brushSize: 1.4
+  brushSize: 0.4
   brushFalloffSize: 0.8
   Flow: 0.1
-  density: 10.54
+  density: 17.16
   normalLimit: 1
   grassAmountToGenerate: 1000
   generationDensity: 1
@@ -57,5 +57,6 @@ MonoBehaviour:
   sculptTargetHeight: 0.2
   sculptWidthPerSecond: 0.1
   sculptHeightPerSecond: 0.4
+  heightStep: 0.125
   randomWidthAmount: 0.15
   randomHeightAmount: 0.2

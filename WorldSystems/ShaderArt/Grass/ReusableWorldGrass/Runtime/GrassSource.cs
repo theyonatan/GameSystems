@@ -52,7 +52,7 @@ public sealed class GrassSource : MonoBehaviour
     {
         ResolveReferences();
 
-        if (Application.isPlaying && disablePaintedRendererAtRuntime && paintedGrass != null)
+        if (Application.IsPlaying(gameObject) && disablePaintedRendererAtRuntime && paintedGrass != null)
             paintedGrass.enabled = false;
     }
 

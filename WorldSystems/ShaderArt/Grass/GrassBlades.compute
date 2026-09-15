@@ -15,6 +15,7 @@ struct SourceVertex
     float3 normalOS;
     float2 uv;  // contains widthMultiplier, heightMultiplier
     float3 color;
+    float heightOverride;
 };
 
 StructuredBuffer<SourceVertex> _SourceVertices;
@@ -211,7 +212,7 @@ void Main(uint id : SV_DispatchThreadID)
      float randomisedPos = rand(sv.positionWS.xyz);
      // random height offsets
     float randomOffset = Unity_RandomRange_float(sv.positionWS.xz, _GrassRandomHeightMin, _GrassRandomHeightMax);
-    _GrassHeight = clamp(_GrassHeight + randomOffset, _MinHeight, _MaxHeight);
+    _GrassHeight = sv.heightOverride > 0 ? sv.heightOverride : clamp(_GrassHeight + randomOffset, _MinHeight, _MaxHeight);
     _GrassWidth=  clamp(_GrassWidth, _MinWidth, _MaxWidth);
     _GrassWidth *= saturate(distanceFade);
     _BladeForward *= _GrassHeight;
@@ -267,14 +268,16 @@ void Main(uint id : SV_DispatchThreadID)
 
             float segmentForward = pow(abs(t), _BladeCurve) * _BladeForward;
             // First grass (0) segment does not get displaced by interactor
-            float3 newPos = (i == 0) ? sv.positionWS : sv.positionWS + (combinedDisp * t) + wind1 * t + (faceNormal * _GrassHeight * t);
+            // Legacy blades add height twice (here and in GrassVertex). Keep
+            // legacy appearance, but explicit brush heights are actual metres.
+            float3 newPos = (i == 0) ? sv.positionWS : sv.positionWS + (combinedDisp * t) + wind1 * t + (faceNormal * _GrassHeight * t * (sv.heightOverride > 0 ? 0 : 1));
             // Append First Vertex        
             drawVertices[i * 2] = GrassVertex(newPos, segmentWidth, segmentHeight, offset, segmentForward, float2(0, t), facingRotationMatrix);
             // Append Second Vertex
             drawVertices[i * 2 + 1] = GrassVertex(newPos, -segmentWidth, segmentHeight, offset, segmentForward, float2(1, t), facingRotationMatrix);
         }
         // Append Top Vertex
-        float3 topPosOS = sv.positionWS + combinedDisp + wind1 + (faceNormal * _GrassHeight);
+        float3 topPosOS = sv.positionWS + combinedDisp + wind1 + (faceNormal * _GrassHeight * (sv.heightOverride > 0 ? 0 : 1));
         drawVertices[numSegmentsPerBlade * 2] = GrassVertex(topPosOS, 0, _GrassHeight, offset, _BladeForward, float2(0.5, 1), facingRotationMatrix);
           
           // add to indirect arguments buffer with the correct vertexcount       

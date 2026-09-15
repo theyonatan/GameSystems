@@ -6,11 +6,12 @@ using System.Collections.Generic;
 using System.Linq;
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.SceneManagement;
 #endif
 using UnityEngine.Pool;
 using UnityEngine;
 
-[ExecuteInEditMode]
+[ExecuteAlways]
 public class GrassComputeScript : MonoBehaviour
 {
     // very slow, but will update always
@@ -48,7 +49,7 @@ public class GrassComputeScript : MonoBehaviour
     private ComputeShader m_InstantiatedComputeShader;
     // buffer that contains the ids of all visible instances
     private ComputeBuffer m_VisibleIDBuffer;
-    [SerializeField] Material m_InstantiatedMaterial;
+    private Material m_InstantiatedMaterial;
     private MaterialPropertyBlock m_DrawProperties;
     // The id of the kernel in the grass compute shader
     private int m_IdGrassKernel;
@@ -58,7 +59,7 @@ public class GrassComputeScript : MonoBehaviour
     uint threadGroupSize;
 
     // The size of one entry in the various compute buffers, size comes from the float3/float2 entrees in the shader
-    private const int SOURCE_VERT_STRIDE = sizeof(float) * (3 + 3 + 2 + 3);
+    private const int SOURCE_VERT_STRIDE = sizeof(float) * (3 + 3 + 2 + 3 + 1);
     private const int DRAW_STRIDE = sizeof(float) * (3 + 3 + 4 + ((3 + 2) * 3));
 
     // bounds of the total grass 
@@ -122,11 +123,15 @@ public class GrassComputeScript : MonoBehaviour
     void OnScene(SceneView scene)
     {
         view = scene;
-        if (!Application.isPlaying)
+        if (!Application.IsPlaying(gameObject))
         {
             if (view.camera != null)
             {
                 m_MainCamera = view.camera;
+                if (Event.current.type == EventType.Repaint && isActiveAndEnabled &&
+                    PrefabStageUtility.GetPrefabStage(gameObject) != null &&
+                    StageUtility.GetStageHandle(gameObject) == StageUtility.GetCurrentStageHandle())
+                    RenderGrass(view.camera);
             }
         }
         else
@@ -138,7 +143,7 @@ public class GrassComputeScript : MonoBehaviour
     private void OnValidate()
     {
         // Set up components
-        if (!Application.isPlaying)
+        if (!Application.IsPlaying(gameObject))
         {
             if (view != null)
             {
@@ -171,15 +176,16 @@ public class GrassComputeScript : MonoBehaviour
 
         SceneView.duringSceneGui -= this.OnScene;
         SceneView.duringSceneGui += this.OnScene;
-        if (!Application.isPlaying)
+        if (!Application.IsPlaying(gameObject))
         {
+            if (view == null) view = SceneView.lastActiveSceneView;
             if (view != null && view.camera != null)
             {
                 m_MainCamera = view.camera;
             }
         }
 #endif
-        if (Application.isPlaying)
+        if (Application.IsPlaying(gameObject))
         {
             m_MainCamera = Camera.main;
         }
@@ -203,11 +209,6 @@ public class GrassComputeScript : MonoBehaviour
             return;
         }
 
-        if (currentPresets.cuttingParticles == null)
-        {
-            Debug.LogWarning("Missing Cut Particles in grass Settings", this);
-        }
-
         // empty array to replace the visible grass with
         PopulateEmptyList(grassData.Count);
         m_Initialized = true;
@@ -215,6 +216,8 @@ public class GrassComputeScript : MonoBehaviour
         // Instantiate the shaders so they can point to their own buffers
         m_InstantiatedComputeShader = Instantiate(currentPresets.shaderToUse);
         m_InstantiatedMaterial = Instantiate(currentPresets.materialToUse);
+        m_InstantiatedComputeShader.hideFlags = HideFlags.HideAndDontSave;
+        m_InstantiatedMaterial.hideFlags = HideFlags.HideAndDontSave;
         m_DrawProperties = new MaterialPropertyBlock();
 
         int numSourceVertices = grassData.Count;
@@ -312,6 +315,8 @@ public class GrassComputeScript : MonoBehaviour
         float heightPadding = currentPresets != null
             ? Mathf.Max(currentPresets.MaxHeight, currentPresets.bladeRadius) + 1f
             : 2f;
+        foreach (var point in grassData)
+            heightPadding = Mathf.Max(heightPadding, point.heightOverride + 1f);
         bounds.Expand(heightPadding * 2f);
     }
 
@@ -419,9 +424,23 @@ public class GrassComputeScript : MonoBehaviour
     // LateUpdate is called after all Update calls
     private void Update()
     {
+#if UNITY_EDITOR
+        // Prefab/Scene view rendering is driven by its own camera during repaint.
+        // It must not depend on Camera.main or a WorldGrassManager in another scene.
+        if (!Application.IsPlaying(gameObject) &&
+            (PrefabStageUtility.GetPrefabStage(gameObject) != null ||
+             StageUtility.GetStageHandle(gameObject) != StageUtility.GetCurrentStageHandle())) return;
+#endif
+        RenderGrass(null);
+    }
+
+    private void RenderGrass(Camera targetCamera)
+    {
+        if (Application.IsPlaying(gameObject) && m_MainCamera == null)
+            m_MainCamera = Camera.main;
         // If in edit mode, we need to update the shaders each Update to make sure settings changes are applied
         // Don't worry, in edit mode, Update isn't called each frame
-        if (!Application.isPlaying && autoUpdate && !m_fastMode)
+        if (!Application.IsPlaying(gameObject) && autoUpdate && !m_fastMode)
         {
             OnDisable();
             OnEnable();
@@ -467,7 +486,7 @@ public class GrassComputeScript : MonoBehaviour
             m_InstantiatedComputeShader.Dispatch(m_IdGrassKernel, m_DispatchSize, 1, 1);
             // DrawProceduralIndirect queues a draw call up for our generated mesh
             Graphics.DrawProceduralIndirect(m_InstantiatedMaterial, bounds, MeshTopology.Triangles,
-            m_ArgsBuffer, 0, null, m_DrawProperties, currentPresets.castShadow, true, gameObject.layer);
+            m_ArgsBuffer, 0, targetCamera, m_DrawProperties, currentPresets.castShadow, true, gameObject.layer);
         }
     }
 
@@ -728,4 +747,7 @@ public struct GrassData
     public Vector3 normal;
     public Vector2 length;
     public Vector3 color;
+    // Zero keeps legacy preset height/randomness. Positive values are painted metres,
+    // preserved when GrassSource copies points into combined runtime batches.
+    public float heightOverride;
 }

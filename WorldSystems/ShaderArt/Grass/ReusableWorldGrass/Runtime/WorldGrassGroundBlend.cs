@@ -78,6 +78,11 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
             properties.SetVector(positionId, entry.mapPosition);
             return;
         }
+#if UNITY_EDITOR
+        // A prefab opened from an empty scene has no ground-map capture. Fall back
+        // to its material colour without changing the shared gameplay material.
+        if (!Application.IsPlaying(grass.gameObject)) properties.SetFloat(blendId, 0f);
+#endif
     }
 
     public void CaptureNow()

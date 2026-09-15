@@ -102,6 +102,12 @@ public sealed class WorldGrassManager : MonoBehaviour
         GrassSource[] sources = FindObjectsByType<GrassSource>(
             FindObjectsInactive.Exclude,
             FindObjectsSortMode.None);
+        var coverageAreas=new List<GrassCoverageArea.Snapshot>();
+        var coverageComponents=FindObjectsByType<GrassCoverageArea>(FindObjectsSortMode.None);
+        if(coverageComponents.Length>0) Physics.SyncTransforms();
+        foreach(var area in coverageComponents)
+            if(area.gameObject.scene==gameObject.scene && area.TryGetSnapshot(out var snapshot))
+                coverageAreas.Add(snapshot);
 
         for (int i = 0; i < sources.Length; i++)
         {
@@ -124,7 +130,9 @@ public sealed class WorldGrassManager : MonoBehaviour
                 groupedData.Add(preset, points);
             }
 
+            int start=points.Count;
             source.AppendWorldData(points);
+            GrassCoverageArea.FilterAppended(source,points,start,coverageAreas);
         }
 
         DestroyBatches();
