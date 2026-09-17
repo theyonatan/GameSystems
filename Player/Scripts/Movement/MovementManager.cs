@@ -33,7 +33,7 @@ public class MovementManager : MonoBehaviour, IPlayerBehavior
 
     public void AwakePlayer()
     {
-        _director = InputDirector.Instance;
+        _director = GetComponent<InputDirector>();
         _player = GetComponent<Player>();
         _capsuleCollider = GetComponent<CapsuleCollider>();
         
@@ -46,6 +46,7 @@ public class MovementManager : MonoBehaviour, IPlayerBehavior
         
         CurrentState.LoadState(this, _director);
         CurrentState.EnterState();
+        _director.RefreshMovementAbilities();
     }
 
     public void ChangeState(MovementState newState)
@@ -64,6 +65,7 @@ public class MovementManager : MonoBehaviour, IPlayerBehavior
         CurrentState.LoadState(this, _director);
         
         CurrentState.EnterState();
+        _director.RefreshMovementAbilities();
     }
 
     private void EnsureReqiredStateType(MovementComponentType stateType)

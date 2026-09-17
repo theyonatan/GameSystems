@@ -13,12 +13,15 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
     public Transform InteractorSource;
     public float InteractRange;
     private Interactable _lastInteractedObj;
+    private IPlayerInteractionHandler[] _interactionHandlers;
+    private readonly RaycastHit[] _interactionHits = new RaycastHit[32];
     
     public bool DisplayDebugInteract;
 
     // Start is called before the first frame update
     public void StartPlayer()
     {
+        _interactionHandlers = GetComponents<IPlayerInteractionHandler>();
         _inputDirector = GetComponent<InputDirector>();
         _inputDirector.OnInteractPressed += OnPressedInteract;
         
@@ -48,9 +51,14 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
 
     protected void OnPressedInteract()
     {
+        if (_interactionHandlers != null)
+            foreach (var handler in _interactionHandlers)
+                if (handler.TryHandleInteraction())
+                    return;
+
         Debug.Log("Player Pressed Interact");
         Ray ray = new(InteractorSource.position, _camTransform.forward);
-        if (Physics.Raycast(ray, out RaycastHit hitInfo, InteractRange, _interactionMask))
+        if (TryRaycastInteraction(ray, out RaycastHit hitInfo))
         {
             if (TryGetInteractable(hitInfo, out var interactObj))
                 interactObj.Interact();
@@ -73,8 +81,7 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
 
         Interactable currentTarget = null;
 
-        if (Physics.Raycast(
-                ray, out RaycastHit hitInfo, InteractRange, _interactionMask))
+        if (TryRaycastInteraction(ray, out RaycastHit hitInfo))
         {
             TryGetInteractable(hitInfo, out currentTarget);
         }
@@ -100,6 +107,28 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
         
         _unsubscribedFromDefaultInteract = true;
         _inputDirector.OnInteractPressed -= OnPressedInteract;
+    }
+
+    private bool TryRaycastInteraction(Ray ray, out RaycastHit closest)
+    {
+        int count = Physics.RaycastNonAlloc(ray, _interactionHits, InteractRange,
+            _interactionMask, QueryTriggerInteraction.Collide);
+        // A full non-alloc buffer may omit the nearest hit; fall back only for that crowded case.
+        RaycastHit[] hits = count == _interactionHits.Length
+            ? Physics.RaycastAll(ray, InteractRange, _interactionMask, QueryTriggerInteraction.Collide)
+            : _interactionHits;
+        if (hits != _interactionHits) count = hits.Length;
+        closest = default;
+        float distance = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            // Some player helper triggers (e.g. ReadyDetectorCollider) use the
+            // default layer, so the Player/Self layer mask alone is insufficient.
+            if (hits[i].collider.transform.IsChildOf(transform) || hits[i].distance >= distance) continue;
+            closest = hits[i];
+            distance = hits[i].distance;
+        }
+        return distance < float.PositiveInfinity;
     }
     
     private bool TryGetInteractable(RaycastHit hit, out Interactable interactable)

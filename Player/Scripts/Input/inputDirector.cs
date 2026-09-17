@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using System.Collections.Generic;
 using UnityEngine.InputSystem;
 
 public class InputDirector : MonoBehaviour, IPlayerBehavior
@@ -16,6 +17,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
 
     // master
     private ActionsMaster _playerInput;
+    private readonly HashSet<object> _movementAbilityLocks = new();
+    private readonly HashSet<object> _equipmentInputLocks = new();
+    private bool _runRequested = true;
+    private bool _jumpRequested = true;
+
+    public bool CanRun => _runRequested && _movementAbilityLocks.Count == 0;
+    public bool CanJump => _jumpRequested && _movementAbilityLocks.Count == 0;
+    public bool CanUseEquipment => _equipmentInputLocks.Count == 0;
     public static InputDirector Instance;
 
     // events
@@ -115,8 +124,8 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput = new ActionsMaster();
         
         // actions
-        _playerInput.Player.Fire1.started += _ => OnFireStarted?.Invoke();
-        _playerInput.Player.Fire1.performed += _ => OnFirePressed?.Invoke();
+        _playerInput.Player.Fire1.started += _ => { if (CanUseEquipment) OnFireStarted?.Invoke(); };
+        _playerInput.Player.Fire1.performed += _ => { if (CanUseEquipment) OnFirePressed?.Invoke(); };
         _playerInput.Player.Fire1.canceled += _ => OnFireReleased?.Invoke();
         _playerInput.Player.Interact.performed += _ => OnInteractPressed?.Invoke();
         _playerInput.Player.Inventory.performed += _ => OnInventoryPressed?.Invoke();
@@ -127,9 +136,9 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Back.performed += _ => OnBackPressed?.Invoke();
 
         // combat
-        _playerInput.Player.Combat.performed += _ => OnCombatPressed?.Invoke();
+        _playerInput.Player.Combat.performed += _ => { if (CanUseEquipment) OnCombatPressed?.Invoke(); };
 
-        _playerInput.Player.FlameThrower.performed += _ => OnPlayerFlameThrowerStart?.Invoke();
+        _playerInput.Player.FlameThrower.performed += _ => { if (CanUseEquipment) OnPlayerFlameThrowerStart?.Invoke(); };
         _playerInput.Player.FlameThrower.canceled += _ => OnPlayerFlameThrowerStop?.Invoke();
 
         // camera
@@ -141,11 +150,11 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Movement.started += x => { MovementValue = x.ReadValue<Vector2>(); OnPlayerMovedStarted?.Invoke();  _onPlayerMoved?.Invoke(MovementValue); };
         _playerInput.Player.Movement.canceled += x => { MovementValue = x.ReadValue<Vector2>(); OnPlayerMovedFinished?.Invoke(); };
 
-        _playerInput.Player.Running.started += _ => OnPlayerRunStarted?.Invoke();
+        _playerInput.Player.Running.started += _ => { if (CanRun) OnPlayerRunStarted?.Invoke(); };
         _playerInput.Player.Running.canceled += _ => OnPlayerRunStopped?.Invoke();
 
         // jumping
-        _playerInput.Player.Jumping.started += _ => OnPlayerJumpStarted?.Invoke();
+        _playerInput.Player.Jumping.started += _ => { if (CanJump) OnPlayerJumpStarted?.Invoke(); };
         _playerInput.Player.Jumping.canceled += _ => OnPlayerJumpStopped?.Invoke();
 
         // crouching
@@ -157,6 +166,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
 
         // Director
         _playerInput.Enable();
+        RefreshMovementAbilities();
         OnInputReady?.Invoke();
         
         ShouldDisable = true;
@@ -175,6 +185,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Disable();
         _playerInput.Disable();
         _playerInput.Dispose();
+        _playerInput = null;
     }
     
     private void Update()
@@ -248,26 +259,69 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
 
     public void DisableJumpInput()
     {
-        // Disables the Jumping action so no callbacks fire
-        var jump = _playerInput.Player.Jumping;
-        if (jump is { enabled: true })
-            jump.Disable();
+        _jumpRequested = false;
+        ApplyJumpAvailability();
     }
     
     public void EnableJumpInput()
     {
-        // Enables the Jumping action
-        var jump = _playerInput.Player.Jumping;
-        if (jump is { enabled: false })
-            jump.Enable();
+        _jumpRequested = true;
+        ApplyJumpAvailability();
     }
 
     public void ToggleRun(bool canRun)
     {
-        if (canRun)
+        _runRequested = canRun;
+        ApplyRunAvailability();
+    }
+
+    /// <summary>Locks sprint and jump without overwriting story or other owners' restrictions.</summary>
+    public void SetMovementAbilityLock(object source, bool blocked)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        bool changed = blocked ? _movementAbilityLocks.Add(source) : _movementAbilityLocks.Remove(source);
+        if (changed) RefreshMovementAbilities();
+    }
+
+    /// <summary>Temporarily blocks equipment input without disabling interaction or camera controls.</summary>
+    public void SetEquipmentInputLock(object source, bool blocked)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        bool wasAvailable = CanUseEquipment;
+        if (blocked) _equipmentInputLocks.Add(source);
+        else _equipmentInputLocks.Remove(source);
+        if (wasAvailable && !CanUseEquipment)
+        {
+            OnFireReleased?.Invoke();
+            OnPlayerFlameThrowerStop?.Invoke();
+        }
+    }
+
+    // Also called after changing movement state so newly subscribed states inherit the lock.
+    public void RefreshMovementAbilities()
+    {
+        // Exit ghoul form/cancel its charge before disabling Jump invokes its canceled callback.
+        ApplyRunAvailability();
+        ApplyJumpAvailability();
+    }
+
+    private void ApplyRunAvailability()
+    {
+        if (CanRun)
             OnPlayerRunEnabled?.Invoke();
         else
+        {
             OnPlayerRunDisabled?.Invoke();
+            OnPlayerRunStopped?.Invoke();
+        }
+    }
+
+    private void ApplyJumpAvailability()
+    {
+        if (_playerInput == null) return;
+        var jump = _playerInput.Player.Jumping;
+        if (!CanJump && jump.enabled) jump.Disable();
+        else if (CanJump && !jump.enabled) jump.Enable();
     }
     
     private void UpdateMouseDrag()
@@ -306,7 +360,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
             _isMouseDragging = false;
             OnMouseDragFinished?.Invoke();
 
-            if (!_mouseWasDragged)
+            if (!_mouseWasDragged && CanUseEquipment)
                 OnFireClicked?.Invoke();
         }
     }
