@@ -66,6 +66,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
 
     public event Action<Vector2> OnCameraMoved;
     public event Action<float> OnCameraZoomChanged;
+    public event Action OnLockSwitchPressed;
 
     public event Action OnPlayerRunStarted;
     public event Action OnPlayerRunStopped;
@@ -144,6 +145,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         // camera
         _playerInput.Player.Look.performed += ctx => OnCameraMoved?.Invoke(ctx.ReadValue<Vector2>());
         _playerInput.Player.Zoom.performed += ctx => OnCameraZoomChanged?.Invoke(ctx.ReadValue<float>());
+        _playerInput.Player.LockSwitch.performed += _ => OnLockSwitchPressed?.Invoke();
 
         // movement
         _playerInput.Player.Movement.performed += x => { MovementValue = x.ReadValue<Vector2>(); _onPlayerMoved?.Invoke(MovementValue); };

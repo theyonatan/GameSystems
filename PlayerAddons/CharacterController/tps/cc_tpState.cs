@@ -35,7 +35,7 @@ public class cc_tpState : MovementState
     private bool _holdingJump;
     private bool _holdingSprint;
     private bool IsGrounded => cc.isGrounded;
-    private bool _lockSwitch;
+    private bool _lockSwitch = false; // Free orbit until the player explicitly toggles camera lock.
 
     private float _verticalVelocity;
     private Vector3 _movementVelocity;
@@ -74,6 +74,7 @@ public class cc_tpState : MovementState
         Director.OnPlayerJumpStopped += OnPlayerJumpStopped;
         Director.OnPlayerRunStarted += OnPlayerRunStarted;
         Director.OnPlayerRunStopped += OnPlayerRunStopped;
+        Director.OnLockSwitchPressed += OnLockSwitchPressed;
         Director.OnEnablePlayerMovement += OnEnablePlayerMovement;
         Director.OnDisablePlayerMovement += OnDisablePlayerMovement;
         Director.OnPlayerRunEnabled += OnPlayerRunEnabled;
@@ -145,6 +146,7 @@ public class cc_tpState : MovementState
         Director.OnPlayerJumpStopped -= OnPlayerJumpStopped;
         Director.OnPlayerRunStarted -= OnPlayerRunStarted;
         Director.OnPlayerRunStopped -= OnPlayerRunStopped;
+        Director.OnLockSwitchPressed -= OnLockSwitchPressed;
         Director.OnEnablePlayerMovement -= OnEnablePlayerMovement;
         Director.OnDisablePlayerMovement -= OnDisablePlayerMovement;
         Director.OnPlayerRunEnabled -= OnPlayerRunEnabled;
@@ -297,9 +299,14 @@ public class cc_tpState : MovementState
     private void OnPlayerRunStarted()
     {
         _holdingSprint = true;
-        _lockSwitch = !_lockSwitch;
         
         _animator.SetBool("Running", true);
+    }
+
+    private void OnLockSwitchPressed()
+    {
+        if (CanMove)
+            _lockSwitch = !_lockSwitch;
     }
 
     private void OnPlayerRunStopped()

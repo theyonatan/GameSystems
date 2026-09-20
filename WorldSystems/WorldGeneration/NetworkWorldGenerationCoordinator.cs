@@ -285,6 +285,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     public override void OnStopServer()
     {
+        if (eventDirector != null) eventDirector.ClearServerEncounters();
         base.OnStopServer();
 
         _registeredClients.Clear();
@@ -1069,6 +1070,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     [Server]
     private void FailServerGeneration(string reason)
     {
+        if (eventDirector != null) eventDirector.ClearServerEncounters();
         ServerWorldGenerated = false;
         ServerWorldGenerationFailed = true;
         ServerFailureReason = reason;

@@ -244,6 +244,15 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""LockSwitch"",
+                    ""type"": ""Button"",
+                    ""id"": ""f40b3e53-8228-4e88-9ef0-5c74680e60a3"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -631,6 +640,17 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                     ""action"": ""Back"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""689962d3-42f0-4374-a2a5-607744612d5b"",
+                    ""path"": ""<Keyboard>/leftAlt"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""LockSwitch"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -662,6 +682,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
         m_Player_TimeSwap = m_Player.FindAction("TimeSwap", throwIfNotFound: true);
         m_Player_Confirm = m_Player.FindAction("Confirm", throwIfNotFound: true);
         m_Player_Back = m_Player.FindAction("Back", throwIfNotFound: true);
+        m_Player_LockSwitch = m_Player.FindAction("LockSwitch", throwIfNotFound: true);
     }
 
     ~@ActionsMaster()
@@ -759,6 +780,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_TimeSwap;
     private readonly InputAction m_Player_Confirm;
     private readonly InputAction m_Player_Back;
+    private readonly InputAction m_Player_LockSwitch;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -839,6 +861,10 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @Back => m_Wrapper.m_Player_Back;
         /// <summary>
+        /// Provides access to the underlying input action "Player/LockSwitch".
+        /// </summary>
+        public InputAction @LockSwitch => m_Wrapper.m_Player_LockSwitch;
+        /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
         public InputActionMap Get() { return m_Wrapper.m_Player; }
@@ -915,6 +941,9 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
             @Back.started += instance.OnBack;
             @Back.performed += instance.OnBack;
             @Back.canceled += instance.OnBack;
+            @LockSwitch.started += instance.OnLockSwitch;
+            @LockSwitch.performed += instance.OnLockSwitch;
+            @LockSwitch.canceled += instance.OnLockSwitch;
         }
 
         /// <summary>
@@ -977,6 +1006,9 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
             @Back.started -= instance.OnBack;
             @Back.performed -= instance.OnBack;
             @Back.canceled -= instance.OnBack;
+            @LockSwitch.started -= instance.OnLockSwitch;
+            @LockSwitch.performed -= instance.OnLockSwitch;
+            @LockSwitch.canceled -= instance.OnLockSwitch;
         }
 
         /// <summary>
@@ -1149,5 +1181,12 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnBack(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "LockSwitch" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnLockSwitch(InputAction.CallbackContext context);
     }
 }

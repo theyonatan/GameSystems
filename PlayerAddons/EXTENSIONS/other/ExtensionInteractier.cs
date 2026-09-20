@@ -57,8 +57,7 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
                     return;
 
         Debug.Log("Player Pressed Interact");
-        Ray ray = new(InteractorSource.position, _camTransform.forward);
-        if (TryRaycastInteraction(ray, out RaycastHit hitInfo))
+        if (TryGetInteractionHit(out RaycastHit hitInfo))
         {
             if (TryGetInteractable(hitInfo, out var interactObj))
                 interactObj.Interact();
@@ -71,17 +70,9 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
 
     public void UpdatePlayer()
     {
-        Ray ray = new(InteractorSource.position, _camTransform.forward);
-
-        if (DisplayDebugInteract)
-            Debug.DrawRay(
-                ray.origin,
-                ray.direction * InteractRange,
-                Color.mediumPurple);
-
         Interactable currentTarget = null;
 
-        if (TryRaycastInteraction(ray, out RaycastHit hitInfo))
+        if (TryGetInteractionHit(out RaycastHit hitInfo))
         {
             TryGetInteractable(hitInfo, out currentTarget);
         }
@@ -109,13 +100,53 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
         _inputDirector.OnInteractPressed -= OnPressedInteract;
     }
 
-    private bool TryRaycastInteraction(Ray ray, out RaycastHit closest)
+    private bool TryGetInteractionHit(out RaycastHit hit)
     {
-        int count = Physics.RaycastNonAlloc(ray, _interactionHits, InteractRange,
+        hit = default;
+        if (!InteractorSource || !_camTransform || InteractRange <= 0f)
+            return false;
+
+        // Aim from the rendered camera. A parallel ray starting at the player
+        // misses small targets because the third-person camera is offset.
+        Vector3 source = InteractorSource.position;
+        Ray viewRay = new(_camTransform.position, _camTransform.forward);
+        float viewRange = Vector3.Distance(viewRay.origin, source) + InteractRange;
+
+        if (DisplayDebugInteract)
+            Debug.DrawRay(viewRay.origin, viewRay.direction * viewRange, Color.mediumPurple);
+
+        if (!TryRaycastInteraction(viewRay, viewRange, out hit))
+            return false;
+
+        // Camera zoom must not change the player's reach.
+        Vector3 toHit = hit.point - source;
+        float distance = toHit.magnitude;
+        if (distance > InteractRange)
+            return false;
+
+        // An orbiting camera can see around a wall that still blocks the player.
+        // Accept nearer colliders on the same interactable, but not an obstacle.
+        const float surfaceTolerance = 0.001f;
+        if (distance > surfaceTolerance &&
+            TryRaycastInteraction(new Ray(source, toHit), distance - surfaceTolerance, out var obstruction) &&
+            obstruction.collider != hit.collider)
+        {
+            if (!TryGetInteractable(hit, out var target) ||
+                !TryGetInteractable(obstruction, out var blockingTarget) ||
+                !ReferenceEquals(target, blockingTarget))
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool TryRaycastInteraction(Ray ray, float maxDistance, out RaycastHit closest)
+    {
+        int count = Physics.RaycastNonAlloc(ray, _interactionHits, maxDistance,
             _interactionMask, QueryTriggerInteraction.Collide);
         // A full non-alloc buffer may omit the nearest hit; fall back only for that crowded case.
         RaycastHit[] hits = count == _interactionHits.Length
-            ? Physics.RaycastAll(ray, InteractRange, _interactionMask, QueryTriggerInteraction.Collide)
+            ? Physics.RaycastAll(ray, maxDistance, _interactionMask, QueryTriggerInteraction.Collide)
             : _interactionHits;
         if (hits != _interactionHits) count = hits.Length;
         closest = default;
@@ -125,6 +156,9 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
             // Some player helper triggers (e.g. ReadyDetectorCollider) use the
             // default layer, so the Player/Self layer mask alone is insufficient.
             if (hits[i].collider.transform.IsChildOf(transform) || hits[i].distance >= distance) continue;
+            // Route/event volumes are not physical barriers. Keep pickup/steal
+            // triggers hittable, but do not let unrelated triggers hide them.
+            if (hits[i].collider.isTrigger && !TryGetInteractable(hits[i], out _)) continue;
             closest = hits[i];
             distance = hits[i].distance;
         }
