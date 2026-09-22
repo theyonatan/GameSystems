@@ -1,0 +1,56 @@
+.audio-library {
+    padding-top: 4px;
+}
+
+.audio-add, .audio-card {
+    padding: 8px;
+    margin-bottom: 8px;
+    border-width: 1px;
+    border-color: rgba(128, 128, 128, 0.4);
+    border-radius: 4px;
+}
+
+.audio-add {
+    background-color: rgba(128, 128, 128, 0.12);
+}
+
+.audio-title {
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.audio-hint {
+    white-space: normal;
+    margin-bottom: 6px;
+}
+
+.audio-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.audio-row > Button {
+    flex-grow: 1;
+}
+
+.audio-add .unity-base-field__label,
+.audio-card .unity-base-field__label {
+    min-width: 75px;
+    width: 75px;
+}
+
+.audio-library .unity-text-field__input {
+    min-width: 0;
+}
+
+.audio-advanced .unity-base-field__label {
+    min-width: 130px;
+    width: 130px;
+    white-space: normal;
+}
+
+.audio-hidden {
+    display: none;
+}

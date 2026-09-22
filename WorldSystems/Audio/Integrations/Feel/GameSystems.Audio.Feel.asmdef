@@ -1,0 +1,5 @@
+{
+  "name": "GameSystems.Audio.Feel",
+  "rootNamespace": "GameSystems.Audio.Feel",
+  "references": ["GameSystems.Audio", "MoreMountains.Tools"]
+}

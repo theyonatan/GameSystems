@@ -21,18 +21,23 @@ class SceneDebugBuildLogger : IPreprocessBuildWithReport
                 if (!scene.enabled) continue;
                 writer.WriteLine($"Scene: {scene.path}");
 
-                var openedScene = EditorSceneManager.OpenScene(scene.path, OpenSceneMode.Single);
-                foreach (var root in openedScene.GetRootGameObjects())
+                // Inspect a preview copy; a build must not replace the user's unsaved scene.
+                var openedScene = EditorSceneManager.OpenPreviewScene(scene.path);
+                try
                 {
-                    try
+                    foreach (var root in openedScene.GetRootGameObjects())
                     {
-                        LogGameObjectRecursive(root, 0, writer);
-                    }
-                    catch (System.Exception ex)
-                    {
-                        writer.WriteLine($"[ERROR] Exception on {root.name}: {ex.Message}");
+                        try
+                        {
+                            LogGameObjectRecursive(root, 0, writer);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            writer.WriteLine($"[ERROR] Exception on {root.name}: {ex.Message}");
+                        }
                     }
                 }
+                finally { EditorSceneManager.ClosePreviewScene(openedScene); }
             }
             writer.WriteLine("==== SCENE DEBUG END ====");
         }

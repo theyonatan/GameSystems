@@ -1,0 +1,5 @@
+{
+  "name": "GameSystems.Audio.Editor",
+  "references": ["GameSystems.Audio"],
+  "includePlatforms": ["Editor"]
+}
