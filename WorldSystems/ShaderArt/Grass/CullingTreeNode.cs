@@ -93,26 +93,37 @@ public class CullingTreeNode
 
     public bool FindLeaf(Vector3 point, int index)
     {
-        bool FoundSpot = false;
-        if (m_bounds.Contains(point))
+        if (!m_bounds.Contains(point))
+            return false;
+
+        AddToClosestLeaf(point, index);
+        return true;
+    }
+
+    private void AddToClosestLeaf(Vector3 point, int index)
+    {
+        if (m_children.Count == 0)
         {
-            if (m_children.Count != 0)
+            grassIDHeld.Add(index);
+            return;
+        }
+
+        // Rounded child bounds can leave tiny gaps at their shared split planes.
+        // Once inside the root, route every point to its nearest child instead of
+        // rejecting it in those gaps. Painted positions are never changed.
+        CullingTreeNode nearest = m_children[0];
+        float nearestDistance = nearest.m_bounds.SqrDistance(point);
+        for (int i = 1; i < m_children.Count && nearestDistance > 0f; i++)
+        {
+            float distance = m_children[i].m_bounds.SqrDistance(point);
+            if (distance < nearestDistance)
             {
-                foreach (CullingTreeNode child in m_children)
-                {
-                    if (child.FindLeaf(point, index))
-                    {
-                        return true;
-                    }
-                }
-            }
-            else
-            {
-                grassIDHeld.Add(index);
-                return true;
+                nearest = m_children[i];
+                nearestDistance = distance;
             }
         }
-        return FoundSpot;
+
+        nearest.AddToClosestLeaf(point, index);
     }
 
     public void RetrieveAllLeaves(List<CullingTreeNode> target)
