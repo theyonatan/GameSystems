@@ -234,7 +234,8 @@ public class StoryCharacter : MonoBehaviour
         bool continueStoryOverCamera=true
         ) => _storyExecuter.addAction(new SwapCamera(
             vcam, speed, continueStoryOverCamera, instantCut, followTargetTransform));
-
+    
+    // Don't worry, it knows to check the camera type by itself.
     public void SwapCamera(
         string vcamName,
         Transform followTargetTransform = null,
