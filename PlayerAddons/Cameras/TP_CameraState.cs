@@ -133,7 +133,7 @@ public class TP_CameraState : CameraState
             _mouseY = Input.GetAxisRaw("Mouse Y");
         }
 
-        if (!CanLookAround)
+        if (!CanLookAround || !InputDirector.GameplayInputEnabled)
         {
             _mouseX = 0;
             _mouseY = 0;

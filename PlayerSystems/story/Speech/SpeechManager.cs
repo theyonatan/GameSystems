@@ -118,7 +118,7 @@ public class SpeechManager : MonoBehaviour
         // disable canvas
         while (true)
         {
-            if (Input.GetMouseButtonDown(0))
+            if (Time.timeScale > 0f && Input.GetMouseButtonDown(0))
             {
                 textBox.maxVisibleCharacters = int.MaxValue;
 
@@ -135,6 +135,7 @@ public class SpeechManager : MonoBehaviour
 
     public void ResetSpeech()
     {
+        StopAllCoroutines();
         Finished = true;
         
         SpeechCanvas activeCanvas = FindFirstObjectByType<SpeechCanvas>();

@@ -19,12 +19,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     private ActionsMaster _playerInput;
     private readonly HashSet<object> _movementAbilityLocks = new();
     private readonly HashSet<object> _equipmentInputLocks = new();
+    private readonly HashSet<object> _gameplayInputLocks = new();
     private bool _runRequested = true;
     private bool _jumpRequested = true;
 
-    public bool CanRun => _runRequested && _movementAbilityLocks.Count == 0;
-    public bool CanJump => _jumpRequested && _movementAbilityLocks.Count == 0;
-    public bool CanUseEquipment => _equipmentInputLocks.Count == 0;
+    public bool GameplayInputEnabled => _gameplayInputLocks.Count == 0;
+    public bool CanRun => GameplayInputEnabled && _runRequested && _movementAbilityLocks.Count == 0;
+    public bool CanJump => GameplayInputEnabled && _jumpRequested && _movementAbilityLocks.Count == 0;
+    public bool CanUseEquipment => GameplayInputEnabled && _equipmentInputLocks.Count == 0;
     public static InputDirector Instance;
 
     // events
@@ -40,6 +42,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnCombatPressed;
     public event Action OnInventoryPressed;
     public event Action OnMainMenuPressed;
+    public event Action OnPausePressed;
     public event Action OnPressedTimeChange;
     public event Action<int> OnEmotePressed;
     
@@ -128,13 +131,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Fire1.started += _ => { if (CanUseEquipment) OnFireStarted?.Invoke(); };
         _playerInput.Player.Fire1.performed += _ => { if (CanUseEquipment) OnFirePressed?.Invoke(); };
         _playerInput.Player.Fire1.canceled += _ => OnFireReleased?.Invoke();
-        _playerInput.Player.Interact.performed += _ => OnInteractPressed?.Invoke();
-        _playerInput.Player.Inventory.performed += _ => OnInventoryPressed?.Invoke();
-        _playerInput.Player.MainMenu.performed += _ => OnMainMenuPressed?.Invoke();
-        _playerInput.Player.TimeSwap.performed += _ => OnPressedTimeChange?.Invoke();
+        _playerInput.Player.Pause.performed += _ => OnPausePressed?.Invoke();
+        _playerInput.Player.Interact.performed += _ => { if (GameplayInputEnabled) OnInteractPressed?.Invoke(); };
+        _playerInput.Player.Inventory.performed += _ => { if (GameplayInputEnabled) OnInventoryPressed?.Invoke(); };
+        _playerInput.Player.MainMenu.performed += _ => { if (GameplayInputEnabled) OnMainMenuPressed?.Invoke(); };
+        _playerInput.Player.TimeSwap.performed += _ => { if (GameplayInputEnabled) OnPressedTimeChange?.Invoke(); };
         
-        _playerInput.Player.Confirm.performed += _ => OnConfirmPressed?.Invoke();
-        _playerInput.Player.Back.performed += _ => OnBackPressed?.Invoke();
+        _playerInput.Player.Confirm.performed += _ => { if (GameplayInputEnabled) OnConfirmPressed?.Invoke(); };
+        _playerInput.Player.Back.performed += _ => { if (GameplayInputEnabled) OnBackPressed?.Invoke(); };
 
         // combat
         _playerInput.Player.Combat.performed += _ => { if (CanUseEquipment) OnCombatPressed?.Invoke(); };
@@ -143,13 +147,13 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.FlameThrower.canceled += _ => OnPlayerFlameThrowerStop?.Invoke();
 
         // camera
-        _playerInput.Player.Look.performed += ctx => OnCameraMoved?.Invoke(ctx.ReadValue<Vector2>());
-        _playerInput.Player.Zoom.performed += ctx => OnCameraZoomChanged?.Invoke(ctx.ReadValue<float>());
-        _playerInput.Player.LockSwitch.performed += _ => OnLockSwitchPressed?.Invoke();
+        _playerInput.Player.Look.performed += ctx => { if (GameplayInputEnabled) OnCameraMoved?.Invoke(ctx.ReadValue<Vector2>()); };
+        _playerInput.Player.Zoom.performed += ctx => { if (GameplayInputEnabled) OnCameraZoomChanged?.Invoke(ctx.ReadValue<float>()); };
+        _playerInput.Player.LockSwitch.performed += _ => { if (GameplayInputEnabled) OnLockSwitchPressed?.Invoke(); };
 
         // movement
-        _playerInput.Player.Movement.performed += x => { MovementValue = x.ReadValue<Vector2>(); _onPlayerMoved?.Invoke(MovementValue); };
-        _playerInput.Player.Movement.started += x => { MovementValue = x.ReadValue<Vector2>(); OnPlayerMovedStarted?.Invoke();  _onPlayerMoved?.Invoke(MovementValue); };
+        _playerInput.Player.Movement.performed += x => { if (!GameplayInputEnabled) return; MovementValue = x.ReadValue<Vector2>(); _onPlayerMoved?.Invoke(MovementValue); };
+        _playerInput.Player.Movement.started += x => { if (!GameplayInputEnabled) return; MovementValue = x.ReadValue<Vector2>(); OnPlayerMovedStarted?.Invoke();  _onPlayerMoved?.Invoke(MovementValue); };
         _playerInput.Player.Movement.canceled += x => { MovementValue = x.ReadValue<Vector2>(); OnPlayerMovedFinished?.Invoke(); };
 
         _playerInput.Player.Running.started += _ => { if (CanRun) OnPlayerRunStarted?.Invoke(); };
@@ -160,7 +164,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Jumping.canceled += _ => OnPlayerJumpStopped?.Invoke();
 
         // crouching
-        _playerInput.Player.Crouch.started += _ => OnPlayerCrouchStarted?.Invoke();
+        _playerInput.Player.Crouch.started += _ => { if (GameplayInputEnabled) OnPlayerCrouchStarted?.Invoke(); };
         _playerInput.Player.Crouch.canceled += _ => OnPlayerCrouchStopped?.Invoke();
 
         // plugins
@@ -179,11 +183,12 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         if (!ShouldDisable)
             return;
 
-        Instance = null;
+        if (Instance == this) Instance = null;
 
         // plugins
 
         // Unsubscribe from everything & Disable Director
+        if (_playerInput == null) return;
         _playerInput.Player.Disable();
         _playerInput.Disable();
         _playerInput.Dispose();
@@ -192,7 +197,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     
     private void Update()
     {
-        if (!_localPlayer || !_localPlayer.HasAuthority)
+        if (!_localPlayer || !_localPlayer.HasAuthority || !GameplayInputEnabled)
             return;
 
         UpdateEmoteInput();
@@ -297,6 +302,29 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
             OnFireReleased?.Invoke();
             OnPlayerFlameThrowerStop?.Invoke();
         }
+    }
+
+    /// <summary>Blocks gameplay while leaving Pause active and preserving existing story/action locks.</summary>
+    public void SetGameplayInputLock(object source, bool blocked)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        bool wasEnabled = GameplayInputEnabled;
+        if (blocked) _gameplayInputLocks.Add(source);
+        else _gameplayInputLocks.Remove(source);
+        if (wasEnabled == GameplayInputEnabled) return;
+        if (!GameplayInputEnabled)
+        {
+            MovementValue = Vector2.zero;
+            _onPlayerMoved?.Invoke(Vector2.zero);
+            OnPlayerMovedFinished?.Invoke();
+            OnCameraMoved?.Invoke(Vector2.zero);
+            OnFireReleased?.Invoke();
+            OnPlayerFlameThrowerStop?.Invoke();
+            OnPlayerCrouchStopped?.Invoke();
+            if (_isMouseDragging) OnMouseDragFinished?.Invoke();
+            _isMouseDragging = false;
+        }
+        RefreshMovementAbilities();
     }
 
     // Also called after changing movement state so newly subscribed states inherit the lock.

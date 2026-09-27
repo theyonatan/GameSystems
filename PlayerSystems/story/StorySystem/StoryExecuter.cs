@@ -67,7 +67,7 @@ public class StoryExecuter : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (!IsStoryRunning) return;        // story isn’t playing
+        if (!IsStoryRunning || Time.timeScale <= 0f) return;
         
         // run the current Action; when it reports “done” (returns true) we move on
         if (CurrentAction != null && CurrentAction.Execute())
@@ -154,6 +154,16 @@ public class StoryExecuter : MonoBehaviour
         
         CurrentAction = Story.Dequeue();
         IsStoryRunning = true;
+    }
+
+    /// <summary>Cancel queued commands and background movement without reporting a completed chapter.</summary>
+    public void CancelChapter()
+    {
+        StopAllCoroutines();
+        Story.Clear();
+        CurrentAction = null;
+        CurrentChapter = string.Empty;
+        IsStoryRunning = false;
     }
 
     /// <summary>
