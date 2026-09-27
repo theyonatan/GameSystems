@@ -65,11 +65,13 @@ public class TP_CameraState : CameraState
         _thirdPersonFollow.AvoidObstacles = new CinemachineThirdPersonFollow.ObstacleSettings()
         {
             Enabled = true,
-            CollisionFilter = 1 << LayerMask.NameToLayer("Ground"),
-            IgnoreTag = "",
-            CameraRadius = 0.001f,
-            DampingFromCollision = 0f,
-            DampingIntoCollision = 0.5f
+            CollisionFilter = LayerMask.GetMask("Default", "Ground"),
+            IgnoreTag = "Player",
+            // Keep the near clip plane clear of scenery, not just the camera's center.
+            CameraRadius = 0.25f,
+            // Correct immediately before entering geometry, then ease back out.
+            DampingIntoCollision = 0f,
+            DampingFromCollision = 0.5f
         };
         
         // configure cursor
