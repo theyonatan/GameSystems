@@ -49,6 +49,66 @@ internal static class GrassAuthoringVerification
         field.SetValue(window, Enum.Parse(field.FieldType, name));
     }
 
+    [MenuItem("Tools/Grass Verification/Verify Scene Callback Lifecycle")]
+    internal static void VerifySceneCallbackLifecycle()
+    {
+        if (Application.isPlaying) throw new Exception("Run verification outside Play Mode.");
+        var report = new StringBuilder();
+        var callbackField = typeof(SceneView).GetField("duringSceneGui", BindingFlags.Static | BindingFlags.NonPublic);
+        if (callbackField == null) throw new Exception("Scene View callback inspection is unavailable in this Editor.");
+        int CallbackCount(GrassComputeScript target)
+        {
+            var callbacks = callbackField.GetValue(null) as Delegate;
+            return callbacks == null ? 0 : callbacks.GetInvocationList().Count(callback => ReferenceEquals(callback.Target, target));
+        }
+
+        var scene = EditorSceneManager.NewPreviewScene();
+        Action<SceneView> staleCallback = null;
+        try
+        {
+            var inactiveRoot = new GameObject("Inactive grass lifecycle verification");
+            SceneManager.MoveGameObjectToScene(inactiveRoot, scene);
+            inactiveRoot.SetActive(false);
+            var inactiveGrass = inactiveRoot.AddComponent<GrassComputeScript>();
+            Require(CallbackCount(inactiveGrass) == 0, "Adding grass to an inactive object does not subscribe during Reset", report);
+            inactiveGrass.Reset(); inactiveGrass.ResetFaster();
+            Require(CallbackCount(inactiveGrass) == 0, "Explicit resets on inactive grass do not subscribe", report);
+
+            // Reproduce the managed delegate left by the old implementation.
+            staleCallback = (Action<SceneView>)Delegate.CreateDelegate(typeof(Action<SceneView>), inactiveGrass,
+                typeof(GrassComputeScript).GetMethod("OnScene", Private));
+            Object.DestroyImmediate(inactiveRoot);
+            Require(CallbackCount(inactiveGrass) == 0, "Deleting never-enabled grass leaves no callback", report);
+            SceneView.duringSceneGui += staleCallback;
+            staleCallback(SceneView.lastActiveSceneView);
+            Require(CallbackCount(inactiveGrass) == 0, "A stale callback safely removes itself without touching the destroyed GameObject", report);
+
+            var activeRoot = new GameObject("Active grass lifecycle verification");
+            SceneManager.MoveGameObjectToScene(activeRoot, scene);
+            var activeGrass = activeRoot.AddComponent<GrassComputeScript>();
+            Require(CallbackCount(activeGrass) == 1, "Enabled grass subscribes exactly once", report);
+            activeGrass.Reset(); activeGrass.ResetFaster();
+            Require(CallbackCount(activeGrass) == 1, "Repeated active resets retain exactly one callback", report);
+            activeGrass.enabled = false;
+            activeGrass.ResetFaster();
+            Require(CallbackCount(activeGrass) == 0, "Disabled grass stays unsubscribed after a reset", report);
+            activeGrass.enabled = true;
+            Require(CallbackCount(activeGrass) == 1, "Re-enabling restores the preview callback", report);
+            activeRoot.SetActive(false);
+            Require(CallbackCount(activeGrass) == 0, "Deactivating the object removes its callback", report);
+            activeRoot.SetActive(true);
+            Object.DestroyImmediate(activeRoot);
+            Require(CallbackCount(activeGrass) == 0, "Destroying enabled grass removes its callback", report);
+        }
+        finally
+        {
+            if (staleCallback != null) SceneView.duringSceneGui -= staleCallback;
+            EditorSceneManager.ClosePreviewScene(scene);
+            File.WriteAllText("Library/GrassSceneCallbackLifecycle.verification.txt", report.ToString());
+        }
+        Debug.Log(report.ToString());
+    }
+
     [MenuItem("Tools/Grass Verification/Verify Prefab Brushes")]
     internal static void Verify()
     {

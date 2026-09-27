@@ -228,6 +228,9 @@ void Main(uint id : SV_DispatchThreadID)
 
         float bladeRadius = j / (float) numBladesPerVertex;
         float offset = (1 - bladeRadius) * _BladeRadius;
+        // One fixed ground sample per blade, including its offset within the
+        // painted tuft. Reuse the existing triangle payload; no stride change.
+        float3 bladeRootWS = sv.positionWS + mul(facingRotationMatrix, float3(0, 0, offset));
 
          // interactivity/bending away from interactors
         float3 combinedDisp = 0;
@@ -237,7 +240,7 @@ void Main(uint id : SV_DispatchThreadID)
         // disable movement for all cut grass
         // if(cut == -1){}
            
-        float3 offsetWorldPos = sv.positionWS + mul(facingRotationMatrix, float3(0, 0, offset));
+        float3 offsetWorldPos = bladeRootWS;
             for (int p = 0; p < _InteractorsLength; p++)
             {
             float3 playerToVertex = offsetWorldPos - _PositionsMoving[p].xyz;
@@ -289,7 +292,7 @@ void Main(uint id : SV_DispatchThreadID)
             DrawTriangle tri = (DrawTriangle)0;
             tri.normalOS = faceNormal;
             tri.diffuseColor = sv.color;
-            tri.extraBuffer = float4(cut, 0,0,0);
+            tri.extraBuffer = float4(cut, bladeRootWS);
             tri.vertices[0] = drawVertices[k];
             tri.vertices[1] = drawVertices[k + 1];
             tri.vertices[2] = drawVertices[k + 2];

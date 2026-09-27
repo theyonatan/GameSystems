@@ -23,6 +23,9 @@ public sealed class IslandGrassRouteBridge : MonoBehaviour
 
     private IslandRouteGenerator routeGenerator;
 
+    [Tooltip("Keep the cached grass ground map focused on the playable route instead of distant background islands. Texture resolution and refresh frequency are unchanged.")]
+    [SerializeField] private bool focusGroundBlendOnRoute = true;
+
     private void Awake()
     {
         routeGenerator = GetComponent<IslandRouteGenerator>();
@@ -35,21 +38,31 @@ public sealed class IslandGrassRouteBridge : MonoBehaviour
 
         routeGenerator.PieceInstantiated += ApplyPreset;
         routeGenerator.RouteGenerated += HandleRouteGenerated;
+        routeGenerator.RouteCleared += ClearGroundCaptureRoot;
+        RefreshGroundCaptureRoot();
     }
 
     private void OnDisable()
     {
+        ClearGroundCaptureRoot();
         if (routeGenerator == null)
             return;
 
         routeGenerator.PieceInstantiated -= ApplyPreset;
         routeGenerator.RouteGenerated -= HandleRouteGenerated;
+        routeGenerator.RouteCleared -= ClearGroundCaptureRoot;
     }
 
     private void ApplyPreset(AboveRoutePiece piece)
     {
         if (piece == null || !piece.HasGeneratedContext)
             return;
+
+        // Also called for pieces received by network clients.
+        // Network refresh also visits inactive pieces from the old route while
+        // their destruction is deferred; they must not replace the live root.
+        if (focusGroundBlendOnRoute && piece.gameObject.activeInHierarchy && piece.transform.parent != null)
+            WorldGrassGroundBlend.RegisterCaptureRoot(this, piece.transform.parent);
 
         SO_GrassSettings preset = FindPreset(piece.GeneratedBiome);
         if (preset == null)
@@ -62,11 +75,32 @@ public sealed class IslandGrassRouteBridge : MonoBehaviour
 
     private void HandleRouteGenerated()
     {
+        RefreshGroundCaptureRoot();
         if (worldGrassManager != null)
             worldGrassManager.RequestRebuild();
         else
             WorldGrassManager.NotifySourcesChanged();
     }
+
+    private void RefreshGroundCaptureRoot()
+    {
+        if (!focusGroundBlendOnRoute) { ClearGroundCaptureRoot(); return; }
+        // Match the generator's existing root recovery after an Editor reload.
+        var parent = routeGenerator.Generation.GeneratedParent != null
+            ? routeGenerator.Generation.GeneratedParent : routeGenerator.transform;
+        // ClearGenerated disables the previous root before its deferred Destroy.
+        // Transform.Find could return that old, identically named root this frame.
+        foreach (Transform child in parent)
+        {
+            if (child.name != "[Generated Above Island Route]" || !child.gameObject.activeSelf)
+                continue;
+            WorldGrassGroundBlend.RegisterCaptureRoot(this, child);
+            return;
+        }
+        ClearGroundCaptureRoot();
+    }
+
+    private void ClearGroundCaptureRoot() => WorldGrassGroundBlend.UnregisterCaptureRoot(this);
     
     public void ApplyPresetToPiece(AboveRoutePiece piece)
     {

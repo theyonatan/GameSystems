@@ -76,6 +76,53 @@ Sources sharing one `SO_GrassSettings` preset become one renderer. Different
 presets become separate renderers, allowing different biome colours without
 creating one GPU renderer per island.
 
+## Ground and path colour blending
+
+`WorldGrassGroundBlend` captures selected **Ground Materials** through their URP
+`GBuffer` albedo pass. **Include Albedo Passes** is enabled by default and also
+captures any mesh material whose shader explicitly provides a named
+`GrassGroundAlbedo` pass. This lets transparent paths opt in without layer
+changes or project-specific dependencies in the grass package.
+
+Custom passes must output unlit albedo, use the surface's real texture mapping,
+and use a custom LightMode so ordinary cameras do not render them. Transparent
+overlays should alpha-blend, depth-test and disable depth writes. Capture draws
+are sorted by render queue, with transparent surfaces ordered from lower to
+higher for the downward view. The camera projection is passed directly to the
+command buffer to avoid applying the graphics API depth conversion twice.
+
+The cached map refreshes on enable, validation and world-grass rebuilds. Use
+**Refresh Ground Blend Map** after manually moving or editing surfaces. Grass
+still needs its normal floor-blend shader or **Enable For All Grass**. Prefab
+Mode without a scene map falls back to the existing material colour. This
+remains a single top-down map, so vertically overlapping ground and very large
+map extents have the same height/resolution limitations as before.
+
+The standard compute shader now stores each blade's undisplaced world-space
+root in the existing `extraBuffer.yzw`. The floor-blend graphs use that root
+instead of the animated surface position, so wind cannot drag ground colors
+across a path boundary. The source/triangle strides stay at 48/100 bytes, and
+the map still requires one texture sample. `extraBuffer.x` retains cutting.
+
+Integrations may call `WorldGrassGroundBlend.RegisterCaptureRoot(owner, root)`
+and `UnregisterCaptureRoot(owner)` to focus the map's footprint on relevant
+surfaces. Multiple owners in one scene contribute a combined footprint.
+Surfaces outside the resulting square are skipped; all eligible ground inside
+it still participates in depth testing. Grass beyond the map uses its preset
+colors rather than stretching the clamped texture edge. With no registered
+root, capture keeps its original full-scene coverage.
+
+The optional `IslandGrassRouteBridge` registers the generated playable route
+with **Focus Ground Blend On Route** enabled by default. This also registers
+received route pieces on clients and recovers the route root after Editor
+reloads. Resolution and refresh frequency are unchanged; background islands
+no longer dilute the playable route's color-map detail.
+
+Editor lifecycle regression checks are available under **Tools > Grass
+Verification > Verify Scene Callback Lifecycle**. They cover inactive creation,
+reset, deletion, disable/re-enable and stale Scene View callbacks. The report
+is written to `Library/GrassSceneCallbackLifecycle.verification.txt`.
+
 ## Above biome colours
 
 1. Duplicate `Grass Settings.asset` for each visually distinct biome.

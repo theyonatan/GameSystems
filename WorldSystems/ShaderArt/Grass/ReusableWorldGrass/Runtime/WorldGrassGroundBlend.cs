@@ -8,14 +8,19 @@ using UnityEngine.SceneManagement;
 [ExecuteAlways, DisallowMultipleComponent]
 public sealed class WorldGrassGroundBlend : MonoBehaviour
 {
-    [Tooltip("Only submeshes using these ground materials are captured. Trees, grass and clouds are excluded.")]
+    [Tooltip("Ground materials captured through their URP GBuffer albedo pass. Shaders with a GrassGroundAlbedo pass can also opt in below.")]
     public Material[] groundMaterials = Array.Empty<Material>();
+    [Tooltip("Also capture surfaces whose shader explicitly provides a GrassGroundAlbedo pass, such as soft-edged dirt paths. No layer or material-list changes are needed for those surfaces.")]
+    public bool includeAlbedoPasses = true;
     [Tooltip("Enable ground blending for every grass preset in this scene without editing shared materials.")]
     public bool enableForAllGrass;
     [Range(256, 4096)] public int resolution = 2048;
     [Min(0.1f)] public float padding = 2f;
 
     static readonly List<WorldGrassGroundBlend> maps = new List<WorldGrassGroundBlend>();
+    // Optional integrations can focus map resolution without coupling this
+    // reusable capture to a particular generator. Registration is order-safe.
+    static readonly Dictionary<Component, Transform> captureRoots = new Dictionary<Component, Transform>();
     static readonly int blendId = Shader.PropertyToID("_Blend");
     static readonly int textureId = Shader.PropertyToID("_TerrainDiffuse");
     static readonly int sizeId = Shader.PropertyToID("_OrthographicCamSizeTerrain");
@@ -55,6 +60,19 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
             if (entry != null && entry.gameObject.scene == scene) entry.RequestRefresh();
     }
 
+    public static void RegisterCaptureRoot(Component owner, Transform root)
+    {
+        if (owner == null || root == null) return;
+        if (captureRoots.TryGetValue(owner, out var existing) && existing == root) return;
+        captureRoots[owner] = root;
+        RequestSceneRefresh(owner.gameObject.scene);
+    }
+
+    public static void UnregisterCaptureRoot(Component owner)
+    {
+        if (owner != null && captureRoots.Remove(owner)) RequestSceneRefresh(owner.gameObject.scene);
+    }
+
     // Uses the same property block as the batch buffer: no global shader state
     // leaks between scenes, and no changes to shared grass materials at runtime.
     public static void Apply(GrassComputeScript grass, Material material, MaterialPropertyBlock properties)
@@ -90,10 +108,16 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
         dirty = false;
         Ready = false;
         CapturedSubmeshes = 0;
-        if (groundMaterials == null || groundMaterials.Length == 0) return;
+        if (!includeAlbedoPasses && (groundMaterials == null || groundMaterials.Length == 0)) return;
         var draws = new List<(Renderer renderer, Material material, int submesh, int pass)>();
+        var focusRoots = new List<Transform>();
+        foreach (var entry in captureRoots)
+            if (entry.Key != null && entry.Value != null && entry.Key.gameObject.scene == gameObject.scene && entry.Value.gameObject.activeInHierarchy)
+                focusRoots.Add(entry.Value);
         Bounds bounds = default;
+        Bounds focusBounds = default;
         bool haveBounds = false;
+        bool haveFocusBounds = false;
         foreach (var renderer in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
         {
             if (!renderer.enabled || renderer.gameObject.scene != gameObject.scene) continue;
@@ -103,21 +127,60 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
             for (int submesh = 0; submesh < Mathf.Min(materials.Length, filter.sharedMesh.subMeshCount); submesh++)
             {
                 var material = materials[submesh];
-                if (material == null || Array.IndexOf(groundMaterials, material) < 0) continue;
+                if (material == null) continue;
+                // A dedicated pass explicitly opts a surface into the map and can
+                // preserve alpha-blended edges without capturing scene lighting.
+                int pass = includeAlbedoPasses ? material.FindPass("GrassGroundAlbedo") : -1;
+                bool selected = groundMaterials != null && Array.IndexOf(groundMaterials, material) >= 0;
+                if (pass < 0 && !selected) continue;
                 // URP's GBuffer target 0 contains albedo, without sun/shadows.
                 // Grass applies its own lighting after the floor-color blend.
-                int pass = material.FindPass("GBuffer");
+                if (pass < 0) pass = material.FindPass("GBuffer");
                 if (pass < 0)
                 {
-                    Debug.LogWarning($"Ground blend: '{material.name}' needs a URP GBuffer pass to capture albedo.", this);
+                    Debug.LogWarning($"Ground blend: '{material.name}' needs a URP GBuffer or enabled GrassGroundAlbedo pass to capture albedo.", this);
                     continue;
                 }
                 draws.Add((renderer, material, submesh, pass));
                 if (!haveBounds) { bounds = renderer.bounds; haveBounds = true; }
                 else bounds.Encapsulate(renderer.bounds);
+                foreach (var root in focusRoots)
+                    if (renderer.transform.IsChildOf(root))
+                    {
+                        if (!haveFocusBounds) { focusBounds = renderer.bounds; haveFocusBounds = true; }
+                        else focusBounds.Encapsulate(renderer.bounds);
+                        break;
+                    }
             }
         }
         if (!haveBounds) return;
+        // Focus XZ coverage on the playable surface. Nearby background ground
+        // inside that square is still captured for its grass; far surfaces are
+        // skipped. Resolution, texture count and refresh frequency stay fixed.
+        Bounds footprint = haveFocusBounds ? focusBounds : bounds;
+        mapSize = Mathf.Max(footprint.extents.x, footprint.extents.z) + Mathf.Max(.1f, padding);
+        if (haveFocusBounds)
+        {
+            draws.RemoveAll(draw => draw.renderer.bounds.max.x < footprint.center.x - mapSize ||
+                draw.renderer.bounds.min.x > footprint.center.x + mapSize ||
+                draw.renderer.bounds.max.z < footprint.center.z - mapSize ||
+                draw.renderer.bounds.min.z > footprint.center.z + mapSize);
+            // Retain all captured heights so nearby elevated/lower surfaces
+            // still participate in depth testing inside the focused map.
+            bounds = draws[0].renderer.bounds;
+            for (int i = 1; i < draws.Count; i++) bounds.Encapsulate(draws[i].renderer.bounds);
+        }
+        // DrawRenderer does not sort for us. Capture opaque ground first, then
+        // composite transparent paths against its depth, from lower to higher
+        // surfaces (back to front for the downward-facing capture).
+        draws.Sort((a, b) =>
+        {
+            int queue = a.material.renderQueue.CompareTo(b.material.renderQueue);
+            if (queue != 0) return queue;
+            return a.material.renderQueue > (int)RenderQueue.GeometryLast
+                ? a.renderer.bounds.center.y.CompareTo(b.renderer.bounds.center.y)
+                : 0;
+        });
         int size = Mathf.Clamp(resolution, 256, 4096);
         if (map == null || map.width != size || !map.IsCreated())
         {
@@ -133,8 +196,7 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
             captureCamera = cameraObject.AddComponent<Camera>();
             captureCamera.enabled = false;
         }
-        mapSize = Mathf.Max(bounds.extents.x, bounds.extents.z) + Mathf.Max(.1f, padding);
-        mapPosition = new Vector3(bounds.center.x, bounds.max.y + 10f, bounds.center.z);
+        mapPosition = new Vector3(footprint.center.x, bounds.max.y + 10f, footprint.center.z);
         captureCamera.transform.SetPositionAndRotation(mapPosition, Quaternion.Euler(90f, 0f, 0f));
         captureCamera.orthographic = true;
         captureCamera.orthographicSize = mapSize;
@@ -149,10 +211,11 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
             commands.SetRenderTarget(map);
             commands.ClearRenderTarget(true, true, Color.clear);
             commands.SetViewport(new Rect(0, 0, size, size));
-            // GetWorldUV in the existing grass shader maps +Z to +V. Use the
-            // unflipped projection: a camera-style render-texture Y flip would
-            // mirror this data map relative to those world-space coordinates.
-            commands.SetViewProjectionMatrices(captureCamera.worldToCameraMatrix, GL.GetGPUProjectionMatrix(captureCamera.projectionMatrix, false));
+            // This command converts the camera projection to the graphics API.
+            // Pre-converting it with GL.GetGPUProjectionMatrix reverses depth
+            // twice on D3D, letting surfaces below the ground win the depth test.
+            // The unflipped map keeps +Z aligned with +V in grass GetWorldUV.
+            commands.SetViewProjectionMatrices(captureCamera.worldToCameraMatrix, captureCamera.projectionMatrix);
             foreach (var draw in draws) commands.DrawRenderer(draw.renderer, draw.material, draw.submesh, draw.pass);
             Graphics.ExecuteCommandBuffer(commands);
             CapturedSubmeshes = draws.Count;

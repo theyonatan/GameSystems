@@ -115,13 +115,19 @@ public class GrassComputeScript : MonoBehaviour
 
     void OnDestroy()
     {
-        // When the window is destroyed, remove the delegate
-        // so that it will no longer do any drawing.
+        // Remove the component's Scene View callback when it is destroyed.
         SceneView.duringSceneGui -= this.OnScene;
     }
 
     void OnScene(SceneView scene)
     {
+        // A destroyed Unity object can still be held by a managed event.
+        // Do not touch gameObject before checking the native object's lifetime.
+        if (this == null || !isActiveAndEnabled || EditorUtility.IsPersistent(this))
+        {
+            SceneView.duringSceneGui -= this.OnScene;
+            return;
+        }
         view = scene;
         if (!Application.IsPlaying(gameObject))
         {
@@ -175,7 +181,11 @@ public class GrassComputeScript : MonoBehaviour
 #if UNITY_EDITOR
 
         SceneView.duringSceneGui -= this.OnScene;
-        SceneView.duringSceneGui += this.OnScene;
+        // Reset also runs when adding a component to an inactive object. Such
+        // objects may never receive OnDisable/OnDestroy, so they must not
+        // subscribe to the static Scene View event until enabled.
+        if (isActiveAndEnabled && !EditorUtility.IsPersistent(this))
+            SceneView.duringSceneGui += this.OnScene;
         if (!Application.IsPlaying(gameObject))
         {
             if (view == null) view = SceneView.lastActiveSceneView;

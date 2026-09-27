@@ -45,3 +45,18 @@ void GetWorldUV_float(float3 worldPos, out float2 worldUV)
       uv += 0.5;
       worldUV = uv;
 }
+
+// extraBuffer.x remains the cut height. Its previously unused yzw carries
+// the blade's undisplaced root through the existing custom interpolator.
+void GetGrassRootUV_float(float4 rootData, out float2 worldUV)
+{
+      GetWorldUV_float(rootData.yzw, worldUV);
+}
+
+// Grass outside a focused ground map keeps its preset colours instead of
+// stretching the clamped map's edge over distant background islands.
+void BlendGrassGround_float(float3 A, float3 B, float T, float2 UV, out float3 Out)
+{
+      bool inside = all(UV >= 0.0) && all(UV <= 1.0);
+      Out = lerp(A, B, inside ? T : 1.0);
+}
