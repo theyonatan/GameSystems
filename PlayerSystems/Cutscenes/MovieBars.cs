@@ -1,13 +1,19 @@
 using UnityEngine;
 using DG.Tweening;
+using System.Collections.Generic;
 
 public class MovieBars : MonoBehaviour
 {
+    private static readonly HashSet<MovieBars> Presenters = new();
+    public static bool AnyPresenting => Presenters.Count > 0;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetPresentation() => Presenters.Clear();
     [SerializeField] RectTransform topBar;
     [SerializeField] RectTransform bottomBar;
 
     Vector2 _topOriginal;
     Vector2 _bottomOriginal;
+    public bool IsPresenting { get; private set; }
 
     void Awake()
     {
@@ -17,6 +23,8 @@ public class MovieBars : MonoBehaviour
 
     public void PlayEnterAnimation(float duration, System.Action onComplete)
     {
+        IsPresenting = true;
+        Presenters.Add(this);
         float topHeight = topBar.rect.height;
         float bottomHeight = bottomBar.rect.height;
         
@@ -63,7 +71,11 @@ public class MovieBars : MonoBehaviour
         {
             tweenCount--;
             if (tweenCount <= 0)
+            {
+                IsPresenting = false;
+                Presenters.Remove(this);
                 onComplete?.Invoke();
+            }
         }
 
         topBar.DOAnchorPos(newTop, duration)
@@ -73,5 +85,11 @@ public class MovieBars : MonoBehaviour
         bottomBar.DOAnchorPos(newBottom, duration)
             .SetEase(Ease.OutQuad)
             .OnComplete(OneDone);
+    }
+
+    private void OnDisable()
+    {
+        IsPresenting = false;
+        Presenters.Remove(this);
     }
 }
