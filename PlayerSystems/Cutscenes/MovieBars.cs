@@ -33,8 +33,8 @@ public class MovieBars : MonoBehaviour
         DOTween.Kill(bottomBar);
 
         // teleport offscreen (relative to final)
-        topBar.anchoredPosition += new Vector2(0,  topHeight);
-        bottomBar.anchoredPosition += new Vector2(0, -bottomHeight);
+        topBar.anchoredPosition = _topOriginal + new Vector2(0, topHeight);
+        bottomBar.anchoredPosition = _bottomOriginal + new Vector2(0, -bottomHeight);
 
         var tweenCount = 2;
         void OneDone()
@@ -59,8 +59,8 @@ public class MovieBars : MonoBehaviour
         float bottomHeight = bottomBar.rect.height;
         
         // teleport offscreen (relative to final)
-        var newTop = topBar.anchoredPosition + new Vector2(0,  topHeight);
-        var newBottom = bottomBar.anchoredPosition + new Vector2(0, -bottomHeight);
+        var newTop = _topOriginal + new Vector2(0, topHeight);
+        var newBottom = _bottomOriginal + new Vector2(0, -bottomHeight);
         
         // kill if accidentally there were previous tweens
         DOTween.Kill(topBar);
@@ -89,6 +89,8 @@ public class MovieBars : MonoBehaviour
 
     private void OnDisable()
     {
+        DOTween.Kill(topBar);
+        DOTween.Kill(bottomBar);
         IsPresenting = false;
         Presenters.Remove(this);
     }
