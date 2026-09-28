@@ -5,7 +5,6 @@ using UnityEngine;
 public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlayerReferences
 {
     protected InputDirector _inputDirector;
-    private bool _unsubscribedFromDefaultInteract = false;
     private int _interactionMask;
     public List<string> InteractableTypes;
 
@@ -21,6 +20,9 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
     // Start is called before the first frame update
     public void StartPlayer()
     {
+        // Owner setup can call Start before Unity delivers its own Start, and
+        // skin changes also replay it. One input press must invoke us only once.
+        UnsubscribeFromDefaultInteract();
         _interactionHandlers = GetComponents<IPlayerInteractionHandler>();
         _inputDirector = GetComponent<InputDirector>();
         _inputDirector.OnInteractPressed += OnPressedInteract;
@@ -93,11 +95,8 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
 
     protected void UnsubscribeFromDefaultInteract()
     {
-        if (_unsubscribedFromDefaultInteract)
-            return;
-        
-        _unsubscribedFromDefaultInteract = true;
-        _inputDirector.OnInteractPressed -= OnPressedInteract;
+        if (_inputDirector != null)
+            _inputDirector.OnInteractPressed -= OnPressedInteract;
     }
 
     private bool TryGetInteractionHit(out RaycastHit hit)

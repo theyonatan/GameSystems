@@ -125,6 +125,10 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         if (!_localPlayer.HasAuthority)
             return;
         
+        // Reinitializing the owner must not leave a second enabled action map
+        // delivering the same key press (e.g. setup replay after a skin swap).
+        _playerInput?.Disable();
+        _playerInput?.Dispose();
         _playerInput = new ActionsMaster();
         
         // actions
