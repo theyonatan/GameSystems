@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 [ExecuteAlways, DisallowMultipleComponent]
 public sealed class WorldGrassGroundBlend : MonoBehaviour
 {
-    [Tooltip("Ground materials captured through their URP GBuffer albedo pass. Shaders with a GrassGroundAlbedo pass can also opt in below.")]
+    [Tooltip("Ground materials captured using a WorldGrassAlbedoShader mapping in Resources/GrassGroundAlbedo, or their own GrassGroundAlbedo pass.")]
     public Material[] groundMaterials = Array.Empty<Material>();
     [Tooltip("Also capture surfaces whose shader explicitly provides a GrassGroundAlbedo pass, such as soft-edged dirt paths. No layer or material-list changes are needed for those surfaces.")]
     public bool includeAlbedoPasses = true;
@@ -25,6 +25,10 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
     static readonly int textureId = Shader.PropertyToID("_TerrainDiffuse");
     static readonly int sizeId = Shader.PropertyToID("_OrthographicCamSizeTerrain");
     static readonly int positionId = Shader.PropertyToID("_OrthographicCamPosTerrain");
+    static readonly int coverageId = Shader.PropertyToID("_GrassGroundCoverage");
+    static readonly int useCoverageId = Shader.PropertyToID("_GrassGroundUseCoverage");
+    readonly Dictionary<Material, Material> captureMaterials = new Dictionary<Material, Material>();
+    WorldGrassAlbedoShader[] captureShaders;
     RenderTexture map;
     Camera captureCamera;
     bool dirty = true;
@@ -51,6 +55,9 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
         ReleaseMap();
         if (captureCamera != null) DestroyOwned(captureCamera.gameObject);
         captureCamera = null;
+        foreach (var material in captureMaterials.Values) if (material) DestroyOwned(material);
+        captureMaterials.Clear();
+        captureShaders = null;
     }
     [ContextMenu("Refresh Ground Blend Map")]
     public void RequestRefresh() { dirty = true; }
@@ -78,6 +85,7 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
     public static void Apply(GrassComputeScript grass, Material material, MaterialPropertyBlock properties)
     {
         if (!material.HasProperty(blendId)) return;
+        properties.SetFloat(useCoverageId, 0f);
         float enabledBlend = material.GetFloat(blendId);
         properties.SetFloat(blendId, enabledBlend);
         foreach (var entry in maps)
@@ -92,6 +100,8 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
                 return;
             }
             properties.SetTexture(textureId, entry.map);
+            properties.SetTexture(coverageId, entry.map);
+            properties.SetFloat(useCoverageId, 1f);
             properties.SetFloat(sizeId, entry.mapSize);
             properties.SetVector(positionId, entry.mapPosition);
             return;
@@ -110,6 +120,8 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
         CapturedSubmeshes = 0;
         if (!includeAlbedoPasses && (groundMaterials == null || groundMaterials.Length == 0)) return;
         var draws = new List<(Renderer renderer, Material material, int submesh, int pass)>();
+        var preparedMaterials = new HashSet<Material>();
+        if (captureShaders == null) captureShaders = Resources.LoadAll<WorldGrassAlbedoShader>("GrassGroundAlbedo");
         var focusRoots = new List<Transform>();
         foreach (var entry in captureRoots)
             if (entry.Key != null && entry.Value != null && entry.Key.gameObject.scene == gameObject.scene && entry.Value.gameObject.activeInHierarchy)
@@ -133,12 +145,29 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
                 int pass = includeAlbedoPasses ? material.FindPass("GrassGroundAlbedo") : -1;
                 bool selected = groundMaterials != null && Array.IndexOf(groundMaterials, material) >= 0;
                 if (pass < 0 && !selected) continue;
-                // URP's GBuffer target 0 contains albedo, without sun/shadows.
-                // Grass applies its own lighting after the floor-color blend.
-                if (pass < 0) pass = material.FindPass("GBuffer");
                 if (pass < 0)
                 {
-                    Debug.LogWarning($"Ground blend: '{material.name}' needs a URP GBuffer or enabled GrassGroundAlbedo pass to capture albedo.", this);
+                    var source = material;
+                    // A GBuffer pass can disappear from Forward/Forward+ player builds.
+                    // Use an explicitly referenced single-target albedo shader instead.
+                    if (!captureMaterials.TryGetValue(source, out material))
+                    {
+                        foreach (var mapping in captureShaders)
+                            if (mapping && mapping.surfaceShader == source.shader && mapping.captureShader)
+                            {
+                                material = new Material(mapping.captureShader)
+                                { name = source.name + " (grass albedo)", hideFlags = HideFlags.HideAndDontSave };
+                                captureMaterials.Add(source, material);
+                                break;
+                            }
+                    }
+                    if (material && preparedMaterials.Add(source)) material.CopyPropertiesFromMaterial(source);
+                    pass = material ? material.FindPass("GrassGroundAlbedo") : source.FindPass("GrassGroundAlbedo");
+                    if (!material) material = source;
+                }
+                if (pass < 0)
+                {
+                    Debug.LogWarning($"Ground blend: '{material.name}' needs a GrassGroundAlbedo pass or a WorldGrassAlbedoShader mapping in Resources/GrassGroundAlbedo.", this);
                     continue;
                 }
                 draws.Add((renderer, material, submesh, pass));

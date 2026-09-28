@@ -17,6 +17,9 @@ struct DrawTriangle
 StructuredBuffer<DrawTriangle> _DrawTriangles;
 float _OrthographicCamSizeTerrain;
 float3 _OrthographicCamPosTerrain;
+Texture2D<float4> _GrassGroundCoverage;
+SamplerState sampler_GrassGroundCoverage;
+float _GrassGroundUseCoverage;
 
 //get the data from the compute shader
 void GetComputeData_float(float vertexID, out float3 worldPos, out float3 normal, out float2 uv, out float3 col, out float4 extraBuffer)
@@ -58,5 +61,13 @@ void GetGrassRootUV_float(float4 rootData, out float2 worldUV)
 void BlendGrassGround_float(float3 A, float3 B, float T, float2 UV, out float3 Out)
 {
       bool inside = all(UV >= 0.0) && all(UV <= 1.0);
+      if (_GrassGroundUseCoverage > 0.5)
+      {
+            float coverage = saturate(_GrassGroundCoverage.SampleLevel(sampler_GrassGroundCoverage, UV, 0).a);
+            // The map is composited over transparent black. Unpremultiply its
+            // edges and use preset colours wherever no ground was captured.
+            A /= max(coverage, 0.0001);
+            T = lerp(1.0, T, coverage);
+      }
       Out = lerp(A, B, inside ? T : 1.0);
 }
