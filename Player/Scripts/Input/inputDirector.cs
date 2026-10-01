@@ -49,9 +49,9 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     [SerializeField] private float clickDragThreshold = 8f;
 
     [Header("Camera input")]
-    [Tooltip("Stick speed in the camera's input units per second (120 is 180 degrees/second with the default camera).")]
-    [SerializeField, Min(0f)] private float stickLookSpeed = 120f;
-    [SerializeField, Min(0f)] private float mouseLookScale = 0.1f;
+    [Tooltip("Stick speed in camera input units per second (75 is 112.5 degrees/second with the default camera).")]
+    [SerializeField, Min(0f)] private float stickLookSpeed = 75f;
+    [SerializeField, Min(0f)] private float mouseLookScale = 0.06f;
 
     public InputActionAsset ActiveActions => _playerInput?.asset;
 

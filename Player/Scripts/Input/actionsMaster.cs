@@ -389,7 +389,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""c1f57e1d-3561-4bf6-9814-b381aa672e9e"",
-                    ""path"": ""<Gamepad>/buttonWest"",
+                    ""path"": ""<Gamepad>/buttonSouth"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": ""main"",
@@ -400,7 +400,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""8f2cac3c-359d-4d01-a00e-6df48cfd7f57"",
-                    ""path"": ""<Gamepad>/buttonSouth"",
+                    ""path"": ""<Gamepad>/buttonEast"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -532,7 +532,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""7a14ca43-f901-46fd-8a91-c6353ee5172a"",
-                    ""path"": ""<Gamepad>/buttonWest"",
+                    ""path"": """",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -680,6 +680,17 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": """",
                     ""action"": ""Pause"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e3c28ee2-18ab-4fc0-9b55-b4f60785ddc3"",
+                    ""path"": ""<Gamepad>/rightStick"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Look"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
