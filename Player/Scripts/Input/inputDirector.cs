@@ -48,6 +48,25 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     
     [SerializeField] private float clickDragThreshold = 8f;
 
+    [Header("Camera input")]
+    [Tooltip("Stick speed in the camera's input units per second (120 is 180 degrees/second with the default camera).")]
+    [SerializeField, Min(0f)] private float stickLookSpeed = 120f;
+    [SerializeField, Min(0f)] private float mouseLookScale = 0.1f;
+
+    public InputActionAsset ActiveActions => _playerInput?.asset;
+
+    // Read every frame: a held stick doesn't keep sending performed callbacks.
+    // Mouse delta is already a per-frame displacement and must not use deltaTime.
+    public Vector2 ReadCameraLook()
+    {
+        if (!GameplayInputEnabled || _playerInput == null) return Vector2.zero;
+        var look = _playerInput.Player.Look;
+        Vector2 value = look.ReadValue<Vector2>();
+        return look.activeControl?.device is Gamepad || look.activeControl?.device is Joystick
+            ? value * stickLookSpeed * Time.deltaTime
+            : value * mouseLookScale;
+    }
+
     private Vector2 _mouseDownPosition;
     private bool _mouseWasDragged;
 

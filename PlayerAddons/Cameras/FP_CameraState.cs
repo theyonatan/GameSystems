@@ -127,8 +127,9 @@ public class FP_CameraState : CameraState
     {
         if (!_updatedThisFrameThroughArrows)
         {
-            _mouseX = Input.GetAxisRaw("Mouse X");
-            _mouseY = Input.GetAxisRaw("Mouse Y");
+            Vector2 look = InputDirector.ReadCameraLook();
+            _mouseX = look.x;
+            _mouseY = look.y;
         }
 
         if (!CanLookAround)
