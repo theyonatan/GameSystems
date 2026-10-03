@@ -48,6 +48,7 @@ namespace GameSystems.Audio.Feel
             options.RolloffMode = AudioRolloffMode.Linear;
             options.DopplerLevel = 0;
             options.Priority = cue.Priority;
+            options.PlaybackTime = cue.StartSeconds(clip);
             // The service owns lifetime/scene cleanup, avoiding FEEL's delayed recycle
             // coroutines touching a source that has already been stopped and reused.
             options.Loop = true;

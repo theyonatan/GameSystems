@@ -197,7 +197,7 @@ namespace GameSystems.Audio.Editor
             void LoadAdvanced()
             {
                 if (advanced.contentContainer.childCount > 0) return;
-                foreach (var field in new[] { "Clips", "Pitch", "Loop", "SpatialBlend", "MinDistance", "MaxDistance", "Priority", "MaxInstances", "Cooldown", "Notes" })
+                foreach (var field in new[] { "Muted", "Clips", "ClipStarts", "Pitch", "Loop", "SpatialBlend", "MinDistance", "MaxDistance", "Priority", "MaxInstances", "Cooldown", "Notes" })
                 {
                     var input = new PropertyField(property.FindPropertyRelative(field), field == "Clips" ? "All clips / variations (includes main clip)" : null);
                     input.Bind(serializedObject);

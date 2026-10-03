@@ -53,24 +53,50 @@ namespace GameSystems.Audio
 
         public AudioHandle Play(string key, Vector3 position = default, Transform emitter = null)
         {
-            var cue = Library ? Library.Find(key) : null;
+            var cue = ResolveCue(key);
             return PlayCue(cue, position, emitter, false);
         }
 
-        private AudioHandle PlayCue(AudioCue cue, Vector3 position, Transform emitter, bool music)
+        /// <summary>Play an exact library variation, for ordered steps or replicated selections.</summary>
+        public AudioHandle PlayVariation(string key, int variation, Vector3 position = default, Transform emitter = null)
         {
-            if (Instance != this || !Backend || cue == null || !cue.HasClips) return null;
+            var cue = ResolveCue(key);
+            if (cue?.Clips == null || variation < 0 || variation >= cue.Clips.Length || !cue.Clips[variation]) return null;
+            return PlayCue(cue, position, emitter, false, cue.Clips[variation]);
+        }
+
+        private AudioHandle PlayCue(AudioCue cue, Vector3 position, Transform emitter, bool music, AudioClip selected = null)
+        {
+            if (Instance != this || !Backend || cue == null) return null;
+#if UNITY_EDITOR
+            double requested = Time.realtimeSinceStartupAsDouble;
+#endif
+            AudioHandle Skip(string reason)
+            {
+#if UNITY_EDITOR
+                AudioDiagnostics.Report(cue, null, emitter, reason, requested);
+#endif
+                return null;
+            }
+            if (cue.Muted) return Skip("Muted");
+#if UNITY_EDITOR
+            if (!string.IsNullOrEmpty(AudioDiagnostics.SoloKey) && cue.Key != AudioDiagnostics.SoloKey) return Skip("Solo");
+#endif
+            if (!cue.HasClips) return Skip("Unassigned");
             int emitterId = emitter ? emitter.GetInstanceID() : 0;
             var cooldownKey = (cue.Key ?? string.Empty, emitterId);
-            if (!music && _lastPlay.TryGetValue(cooldownKey, out float last) && Time.unscaledTime - last < cue.Cooldown) return null;
+            if (!music && _lastPlay.TryGetValue(cooldownKey, out float last) && Time.unscaledTime - last < cue.Cooldown) return Skip("Cooldown");
             int count = 0;
             foreach (var active in _voices)
-                if (active.IsValid && active.Source.isPlaying && active.Cue == cue) count++;
-            if (!music && count >= Mathf.Max(1, cue.MaxInstances)) return null;
+                if (active.IsValid && active.Source.isPlaying && active.Cue.Key == cue.Key) count++;
+            if (!music && count >= Mathf.Max(1, cue.MaxInstances)) return Skip("Voice limit");
             _lastClip.TryGetValue(cue.Key ?? string.Empty, out var previous);
-            AudioClip clip = cue.PickClip(previous);
+            AudioClip clip = selected ? selected : cue.PickClip(previous);
             var source = Backend.Play(clip, cue, position, Mix ? Mix.Group(cue.Channel) : null);
-            if (!source) return null;
+            if (!source) return Skip("Backend failed");
+#if UNITY_EDITOR
+            AudioDiagnostics.Report(cue, clip, emitter, "Played", requested, source.pitch);
+#endif
             _lastPlay[cooldownKey] = Time.unscaledTime;
             _lastClip[cue.Key ?? string.Empty] = clip;
             var handle = new AudioHandle
@@ -87,7 +113,7 @@ namespace GameSystems.Audio
 
         public AudioHandle PlayMusic(string key, float fadeSeconds = 1f, UnityEngine.Object owner = null)
         {
-            var cue = Library ? Library.Find(key) : null;
+            var cue = ResolveCue(key);
             if (cue == null || !cue.HasClips) { StopMusic(fadeSeconds); return null; }
             if (_music != null && _music.IsValid && _music.Key == key && !_music.ReleaseAfterFade)
             { _musicOwner = owner; return _music; }
@@ -124,6 +150,15 @@ namespace GameSystems.Audio
             Fade(next, next.Cue.Volume, fadeSeconds, false);
         }
 
+        private AudioCue ResolveCue(string key)
+        {
+            var cue = Library ? Library.Find(key) : null;
+#if UNITY_EDITOR
+            cue = AudioDiagnostics.Resolve(cue);
+#endif
+            return cue;
+        }
+
         public void StopMusic(float fadeSeconds = 1f, UnityEngine.Object owner = null)
         {
             if (owner && _musicOwner != owner) return;
@@ -155,6 +190,11 @@ namespace GameSystems.Audio
             {
                 var voice = _voices[i];
                 if (!voice.IsValid) { _voices.RemoveAt(i); continue; }
+#if UNITY_EDITOR
+                var audition = AudioDiagnostics.Resolve(Library ? Library.Find(voice.Key) ?? voice.Cue : voice.Cue);
+                voice.Source.mute = audition.Muted || (!string.IsNullOrEmpty(AudioDiagnostics.SoloKey) && voice.Key != AudioDiagnostics.SoloKey);
+                if (voice.FadeDuration <= 0 && !voice.ReleaseAfterFade) voice.Source.volume = audition.Volume;
+#endif
                 if ((!voice.Source.isPlaying && !AudioListener.pause) || (voice.Cue.Loop && voice.HasFollow && !voice.Follow))
                 { Release(voice); _voices.RemoveAt(i); continue; }
                 if (voice.Follow) voice.Source.transform.position = voice.Follow.position;

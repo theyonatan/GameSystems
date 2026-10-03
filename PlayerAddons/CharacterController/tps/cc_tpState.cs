@@ -5,6 +5,9 @@ using UnityEngine;
 [Serializable]
 public class cc_tpState : MovementState
 {
+    /// <summary>Accepted takeoff, after grounded/input checks; presentation only.</summary>
+    public static event Action<Player> Jumped;
+    public static event Action<Player> Landed;
     [Header("Definition")]
     public override MovementComponentType ComponentType => MovementComponentType.CharacterController;
     [SerializeField] public const string StateName = "cc ThirdPerson";
@@ -171,7 +174,9 @@ public class cc_tpState : MovementState
         if (!CanMove)
             return;
         
+        bool groundedBefore = cc.isGrounded;
         cc.Move(_movementVelocity * Time.deltaTime);
+        if (!groundedBefore && cc.isGrounded) Landed?.Invoke(_player);
     }
 
     private void HandleMovementInput()
@@ -251,6 +256,7 @@ public class cc_tpState : MovementState
         {
             _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
             _animator.Play("Jump");
+            Jumped?.Invoke(_player);
         }
 
         // new velocity, clamp if reached max

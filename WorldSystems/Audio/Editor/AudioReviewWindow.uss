@@ -1,0 +1,7 @@
+.audio-review { padding: 8px; }
+.audio-review .hint { white-space: normal; color: rgb(180, 192, 204); margin-bottom: 8px; }
+.audio-review .row { flex-direction: row; margin-top: 5px; margin-bottom: 5px; }
+.audio-review .row > * { flex-grow: 1; }
+.audio-review .events { height: 190px; margin-top: 8px; }
+.audio-review .status { white-space: normal; margin-top: 8px; }
+.audio-review .section { -unity-font-style: bold; margin-top: 10px; margin-bottom: 5px; }

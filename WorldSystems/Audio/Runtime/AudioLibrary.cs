@@ -7,6 +7,14 @@ namespace GameSystems.Audio
     public enum AudioChannel { Effects, Music, UI, Ambience, Voice }
 
     [Serializable]
+    public sealed class AudioClipStart
+    {
+        public AudioClip Clip;
+        [Min(0f), Tooltip("Skip the recording's quiet lead-in. Original audio file is unchanged.")]
+        public float Seconds;
+    }
+
+    [Serializable]
     public sealed class AudioCue
     {
         [Tooltip("Stable identifier used by gameplay. Changing it requires updating callers.")]
@@ -17,6 +25,8 @@ namespace GameSystems.Audio
         [Tooltip("Empty entries are deliberately silent. Add multiple clips for random variations.")]
         public AudioClip[] Clips = Array.Empty<AudioClip>();
         public AudioChannel Channel;
+        public bool Muted;
+        public List<AudioClipStart> ClipStarts = new();
         [Range(0f, 1f)] public float Volume = 0.8f;
         public Vector2 Pitch = Vector2.one;
         public bool Loop;
@@ -29,6 +39,12 @@ namespace GameSystems.Audio
         [Min(0f)] public float Cooldown = 0.03f;
 
         public bool HasClips => Clips != null && Array.Exists(Clips, clip => clip);
+
+        public float StartSeconds(AudioClip clip)
+        {
+            var start = ClipStarts?.Find(s => s != null && s.Clip == clip);
+            return clip ? Mathf.Clamp(start?.Seconds ?? 0f, 0f, Mathf.Max(0, clip.length - .02f)) : 0f;
+        }
 
         public AudioClip PickClip(AudioClip previous = null)
         {

@@ -12,6 +12,8 @@ class SceneDebugBuildLogger : IPreprocessBuildWithReport
 
     public void OnPreprocessBuild(BuildReport report)
     {
+        // Isolated fixture builds can skip editor-time world generators in unrelated scenes.
+        if (SessionState.GetBool("SceneDebugBuildLogger.SkipSceneScan", false)) return;
         Directory.CreateDirectory("BuildLogs");
         using (StreamWriter writer = new StreamWriter(logPath, false))
         {
