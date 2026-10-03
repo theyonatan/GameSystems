@@ -28,13 +28,13 @@ public sealed class NetworkAnimationRelay : NetworkBehaviour
 
         // Server-owned objects such as enemies have no owning client.
         if (!Owner.IsValid)
-            _animationsManager.AnimationPlayed += OnServerAnimationPlayed;
+            _animationsManager.AnimationTransitionPlayed += OnServerAnimationPlayed;
     }
 
     public override void OnStopServer()
     {
         if (_animationsManager != null)
-            _animationsManager.AnimationPlayed -= OnServerAnimationPlayed;
+            _animationsManager.AnimationTransitionPlayed -= OnServerAnimationPlayed;
 
         base.OnStopServer();
     }
@@ -42,9 +42,9 @@ public sealed class NetworkAnimationRelay : NetworkBehaviour
     private void OnServerAnimationPlayed(
         int stateHash,
         int layer,
-        float crossfade)
+        float crossfade, bool fixedTime)
     {
-        RelayAnimationObserversRpc(stateHash, layer, crossfade);
+        RelayAnimationObserversRpc(stateHash, layer, crossfade, fixedTime);
     }
 
     public override void OnStartClient()
@@ -54,30 +54,30 @@ public sealed class NetworkAnimationRelay : NetworkBehaviour
         FindVisualAnimator();
 
         if (IsOwner)
-            _animationsManager.AnimationPlayed += OnOwnerAnimationPlayed;
+            _animationsManager.AnimationTransitionPlayed += OnOwnerAnimationPlayed;
     }
 
     public override void OnStopClient()
     {
         if (_animationsManager != null)
-            _animationsManager.AnimationPlayed -= OnOwnerAnimationPlayed;
+            _animationsManager.AnimationTransitionPlayed -= OnOwnerAnimationPlayed;
 
         base.OnStopClient();
     }
 
-    private void OnOwnerAnimationPlayed(int stateHash, int layer, float crossfade)
+    private void OnOwnerAnimationPlayed(int stateHash, int layer, float crossfade, bool fixedTime)
     {
-        RelayAnimationServerRpc(stateHash, layer, crossfade);
+        RelayAnimationServerRpc(stateHash, layer, crossfade, fixedTime);
     }
 
     [ServerRpc(RequireOwnership = true)]
-    private void RelayAnimationServerRpc(int stateHash, int layer, float crossfade)
+    private void RelayAnimationServerRpc(int stateHash, int layer, float crossfade, bool fixedTime)
     {
-        RelayAnimationObserversRpc(stateHash, layer, crossfade);
+        RelayAnimationObserversRpc(stateHash, layer, crossfade, fixedTime);
     }
 
     [ObserversRpc(ExcludeOwner = true)]
-    private void RelayAnimationObserversRpc(int stateHash, int layer, float crossfade)
+    private void RelayAnimationObserversRpc(int stateHash, int layer, float crossfade, bool fixedTime)
     {
         // On a host, the server already played this animation locally.
         if (IsServerStarted && !Owner.IsValid)
@@ -95,7 +95,10 @@ public sealed class NetworkAnimationRelay : NetworkBehaviour
             return;
         }
 
-        visualAnimator.CrossFade(stateHash, Mathf.Max(0f, crossfade), layer);
+        if (fixedTime)
+            visualAnimator.CrossFadeInFixedTime(stateHash, Mathf.Max(0f, crossfade), layer);
+        else
+            visualAnimator.CrossFade(stateHash, Mathf.Max(0f, crossfade), layer);
     }
 
     private bool FindVisualAnimator()

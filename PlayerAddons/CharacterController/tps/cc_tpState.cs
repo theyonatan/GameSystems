@@ -43,6 +43,9 @@ public class cc_tpState : MovementState
     private float _verticalVelocity;
     private Vector3 _movementVelocity;
 
+    // Actual controller travel from our movement step, excluding external knockback.
+    public float HorizontalSpeed { get; private set; }
+
     // -------------------------------
     // State Machine
     // -------------------------------
@@ -108,6 +111,7 @@ public class cc_tpState : MovementState
             .AddParameter("Walking")
             .AddParameter("Falling")
             .AddParameter("Running")
+            .UseFixedTimeCrossfades("Idle", "Walking", "Running")
             .SetDefaultAnimation(DefaultAnimation)
             .Build(_animator);
     }
@@ -129,6 +133,7 @@ public class cc_tpState : MovementState
         HandleMovementInput();
         HandleJumpAndGravity();
         MovePlayer();
+        UpdateLocomotionAnimation();
     }
 
     public override void FixedUpdate()
@@ -159,6 +164,7 @@ public class cc_tpState : MovementState
         _animator.SetBool("Walking", false);
         _animator.SetBool("Falling", false);
         _animator.SetBool("Running", false);
+        HorizontalSpeed = 0f;
     }
 
     public override void RefreshPlayerReferences()
@@ -171,12 +177,27 @@ public class cc_tpState : MovementState
     // -------------------------------
     private void MovePlayer()
     {
+        HorizontalSpeed = 0f;
         if (!CanMove)
             return;
         
         bool groundedBefore = cc.isGrounded;
+        Vector3 before = cc.transform.position;
         cc.Move(_movementVelocity * Time.deltaTime);
+        Vector3 travelled = cc.transform.position - before;
+        HorizontalSpeed = new Vector2(travelled.x, travelled.z).magnitude / Mathf.Max(Time.deltaTime, .0001f);
         if (!groundedBefore && cc.isGrounded) Landed?.Invoke(_player);
+    }
+
+    private void UpdateLocomotionAnimation()
+    {
+        // Input can be released while still braking, or held against a wall.
+        // Hysteresis avoids repeated transitions at the walk/run boundary.
+        bool moving = HorizontalSpeed > (_animator.GetBool("Walking") ? .12f : .2f);
+        float runThreshold = Mathf.Max(.3f, walkSpeed * (_animator.GetBool("Running") ? 1.1f : 1.25f));
+        bool running = moving && HorizontalSpeed > runThreshold;
+        _animator.SetBool("Walking", moving);
+        _animator.SetBool("Running", running);
     }
 
     private void HandleMovementInput()
@@ -280,6 +301,8 @@ public class cc_tpState : MovementState
     {
         if (_animator.GetBool("Falling"))
             _animator.Play("Fall");
+        else if (_animator.GetBool("Walking"))
+            _animator.Play(_animator.GetBool("Running") ? "Running" : "Walking");
         else
             _animator.Play("Idle");
     }
@@ -290,13 +313,11 @@ public class cc_tpState : MovementState
     private void OnPlayerMoved(Vector2 movementValue)
     {
         _moveInput = movementValue;
-        _animator.SetBool("Walking", movementValue.sqrMagnitude > 0.01f);
     }
 
     private void OnPlayerMovedFinished()
     {
         _moveInput = Vector2.zero;
-        _animator.SetBool("Walking", false);
     }
 
     private void OnPlayerJumpStarted() => _holdingJump = true;
@@ -305,8 +326,6 @@ public class cc_tpState : MovementState
     private void OnPlayerRunStarted()
     {
         _holdingSprint = true;
-        
-        _animator.SetBool("Running", true);
     }
 
     private void OnLockSwitchPressed()
@@ -318,8 +337,6 @@ public class cc_tpState : MovementState
     private void OnPlayerRunStopped()
     {
         _holdingSprint = false;
-        
-        _animator.SetBool("Running", false);
     }
 
     private void OnEnablePlayerMovement() => CanMove = true;

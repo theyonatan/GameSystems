@@ -22,6 +22,8 @@ namespace SHG.AnimatorCoder
         /// External systems can observe playback without AnimatorCoder depending on them.
         /// </summary>
         public event Action<int, int, float> AnimationPlayed;
+        /// <summary>Playback with the transition time unit, used by visual network replicas.</summary>
+        public event Action<int, int, float, bool> AnimationTransitionPlayed;
         
         private Animator _animator;
 
@@ -176,8 +178,14 @@ namespace SHG.AnimatorCoder
             // Animator Play new animation
             if (Mathf.Approximately(customCrossfade, -1))
                 customCrossfade = animationToPlay.EntryCrossfade;
-            _animator.CrossFade(Animations[_currentAnimation[layer]].Hash, customCrossfade, layer);
-            AnimationPlayed?.Invoke(animationToPlay.Hash, layer, customCrossfade);
+            var resolvedAnimation = Animations[_currentAnimation[layer]];
+            if (resolvedAnimation.UseFixedTimeCrossfade)
+                _animator.CrossFadeInFixedTime(resolvedAnimation.Hash, customCrossfade, layer);
+            else
+                _animator.CrossFade(resolvedAnimation.Hash, customCrossfade, layer);
+            AnimationPlayed?.Invoke(resolvedAnimation.Hash, layer, customCrossfade);
+            AnimationTransitionPlayed?.Invoke(resolvedAnimation.Hash, layer, customCrossfade,
+                resolvedAnimation.UseFixedTimeCrossfade);
             
             // Handle if There's next animation
             if (animationToPlay.AutoNextAnimation == null)
@@ -197,8 +205,11 @@ namespace SHG.AnimatorCoder
                 yield return null; // let animator switch to current playing animation so we can work with it.
                 
                 // wait for the current animation to finish
-                float delay = _animator.GetNextAnimatorStateInfo(layer).length;
-                if (animationToPlay.EntryCrossfade == 0) delay = _animator.GetCurrentAnimatorStateInfo(layer).length;
+                // A short crossfade can already have finished by this frame, especially
+                // when leaving a faster locomotion cycle. There is then no next state.
+                float delay = _animator.IsInTransition(layer)
+                    ? _animator.GetNextAnimatorStateInfo(layer).length
+                    : _animator.GetCurrentAnimatorStateInfo(layer).length;
                 
                 // Get next animation (earlier we checked not null)
                 var nextAnimation = Animations[animationToPlay.AutoNextAnimation];
@@ -223,8 +234,9 @@ namespace SHG.AnimatorCoder
                 yield return null; // let animator switch to current playing animation so we can work with it.
                 
                 // wait for the current animation to finish
-                float delay = _animator.GetNextAnimatorStateInfo(layer).length;
-                if (animationToPlay.EntryCrossfade == 0) delay = _animator.GetCurrentAnimatorStateInfo(layer).length;
+                float delay = _animator.IsInTransition(layer)
+                    ? _animator.GetNextAnimatorStateInfo(layer).length
+                    : _animator.GetCurrentAnimatorStateInfo(layer).length;
                 
                 yield return new WaitForSeconds(delay);
                 
@@ -309,6 +321,7 @@ namespace SHG.AnimatorCoder
         
         /// <summary> Should there be a transition time into this animation? </summary>
         public float EntryCrossfade;
+        public bool UseFixedTimeCrossfade;
 
         /// <summary> Does this animation loop? e.g. walking, idle </summary>
         public bool Loops;

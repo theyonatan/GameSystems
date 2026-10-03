@@ -143,6 +143,14 @@ public class AnimationsManager : AnimatorCoder, IPlayerBehavior
             return this;
         }
 
+        /// <summary>Keep selected transitions in seconds when their clip cadence varies.</summary>
+        public Builder UseFixedTimeCrossfades(params string[] animationNames)
+        {
+            foreach (var name in animationNames)
+                _animations[name].UseFixedTimeCrossfade = true;
+            return this;
+        }
+
         /// <summary>
         /// Animation to play when unsure what to play / Default / Entry
         /// </summary>
