@@ -56,6 +56,9 @@ public sealed class RouteConfiguration : ScriptableObject
     private List<SpecialIslandRule> specialIslands =
         new List<SpecialIslandRule>();
 
+    [SerializeField] private ConnectedRouteSettings connectedRoute = new ConnectedRouteSettings();
+    public ConnectedRouteSettings ConnectedRoute => connectedRoute;
+
     public string RouteId => routeId;
     public string DisplayName => displayName;
     public int MaximumItemSpawnsPerRun => maximumItemSpawnsPerRun;

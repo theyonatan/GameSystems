@@ -18,6 +18,7 @@ public sealed class IslandRouteGeneratorEditor : Editor
         "rhythm",
         "routeShape",
         "detours",
+        "connectedRoute",
         "biomePhases",
         "clusterPhases",
         "islandPrefabs",
@@ -95,6 +96,7 @@ public sealed class IslandRouteGeneratorEditor : Editor
         DrawPropertyFoldout("Island Rhythm", rhythm, ref showRhythm);
         DrawPropertyFoldout("Route Shape & Height", routeShape, ref showRouteShape);
         DrawPropertyFoldout("Detours", detours, ref showDetours);
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("connectedRoute"), true);
 
         EditorGUILayout.PropertyField(
             autoEvenChances,

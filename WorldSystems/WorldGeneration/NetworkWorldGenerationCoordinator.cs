@@ -421,7 +421,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
              attempt <= maximumSeedAttempts;
              attempt++)
         {
-            int candidateSeed = CreateSeed();
+            int previewSeed = routeGenerator.ConnectedRoute.Enabled ? routeGenerator.ConnectedRoute.PreviewSeed : 0;
+            int candidateSeed = previewSeed != 0 ? previewSeed : CreateSeed();
 
             backgroundGenerator.ClearGeneratedBackground();
             if (runtimeRouteNavMesh != null)
@@ -441,6 +442,11 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     $"{maximumSeedAttempts} failed: " +
                     routeGenerator.LastFailureReason,
                     this);
+                if (previewSeed != 0)
+                {
+                    FailServerGeneration("Preview seed could not be generated: " + routeGenerator.LastFailureReason);
+                    return;
+                }
 
                 continue;
             }
@@ -455,6 +461,19 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     "The generated route runtime NavMesh could not be built:\n" +
                     navMeshBuildError);
                 return;
+            }
+
+            if (routeGenerator.ConnectedRoute.Enabled &&
+                (runtimeRouteNavMesh == null || !routeGenerator.ValidateConnectedNavigation(out _)))
+            {
+                routeGenerator.ValidateConnectedNavigation(out string connectivityError);
+                Debug.LogWarning("[World Generation] Connected route rejected: " + connectivityError, this);
+                if (previewSeed != 0)
+                {
+                    FailServerGeneration("Preview seed failed its walkability/gate check: " + connectivityError);
+                    return;
+                }
+                continue;
             }
 
             // Event planning is deterministic for this exact route. A plan

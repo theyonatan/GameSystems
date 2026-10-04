@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using Random = System.Random;
 
-public sealed class IslandRouteGenerator : MonoBehaviour
+public sealed partial class IslandRouteGenerator : MonoBehaviour
 {
     [Header("Reusable Configuration")]
     [Tooltip("Optional authored route configuration. Runtime systems may apply this asset before generation.")]
@@ -115,6 +115,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         rhythm = runtimeConfigurationCopy.Rhythm;
         routeShape = runtimeConfigurationCopy.RouteShape;
         detours = runtimeConfigurationCopy.Detours;
+        connectedRoute = runtimeConfigurationCopy.ConnectedRoute;
         biomePhases = runtimeConfigurationCopy.BiomePhases;
         clusterPhases = runtimeConfigurationCopy.ClusterPhases;
         islandPrefabs = runtimeConfigurationCopy.IslandPrefabs;
@@ -160,6 +161,8 @@ public sealed class IslandRouteGenerator : MonoBehaviour
 
         int seed = generation.UseRandomSeed ? CreateRandomSeed() : generation.Seed;
         LastUsedSeed = seed;
+        connectedGroundMeshes.Clear();
+        connectedGroundOutlines.Clear();
         Random random = new Random(seed);
 
         RouteBuildState successfulState = null;
@@ -167,7 +170,11 @@ public sealed class IslandRouteGenerator : MonoBehaviour
 
         for (int attempt = 0; attempt < generation.MaximumRouteAttempts; attempt++)
         {
-            if (TryBuildCompleteRoute(random, out RouteBuildState state, out string attemptError))
+            RouteBuildState state;
+            string attemptError;
+            if (connectedRoute.Enabled
+                ? TryBuildConnectedRoute(random, out state, out attemptError)
+                : TryBuildCompleteRoute(random, out state, out attemptError))
             {
                 successfulState = state;
                 break;
@@ -189,6 +196,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
 
         ClearGeneratedRoute();
         InstantiatePlan(successfulState.Pieces);
+        connectedEdges.AddRange(successfulState.ConnectedEdges);
 
         LastFailureReason = string.Empty;
         LastGenerationDiagnostics = BuildSuccessfulGenerationReport(successfulState);
@@ -263,6 +271,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
     public void ClearGeneratedRoute()
     {
         generatedInstances.Clear();
+        connectedEdges.Clear();
         RouteCleared?.Invoke();
 
         if (generatedRoot == null)
@@ -291,6 +300,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
 
     public bool ValidateConfiguration(out string report)
     {
+        if (connectedRoute.Enabled && !ValidateConnectedRoute(out report)) return false;
         List<string> errors = new List<string>();
         List<string> warnings = new List<string>();
 
@@ -1503,6 +1513,14 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         if (chosen == null)
             return false;
 
+        placedIsland = CommitPairCandidate(state, currentIsland, targetSlot, chosen);
+        frame.CurrentProgress = chosen.ForwardProgress;
+        return true;
+    }
+
+    private PlannedPiece CommitPairCandidate(RouteBuildState state, PlannedPiece currentIsland,
+        PlannedIslandSlot targetSlot, PairCandidate chosen)
+    {
         PlannedPiece connectionPiece = CreatePlannedPiece(
             chosen.ConnectionOption.Prefab,
             chosen.ConnectionPlacement,
@@ -1513,11 +1531,13 @@ public sealed class IslandRouteGenerator : MonoBehaviour
             false);
 
         ApplySlotContext(connectionPiece, targetSlot);
+        if (connectedRoute.Enabled && targetSlot.PhaseUsage == IslandPhaseUsage.Cluster)
+            connectionPiece.IsClusterPiece = true;
 
         connectionPiece.UsedSockets.Add(chosen.ConnectionEntrySocketIndex);
         connectionPiece.UsedSockets.Add(chosen.ConnectionExitSocketIndex);
 
-        placedIsland = CreatePlannedPiece(
+        PlannedPiece placedIsland = CreatePlannedPiece(
             chosen.IslandOption.Prefab,
             chosen.IslandPlacement,
             chosen.IslandBounds,
@@ -1535,8 +1555,8 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         state.Pieces.Add(placedIsland);
         state.Usage.RecordConnection(chosen.ConnectionOption.Prefab);
         state.Usage.RecordIsland(chosen.IslandOption.Prefab);
-        frame.CurrentProgress = chosen.ForwardProgress;
-        return true;
+        if (connectedRoute.Enabled) RecordConnectedEdge(state, currentIsland, placedIsland, connectionPiece, chosen.SourceSocketIndex, chosen.IslandEntrySocketIndex, targetSlot.CountsAsMainIsland || targetSlot.IsBeacon);
+        return placedIsland;
     }
 
     private List<PairCandidate> BuildPairCandidates(
@@ -2410,6 +2430,8 @@ public sealed class IslandRouteGenerator : MonoBehaviour
                 {
                     ConnectionOption option = connectionOptions[optionIndex];
                     ConnectionIsland connection = option.Prefab;
+                    if (connectedRoute.Enabled && !IsCompactConnection(connection))
+                        continue;
                     connection.CollectSocketIndices(
                         SocketUsage.Entry,
                         SocketRouteUsage.Detour,
@@ -2569,6 +2591,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         chosen.Target.UsedSockets.Add(chosen.TargetSocketIndex);
         state.Pieces.Add(connectionPiece);
         state.Usage.RecordConnection(chosen.Option.Prefab);
+        if (connectedRoute.Enabled) RecordConnectedEdge(state, chosen.Source, chosen.Target, connectionPiece, chosen.SourceSocketIndex, chosen.TargetSocketIndex, false);
         return true;
     }
 
@@ -2621,6 +2644,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         ClusterSnapshot snapshot = new ClusterSnapshot
         {
             PieceCount = state.Pieces.Count,
+            EdgeCount = state.ConnectedEdges.Count,
             Usage = state.Usage.Clone()
         };
 
@@ -2653,6 +2677,8 @@ public sealed class IslandRouteGenerator : MonoBehaviour
                 pair.Key.UsedSockets.Add(socketIndex);
         }
 
+        if (state.ConnectedEdges.Count > snapshot.EdgeCount)
+            state.ConnectedEdges.RemoveRange(snapshot.EdgeCount, state.ConnectedEdges.Count - snapshot.EdgeCount);
         state.Usage = snapshot.Usage.Clone();
     }
 
@@ -2860,7 +2886,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
                 planned.Placement.Rotation,
                 generatedRoot.transform);
 
-            instance.name = planned.IsBeacon
+            instance.name = !string.IsNullOrEmpty(planned.Label) ? planned.Label + " - " + planned.Prefab.name : planned.IsBeacon
                 ? $"Beacon - {planned.Prefab.name}"
                 : planned.IsMainIsland
                     ? $"Island {planned.MainIndex:00} - {planned.Prefab.name}"
@@ -3066,6 +3092,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
                     zMagnitude * 0.5f + routeShape.HorizontalPlacementClearance)));
         }
 
+        AddConnectedGroundBounds(prefab, placement, results);
         return results;
     }
 
@@ -3152,7 +3179,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         if (!OverlapsOnAxis(a, b, delta, Vector3.Cross(a.AxisZ, b.AxisY))) return false;
         if (!OverlapsOnAxis(a, b, delta, Vector3.Cross(a.AxisZ, b.AxisZ))) return false;
 
-        return true;
+        return ConnectedFootprintsOverlap(a,b);
     }
 
     private static bool OverlapsOnAxis(
@@ -3345,6 +3372,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
     private sealed class RouteBuildState
     {
         public readonly List<PlannedPiece> Pieces = new List<PlannedPiece>();
+        public List<ConnectedRouteEdge> ConnectedEdges = new List<ConnectedRouteEdge>();
         public RunUsageState Usage = new RunUsageState();
         public int DetoursAttempted;
         public int DetoursGenerated;
@@ -3446,6 +3474,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
 
     private sealed class PlannedPiece
     {
+        public string Label;
         public AboveRoutePiece Prefab;
         public PiecePlacement Placement;
         public List<OrientedBox> Bounds;
@@ -3592,6 +3621,7 @@ public sealed class IslandRouteGenerator : MonoBehaviour
     private sealed class ClusterSnapshot
     {
         public int PieceCount;
+        public int EdgeCount;
         public RunUsageState Usage;
         public readonly Dictionary<PlannedPiece, HashSet<int>> UsedSockets =
             new Dictionary<PlannedPiece, HashSet<int>>();
@@ -3656,19 +3686,23 @@ public sealed class IslandRouteGenerator : MonoBehaviour
         public readonly Vector3 AxisY;
         public readonly Vector3 AxisZ;
         public readonly Vector3 Extents;
+        public readonly Vector3[] GroundOutline;
+        public readonly float OutlineClearance;
 
         public OrientedBox(
             Vector3 center,
             Vector3 axisX,
             Vector3 axisY,
             Vector3 axisZ,
-            Vector3 extents)
+            Vector3 extents, Vector3[] groundOutline = null, float outlineClearance = 0f)
         {
             Center = center;
             AxisX = axisX;
             AxisY = axisY;
             AxisZ = axisZ;
             Extents = extents;
+            GroundOutline = groundOutline;
+            OutlineClearance = outlineClearance;
         }
     }
 }

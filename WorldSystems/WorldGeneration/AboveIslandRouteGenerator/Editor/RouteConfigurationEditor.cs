@@ -66,6 +66,7 @@ public sealed class RouteConfigurationEditor : Editor
         if (showGeneration)
             DrawGenerationWithoutSceneAnchors();
 
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("connectedRoute"), true);
         EditorGUILayout.PropertyField(rhythm, true);
         EditorGUILayout.PropertyField(routeShape, true);
         EditorGUILayout.PropertyField(detours, true);
