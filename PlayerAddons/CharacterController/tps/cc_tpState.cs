@@ -98,7 +98,7 @@ public class cc_tpState : MovementState
             })
             .AddAnimation("Walking", connections: new [] {
                 Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false),
-                Connection.To("Running", customCrossfade: 0.16f).When("Running", true)
+                Connection.To("Running", customCrossfade: 0.22f).When("Running", true)
             })
             .AddAnimation("Running", connections: new []
             {
@@ -191,11 +191,10 @@ public class cc_tpState : MovementState
 
     private void UpdateLocomotionAnimation()
     {
-        // Input can be released while still braking, or held against a wall.
-        // Hysteresis avoids repeated transitions at the walk/run boundary.
-        bool moving = HorizontalSpeed > (_animator.GetBool("Walking") ? .12f : .2f);
-        float runThreshold = Mathf.Max(.3f, walkSpeed * (_animator.GetBool("Running") ? 1.1f : 1.25f));
-        bool running = moving && HorizontalSpeed > runThreshold;
+        // Sprint presentation responds to input without waiting for acceleration.
+        bool running = CanMove && CanRun && _holdingSprint && _moveInput.sqrMagnitude > .0001f;
+        // Preserve the travel-based walk/braking behaviour when sprint is not requested.
+        bool moving = running || HorizontalSpeed > (_animator.GetBool("Walking") ? .12f : .2f);
         _animator.SetBool("Walking", moving);
         _animator.SetBool("Running", running);
     }
