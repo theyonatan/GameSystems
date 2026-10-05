@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -93,6 +93,9 @@ public sealed partial class IslandRouteGenerator
         bool valid = s.MinimumCycles > 0 && s.MaximumCycles >= s.MinimumCycles &&
             s.MinimumIslandsPerCycle > 0 && s.MaximumIslandsPerCycle >= s.MinimumIslandsPerCycle &&
             s.SearchBudget > 0 && s.CandidatesPerStep > 0 && s.MaximumConnectionSpan > 0 &&
+            s.BranchSizes != null && s.BranchSizes.Length > 0 && s.MaximumMainRepairs >= 0 &&
+            s.RepairBacktrackIslands > 0 && s.MaximumPlacementEvaluations > 0 &&
+            s.MaximumSearchSeconds > 0 && s.MaximumGenerationSeconds > 0 && s.MaximumReconnectionDistance > 0 &&
             s.ClosurePositionTolerance > 0 && s.ClosurePositionTolerance <= 1f &&
             s.ClosureAngleTolerance > 0 && s.ClosureAngleTolerance <= 30f;
         report = valid ? string.Empty : "Invalid connected-route search limits or closure tolerance.";
@@ -101,28 +104,63 @@ public sealed partial class IslandRouteGenerator
 
     private bool TryBuildConnectedRoute(Random random, out RouteBuildState state, out string error)
     {
-        // The original generator owns the Main Route, special islands, and beacon placement.
-        if (!TryBuildCompleteRoute(random, out state, out error)) return false;
+        LastClosureDiagnostics = connectedRoute.Diagnostics ? new ClosureDiagnostics() : null;
+        diagnosticRepairHints.Clear(); diagnosticRepairCandidates = null; diagnosticRepairProbeRules = null;
+        mainCheckpoints.Clear();
+        connectedWork = new ConnectedSearchWork { Remaining = connectedRoute.MaximumPlacementEvaluations,
+            Seconds = connectedRoute.MaximumSearchSeconds };
+        try
+        {
+            if (!TryBuildCompleteRoute(random, out state, out error))
+            {
+                connectedWork.LastFailure = error;
+                bool repaired = false;
+                while (!connectedWork.Exhausted && connectedWork.Repairs < connectedRoute.MaximumMainRepairs)
+                {
+                    if (TryRepairMainSection(state, random, out error)) { repaired = true; break; }
+                    connectedWork.LastFailure = error;
+                }
+                if (!repaired) { error = connectedWork.Summary; return false; }
+            }
+            while (true)
+            {
+                diagnosticRepairHints.Clear();
+                connectedWork.StartBranchPhase(connectedWork.Repairs < connectedRoute.MaximumMainRepairs);
+                var beforeBranches = CaptureClusterSnapshot(state);
+                if (TryAddConnectedAlternatives(state, random, out error)) return true;
+                connectedWork.LastFailure = error;
+                RestoreClusterSnapshot(state, beforeBranches);
+                if (!TryRepairMainSection(state, random, out string repairError))
+                {
+                    error = connectedWork.Summary + " " + repairError;
+                    return false;
+                }
+            }
+        }
+        finally { LogClosureDiagnosticSummary(); connectedWork = null; }
+    }
+
+    private bool TryAddConnectedAlternatives(RouteBuildState state, Random random, out string error)
+    {
         var main = state.Pieces.Where(p => p.IsMainIsland).OrderBy(p => p.MainIndex).ToList();
         var gate = main.Last();
         int wanted = random.Next(connectedRoute.MinimumCycles, connectedRoute.MaximumCycles + 1);
         int cycles = 0;
-        var usedSources = new HashSet<PlannedPiece>();
         int budget = connectedRoute.SearchBudget;
-        while (cycles < wanted && budget > 0)
+        while (cycles < wanted && budget > 0 && !connectedWork.PhaseExhausted)
         {
-            // Any existing island can become a junction. No lanes or world coordinates are prescribed.
             var islands = state.Pieces.Where(p => p.Prefab is AboveIsland && !p.IsBeacon && p.MainIndex != 1).ToList();
-            var sources = islands.Where(p => p != gate && !usedSources.Contains(p) &&
-                FreeSockets(p, SocketUsage.Exit).Count > 0).OrderBy(p=>cycles==0 && p.MainIndex==2?0:1).ThenBy(_ => random.Next()).ToList();
+            var sources = islands.Where(p => p != gate &&
+                FreeSockets(p, SocketUsage.Exit).Count > 0)
+                .OrderBy(p => cycles == 0 && p.MainIndex == 2 ? 0 : 1).ThenBy(_ => random.Next()).ToList();
             bool added = false;
             foreach (var source in sources)
             {
                 float sourceProgress = MainProgress(source, main);
                 var targets = islands.Where(p => p != source && p.MainIndex != 2 &&
                     MainProgress(p, main) > sourceProgress + 1.25f && FreeSockets(p, SocketUsage.Entry).Count > 0 &&
-                    Vector3.Distance(source.Placement.Position, p.Placement.Position) < 82f)
-                    .OrderBy(p => Vector3.Distance(source.Placement.Position, p.Placement.Position) + random.NextDouble()*12).ToList();
+                    Vector3.Distance(source.Placement.Position, p.Placement.Position) < connectedRoute.MaximumReconnectionDistance)
+                    .OrderBy(p => Vector3.Distance(source.Placement.Position, p.Placement.Position) + random.NextDouble() * 12).ToList();
                 foreach (var target in targets)
                 {
                     int pairBudget = Math.Min(320, budget);
@@ -130,24 +168,23 @@ public sealed partial class IslandRouteGenerator
                     if (TryCloseAlternative(state, random, source, target, ref pairBudget))
                     {
                         budget -= before - pairBudget;
-                        cycles++; usedSources.Add(source); added = true; break;
+                        cycles++; added = true; break;
                     }
                     budget -= before - pairBudget;
-                    if (budget <= 0) break;
+                    if (budget <= 0 || connectedWork.PhaseExhausted) break;
                 }
-                if (added || budget <= 0) break;
+                if (added || budget <= 0 || connectedWork.PhaseExhausted) break;
             }
             if (!added) break;
-            budget = connectedRoute.SearchBudget;
         }
         if (cycles < connectedRoute.MinimumCycles)
         {
-            error = $"Native socket search closed {cycles}/{connectedRoute.MinimumCycles} required alternatives; backtracking the route.";
+            error = $"Closed {cycles}/{connectedRoute.MinimumCycles} required alternatives. " + connectedWork.LastFailure;
             return false;
         }
         if (HasMandatoryMiddleIsland(state, main))
         {
-            error = "The island web still has a mandatory middle island; backtracking the route.";
+            error = "The web still requires every player to cross the same middle island.";
             return false;
         }
         error = string.Empty;
@@ -188,9 +225,10 @@ public sealed partial class IslandRouteGenerator
         var diagnostics = new PlacementDiagnostics();
         var slot = new PlannedIslandSlot { Biome=source.Biome, Size=IslandSize.Small,
             PhaseUsage=IslandPhaseUsage.Cluster, CountsAsMainIsland=false, Index=0 };
-        var islands = CollectIslandOptions(state, slot, ExactIslandSelection, diagnostics);
+        var islands = CollectBranchIslands(state, source.Biome, diagnostics);
         var connections = CollectConnectionOptions(state, source.Biome, null, diagnostics)
             .Where(c=>IsCompactConnection(c.Prefab)).ToList();
+        diagnostics.ConnectionOptions += connections.Count;
         var choices = new List<ReversePlacement>();
         foreach (int targetEntry in FreeSockets(target,SocketUsage.Entry))
         foreach (var connection in connections)
@@ -213,6 +251,7 @@ public sealed partial class IslandRouteGenerator
                     if(entries.Count==0)continue;
                     foreach(int exit in exits)
                     {
+                        if (!ConsumeConnectedWork()) return false;
                         if (input == output || !island.Prefab.GetSocket(exit).Allows(connection.Prefab.ConnectionType)) continue;
                         var ip=AlignSocketToPose(island.Prefab,exit,GetSocketPose(connection.Prefab,cp,input));
                         var ib=BuildBounds(island.Prefab,ip);
@@ -225,7 +264,10 @@ public sealed partial class IslandRouteGenerator
                 }
             }
         }
-        foreach(var choice in choices.OrderBy(c=>c.Score).Take(12))
+        if (choices.Count == 0)
+            connectedWork.LastFailure = $"No open return placement from {source.Label} to {target.Label}: " +
+                "return sockets/types are unavailable or the island/bridge overlaps existing pieces.";
+        foreach(var choice in choices.OrderBy(c=>c.Score).Take(Math.Max(12, connectedRoute.CandidatesPerStep)))
         {
             var snapshot=CaptureClusterSnapshot(state);
             var island=CreatePlannedPiece(choice.Island,choice.IslandPlacement,choice.IslandBounds,source.Biome,false,0,false);
@@ -259,7 +301,7 @@ public sealed partial class IslandRouteGenerator
     private bool SearchClosedBranch(RouteBuildState state, Random random, PlannedPiece source,
         PlannedPiece target, int depth, ref int budget)
     {
-        if (--budget < 0) return false;
+        if (--budget < 0 || connectedWork.PhaseExhausted) return false;
         if (depth >= connectedRoute.MinimumIslandsPerCycle)
         {
             var rule = new ClusterPhaseRule
@@ -271,6 +313,7 @@ public sealed partial class IslandRouteGenerator
             // Existing code aligns ONE authored closing piece; never a path-to-path chain.
             if (TryPlaceClusterExtraLink(state, random, source, new List<PlannedPiece>{target},
                     new List<PlannedPiece>(), rule, ClusterTopology.Diamond)) return true;
+            connectedWork.LastFailure = $"No closing bridge fits the position/angle of a free entry on {target.Label}.";
         }
         if (depth >= connectedRoute.MaximumIslandsPerCycle || budget <= 0) return false;
 
@@ -279,15 +322,29 @@ public sealed partial class IslandRouteGenerator
         var slot = new PlannedIslandSlot { Biome = source.Biome, Size = IslandSize.Small,
             PhaseUsage = IslandPhaseUsage.Cluster, CountsAsMainIsland = false, Index = 0 };
         var diagnostics = new PlacementDiagnostics();
-        var islandOptions = CollectIslandOptions(state, slot, ExactIslandSelection, diagnostics);
+        var islandOptions = CollectBranchIslands(state, source.Biome, diagnostics);
         var connections = CollectConnectionOptions(state, source.Biome, null, diagnostics)
             .Where(c => IsCompactConnection(c.Prefab)).ToList();
-        var candidates = BuildPairCandidates(state, source, null, SocketRouteUsage.Detour,
-            frame, true, connections, islandOptions, diagnostics);
+        diagnostics.ConnectionOptions += connections.Count;
+        List<PairCandidate> candidates;
+        connectedWork.BranchTarget = target;
+        connectedWork.BranchConnections = connections;
+        try
+        {
+            candidates = BuildPairCandidates(state, source, null, SocketRouteUsage.Detour,
+                frame, true, connections, islandOptions, diagnostics, true);
+        }
+        finally { connectedWork.BranchTarget = null; connectedWork.BranchConnections = null; }
+        diagnostics.PairCandidates += candidates.Count;
+        if (candidates.Count == 0)
+            connectedWork.LastFailure = $"Cannot extend {source.Label}: " + diagnostics.BuildSummary();
         var ranked = candidates.Select(c => new { Candidate = c,
             Score = NativeClosureScore(c.IslandOption.Prefab, c.IslandPlacement, c.IslandEntrySocketIndex, target, connections)
                     + (float)random.NextDouble()*3f })
-            .OrderBy(c => c.Score).Take(connectedRoute.CandidatesPerStep).ToList();
+            .OrderBy(c => c.Score)
+            .GroupBy(c => new { c.Candidate.SourceSocketIndex, c.Candidate.ConnectionOption.Prefab,
+                Island = c.Candidate.IslandOption.Prefab, c.Candidate.IslandEntrySocketIndex })
+            .Select(g => g.First()).Take(connectedRoute.CandidatesPerStep).ToList();
         foreach (var choice in ranked)
         {
             var snapshot = CaptureClusterSnapshot(state);
@@ -320,6 +377,7 @@ public sealed partial class IslandRouteGenerator
                 foreach (int output in outputs)
                 foreach (int entry in FreeSockets(target, SocketUsage.Entry))
                 {
+                    if (!ConsumeConnectedWork()) return best;
                     var a = GetSocketPose(connection, cp, output); var b = GetSocketPose(target, entry);
                     float score = Vector3.Distance(a.Position,b.Position) + Quaternion.Angle(a.Rotation,b.Rotation)*.12f;
                     best = Mathf.Min(best, score);

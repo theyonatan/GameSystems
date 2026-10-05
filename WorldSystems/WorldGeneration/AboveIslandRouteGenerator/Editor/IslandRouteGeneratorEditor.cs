@@ -57,6 +57,22 @@ public sealed class IslandRouteGeneratorEditor : Editor
     private bool showSpecials = true;
     private bool showEvents;
 
+    private void DrawClosureDiagnosticsExport()
+    {
+        var generator = (IslandRouteGenerator)target;
+        var trace = generator.LastClosureDiagnostics;
+        if (trace == null) return;
+        EditorGUILayout.LabelField("Closure Diagnostics", $"{trace.TotalCalls} calls; {trace.DroppedCalls} dropped");
+        if (!GUILayout.Button("Export Closure Diagnostics")) return;
+        string path = EditorUtility.SaveFilePanel("Export closure diagnostics", "",
+            $"closure-diagnostics-{generator.LastUsedSeed}.json", "json");
+        if (string.IsNullOrEmpty(path)) return;
+        File.WriteAllText(path, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+            seed = generator.LastUsedSeed, report = generator.LastGenerationDiagnostics, trace
+        }, Newtonsoft.Json.Formatting.Indented));
+        Debug.Log($"Closure diagnostics saved to {path}", generator);
+    }
+
     private void OnEnable()
     {
         routeConfiguration = serializedObject.FindProperty("routeConfiguration");
@@ -97,6 +113,7 @@ public sealed class IslandRouteGeneratorEditor : Editor
         DrawPropertyFoldout("Route Shape & Height", routeShape, ref showRouteShape);
         DrawPropertyFoldout("Detours", detours, ref showDetours);
         EditorGUILayout.PropertyField(serializedObject.FindProperty("connectedRoute"), true);
+        DrawClosureDiagnosticsExport();
 
         EditorGUILayout.PropertyField(
             autoEvenChances,

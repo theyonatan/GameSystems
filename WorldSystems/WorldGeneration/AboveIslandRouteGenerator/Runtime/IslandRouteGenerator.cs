@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Events;
@@ -7,6 +8,8 @@ using Random = System.Random;
 
 public sealed partial class IslandRouteGenerator : MonoBehaviour
 {
+    public const int MaximumRandomRouteAttempts = 30;
+
     [Header("Reusable Configuration")]
     [Tooltip("Optional authored route configuration. Runtime systems may apply this asset before generation.")]
     [SerializeField]
@@ -148,8 +151,29 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
     }
 
     [ContextMenu("Generate Route")]
-    public bool GenerateRoute()
+    public bool GenerateRoute() => GenerateRouteWithAttemptLimit(Math.Max(1, generation.MaximumRouteAttempts));
+
+    /// <summary>
+    /// Lets an outer generation coordinator own the retry budget without
+    /// multiplying it by this generator's authored Maximum Route Attempts.
+    /// Does not modify the authored or runtime configuration.
+    /// </summary>
+    public bool GenerateRouteWithAttemptLimit(int maximumAttempts)
     {
+        if (maximumAttempts < 1)
+            throw new ArgumentOutOfRangeException(nameof(maximumAttempts));
+
+        if (UsesApprovedConnectedLayout)
+        {
+            if (GenerateApprovedConnectedLayout(out string layoutReport)) return true;
+            LastFailureReason = layoutReport;
+            LastGenerationDiagnostics = layoutReport;
+            Debug.LogError("Approved connected layout could not be loaded: " + layoutReport, this);
+            onRouteGenerationFailed.Invoke();
+            return false;
+        }
+
+        UsedApprovedLayout = false;
         if (!ValidateConfiguration(out string validationReport))
         {
             LastFailureReason = validationReport;
@@ -159,6 +183,9 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             return false;
         }
 
+        UsedConnectedFallback = false;
+        LastInstantiationSeconds = 0;
+        var planningWatch = System.Diagnostics.Stopwatch.StartNew();
         int seed = generation.UseRandomSeed ? CreateRandomSeed() : generation.Seed;
         LastUsedSeed = seed;
         connectedGroundMeshes.Clear();
@@ -167,8 +194,11 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
 
         RouteBuildState successfulState = null;
         string lastAttemptError = "No generation attempt ran.";
+        int attemptLimit = Math.Min(maximumAttempts, generation.MaximumRouteAttempts);
+        if (connectedRoute.Enabled && connectedRoute.PreviewSeed == 0)
+            attemptLimit = Math.Min(attemptLimit, MaximumRandomRouteAttempts);
 
-        for (int attempt = 0; attempt < generation.MaximumRouteAttempts; attempt++)
+        for (int attempt = 0; attempt < attemptLimit; attempt++)
         {
             RouteBuildState state;
             string attemptError;
@@ -183,10 +213,11 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             lastAttemptError = attemptError;
         }
 
+        LastPlanningSeconds = planningWatch.Elapsed.TotalSeconds;
         if (successfulState == null)
         {
             LastFailureReason =
-                $"Failed after {generation.MaximumRouteAttempts} attempts with seed {seed}. " +
+                $"Failed after {attemptLimit} attempts with seed {seed}. " +
                 lastAttemptError;
             LastGenerationDiagnostics = LastFailureReason;
             Debug.LogError(LastFailureReason, this);
@@ -194,8 +225,11 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             return false;
         }
 
+        if (connectedRoute.Enabled) lastConnectedPlan = successfulState;
+        var instantiationWatch = System.Diagnostics.Stopwatch.StartNew();
         ClearGeneratedRoute();
         InstantiatePlan(successfulState.Pieces);
+        LastInstantiationSeconds = instantiationWatch.Elapsed.TotalSeconds;
         connectedEdges.AddRange(successfulState.ConnectedEdges);
 
         LastFailureReason = string.Empty;
@@ -300,6 +334,13 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
 
     public bool ValidateConfiguration(out string report)
     {
+        if (UsesApprovedConnectedLayout)
+        {
+            bool valid = connectedRoute.ApprovedLayout != null && generation.RouteStart != null;
+            report = valid ? "Approved layout is assigned; loading validates its pieces and connections." :
+                "Approved Layout and Generation / Route Start must be assigned.";
+            return valid;
+        }
         if (connectedRoute.Enabled && !ValidateConnectedRoute(out report)) return false;
         List<string> errors = new List<string>();
         List<string> warnings = new List<string>();
@@ -1041,9 +1082,20 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             return false;
         }
 
-        for (int slotIndex = 1; slotIndex < slots.Count; slotIndex++)
+        ReserveConnectedSockets(currentIsland);
+        return TryBuildMainTail(random, state, slots, 1, currentIsland, mainFrame, out error);
+    }
+
+    private bool TryBuildMainTail(Random random, RouteBuildState state,
+        List<PlannedIslandSlot> slots, int startIndex, PlannedPiece currentIsland,
+        RouteFrame mainFrame, out string error)
+    {
+        error = string.Empty;
+        for (int slotIndex = startIndex; slotIndex < slots.Count; slotIndex++)
         {
             PlannedIslandSlot slot = slots[slotIndex];
+            MainCheckpoint checkpoint = connectedWork != null
+                ? RememberMainCheckpoint(state, slots, slotIndex, currentIsland, mainFrame) : null;
             PlacementDiagnostics diagnostics = new PlacementDiagnostics();
             if (!TryPlaceConnectedIsland(
                     state,
@@ -1066,6 +1118,17 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 return false;
             }
 
+            if (checkpoint != null)
+            {
+                var edge = state.ConnectedEdges.Last();
+                var connection = state.Pieces[edge.ConnectionPiece];
+                checkpoint.Tried.Add($"{nextIsland.Prefab.GetInstanceID()}:{connection.Prefab.GetInstanceID()}:" +
+                    $"{currentIsland.Prefab.Sockets.ToList().FindIndex(x => x.name == edge.FromSocket)}:" +
+                    $"{connection.UsedSockets.First(i => connection.Prefab.GetSocket(i).CanBeUsedAs(SocketUsage.Entry))}:" +
+                    $"{connection.UsedSockets.First(i => connection.Prefab.GetSocket(i).CanBeUsedAs(SocketUsage.Exit))}:" +
+                    $"{nextIsland.Prefab.Sockets.ToList().FindIndex(x => x.name == edge.ToSocket)}");
+            }
+            ReserveConnectedSockets(nextIsland);
             currentIsland = nextIsland;
         }
 
@@ -1346,6 +1409,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         out PlannedPiece placedIsland)
     {
         placedIsland = null;
+        BeginPlacementRuleDiagnostics(diagnostics, null, "main");
         List<IslandOption> islandOptions = CollectIslandOptions(
             state,
             slot,
@@ -1568,13 +1632,18 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         bool requireFutureExit,
         List<ConnectionOption> connectionOptions,
         List<IslandOption> islandOptions,
-        PlacementDiagnostics diagnostics)
+        PlacementDiagnostics diagnostics,
+        bool retainSocketAlternatives = false)
     {
         List<PairCandidate> results = new List<PairCandidate>();
+        BeginPlacementRuleDiagnostics(diagnostics, currentIsland, diagnostics.DiagnosticStage ??
+            (routeUsage == SocketRouteUsage.MainRoute ? (connectedWork?.Repairs > 0 ? "repair_rebuild" : "main") : "branch_extension"));
         List<int> sourceExitIndices = new List<int>();
         List<int> connectionEntryIndices = new List<int>();
         List<int> connectionExitIndices = new List<int>();
         List<int> islandEntryIndices = new List<int>();
+        var connectionCache = new Dictionary<(ConnectionOption, int, int),
+            (PiecePlacement placement, List<OrientedBox> bounds, bool overlaps)>();
 
         if (forcedSourceSocketIndex.HasValue)
         {
@@ -1597,6 +1666,8 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 sourceExitIndices);
         }
 
+        if (connectedRoute.Enabled && routeUsage == SocketRouteUsage.MainRoute)
+            sourceExitIndices.RemoveAll(i => currentIsland.ReservedSockets.Contains(i));
         diagnostics.SourceExitSockets += sourceExitIndices.Count;
         if (sourceExitIndices.Count == 0)
             diagnostics.NoUsableSourceExit++;
@@ -1646,6 +1717,10 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 {
                     int sourceIndex = sourceExitIndices[sourceListIndex];
                     IslandSocket sourceSocket = currentIsland.Prefab.GetSocket(sourceIndex);
+                    if (PlacementDiagnosticsEnabled) {
+                        diagnostics.DiagnosticSourceSocket = sourceIndex;
+                        diagnostics.DiagnosticConnection = connectionPrefab;
+                    }
                     if (!sourceSocket.Allows(connectionPrefab.ConnectionType))
                     {
                         diagnostics.SourceConnectionTypeRejected++;
@@ -1659,19 +1734,17 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                          connectionEntryListIndex++)
                     {
                         int connectionEntryIndex = connectionEntryIndices[connectionEntryListIndex];
-                        PiecePlacement connectionPlacement = AlignSocketToPose(
-                            connectionPrefab,
-                            connectionEntryIndex,
-                            sourcePose);
-
-                        List<OrientedBox> connectionBounds = BuildBounds(
-                            connectionPrefab,
-                            connectionPlacement);
-
-                        if (OverlapsExisting(
-                                connectionBounds,
-                                state.Pieces,
-                                currentIsland))
+                        var cacheKey = (connectionOption, sourceIndex, connectionEntryIndex);
+                        if (!connectionCache.TryGetValue(cacheKey, out var cached))
+                        {
+                            var placement = AlignSocketToPose(connectionPrefab, connectionEntryIndex, sourcePose);
+                            var bounds = BuildBounds(connectionPrefab, placement);
+                            cached = (placement, bounds, OverlapsExisting(bounds, state.Pieces, currentIsland));
+                            connectionCache.Add(cacheKey, cached);
+                        }
+                        PiecePlacement connectionPlacement = cached.placement;
+                        List<OrientedBox> connectionBounds = cached.bounds;
+                        if (cached.overlaps)
                         {
                             diagnostics.ConnectionOverlapRejected++;
                             continue;
@@ -1694,6 +1767,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                                  islandEntryListIndex < islandEntryIndices.Count;
                                  islandEntryListIndex++)
                             {
+                                if (!ConsumeConnectedWork()) return results;
                                 int islandEntryIndex = islandEntryIndices[islandEntryListIndex];
                                 IslandSocket islandEntrySocket = islandPrefab.GetSocket(islandEntryIndex);
                                 if (!islandEntrySocket.Allows(connectionPrefab.ConnectionType))
@@ -1711,9 +1785,24 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                                     islandPrefab,
                                     islandPlacement);
 
-                                if (OverlapsExisting(islandBounds, state.Pieces, null))
+                                var overlappingPiece = FindOverlappingPiece(islandBounds, state.Pieces, null);
+                                if (overlappingPiece != null)
                                 {
                                     diagnostics.IslandOverlapRejected++;
+                                    if (connectedRoute.Enabled && connectedWork?.BranchTarget != null && routeUsage == SocketRouteUsage.Detour)
+                                    {
+                                        var blockedDiagnostics = new PlacementDiagnostics();
+                                        if (PlacementDiagnosticsEnabled) {
+                                            BeginPlacementRuleDiagnostics(blockedDiagnostics, currentIsland, "blocked_turn_eligibility");
+                                            blockedDiagnostics.DiagnosticSourceSocket = sourceIndex;
+                                            blockedDiagnostics.DiagnosticConnection = connectionPrefab;
+                                            blockedDiagnostics.DiagnosticOverlap = overlappingPiece.Label;
+                                        }
+                                        if (TryEvaluateIslandPlacement(islandPrefab, islandPlacement, islandEntryIndex, routeUsage,
+                                            frame, requireFutureExit, blockedDiagnostics, out _, out _))
+                                            ConsiderBranchRepair(state, currentIsland, overlappingPiece, islandPrefab, islandPlacement,
+                                                islandEntryIndex, connectionPrefab, islandBounds, connectionBounds);
+                                    }
                                     continue;
                                 }
 
@@ -1731,7 +1820,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                                     continue;
                                 }
 
-                                if (bestForPair == null || score < bestForPair.Score)
+                                if (retainSocketAlternatives || bestForPair == null || score < bestForPair.Score)
                                 {
                                     bestForPair = new PairCandidate
                                     {
@@ -1748,13 +1837,14 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                                         Score = score,
                                         ForwardProgress = progress
                                     };
+                                    if (retainSocketAlternatives) results.Add(bestForPair);
                                 }
                             }
                         }
                     }
                 }
 
-                if (bestForPair != null)
+                if (!retainSocketAlternatives && bestForPair != null)
                     results.Add(bestForPair);
             }
         }
@@ -1775,11 +1865,14 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
     {
         bestScore = float.PositiveInfinity;
         bestProgress = frame.CurrentProgress;
+        PreparePlacementRuleCandidate(diagnostics, prefab, placement, usedEntrySocketIndex);
 
         if (!requireFutureExit)
         {
             SocketPose entryPose = GetSocketPose(prefab, placement, usedEntrySocketIndex);
-            return TryScorePose(entryPose, frame, diagnostics, out bestScore, out bestProgress);
+            bool entryAccepted = TryScorePose(entryPose, frame, diagnostics, out bestScore, out bestProgress);
+            FinishPlacementRuleCandidate(diagnostics, entryAccepted);
+            return entryAccepted;
         }
 
         List<int> outputIndices = new List<int>();
@@ -1789,11 +1882,13 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         if (outputIndices.Count == 0)
         {
             diagnostics.NoFutureExitRejected++;
+            FinishPlacementRuleCandidate(diagnostics, false);
             return false;
         }
 
         for (int i = 0; i < outputIndices.Count; i++)
         {
+            if (PlacementDiagnosticsEnabled) diagnostics.DiagnosticSocket = outputIndices[i];
             SocketPose pose = GetSocketPose(prefab, placement, outputIndices[i]);
             if (!TryScorePose(pose, frame, diagnostics, out float score, out float progress))
                 continue;
@@ -1805,7 +1900,9 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             }
         }
 
-        return !float.IsPositiveInfinity(bestScore);
+        bool accepted = !float.IsPositiveInfinity(bestScore);
+        FinishPlacementRuleCandidate(diagnostics, accepted);
+        return accepted;
     }
 
     private bool TryScorePose(
@@ -1825,14 +1922,17 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
 
         if (headingAngle > frame.MaximumHeadingAngle)
         {
+            RecordPlacementRuleSocket(diagnostics, pose, frame, "heading", headingAngle, progress, lateral, relativeHeight);
             diagnostics.HeadingRejected++;
             score = 0f;
             return false;
         }
 
-        if (lateral > frame.MaximumLateralDrift)
+        if (lateral > frame.MaximumLateralDrift &&
+            !(connectedRoute.Enabled && connectedRoute.IgnoreLateralLayoutLimit))
         {
             diagnostics.LateralRejected++;
+            RecordPlacementRuleSocket(diagnostics, pose, frame, "lateral", headingAngle, progress, lateral, relativeHeight);
             score = 0f;
             return false;
         }
@@ -1840,6 +1940,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         if (progress < frame.CurrentProgress + routeShape.MinimumForwardProgressPerIsland)
         {
             diagnostics.ForwardProgressRejected++;
+            RecordPlacementRuleSocket(diagnostics, pose, frame, "progress", headingAngle, progress, lateral, relativeHeight);
             score = 0f;
             return false;
         }
@@ -1848,6 +1949,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             relativeHeight > routeShape.MaximumRelativeHeight)
         {
             diagnostics.HeightRejected++;
+            RecordPlacementRuleSocket(diagnostics, pose, frame, "height", headingAngle, progress, lateral, relativeHeight);
             score = 0f;
             return false;
         }
@@ -1866,6 +1968,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             lateralNormalized * routeShape.LateralScoreWeight +
             heightNormalized * routeShape.HeightScoreWeight;
 
+        RecordPlacementRuleSocket(diagnostics, pose, frame, "accepted", headingAngle, progress, lateral, relativeHeight);
         return true;
     }
 
@@ -2381,13 +2484,18 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             Shuffle(targets, random);
         }
 
+        var closurePoolDiagnostics = new PlacementDiagnostics();
         List<ConnectionOption> connectionOptions = CollectConnectionOptions(
             state,
             rule.Biome,
             null,
-            new PlacementDiagnostics());
-        if (connectionOptions.Count == 0)
+            closurePoolDiagnostics);
+        var closureDiagnostics = BeginClosureDiagnostics(state, sources, targets, rule,
+            closurePoolDiagnostics, connectionOptions);
+        if (connectionOptions.Count == 0) {
+            FinishClosureDiagnostics(closureDiagnostics, "no eligible connectors");
             return false;
+        }
 
         List<ExtraLinkCandidate> candidates = new List<ExtraLinkCandidate>();
         List<int> sourceIndices = new List<int>();
@@ -2405,6 +2513,8 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 SocketRouteUsage.Detour,
                 source.UsedSockets,
                 sourceIndices);
+            if (sourceIndices.Count == 0)
+                closureDiagnostics?.Filters.Add(new { source = source.Label, reason = "no free Detour-compatible exit" });
 
             for (int targetListIndex = 0;
                  targetListIndex < targets.Count;
@@ -2415,6 +2525,8 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                     ReferenceEquals(source.ClusterParent, target) ||
                     ReferenceEquals(target.ClusterParent, source))
                 {
+                    closureDiagnostics?.Filters.Add(new { source = source.Label, target = target.Label,
+                        reason = "same island or direct cluster parent" });
                     continue;
                 }
 
@@ -2423,6 +2535,8 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                     SocketRouteUsage.Detour,
                     target.UsedSockets,
                     targetIndices);
+                if (targetIndices.Count == 0)
+                    closureDiagnostics?.Filters.Add(new { target = target.Label, reason = "no free Detour-compatible entry" });
 
                 for (int optionIndex = 0;
                      optionIndex < connectionOptions.Count;
@@ -2430,8 +2544,12 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 {
                     ConnectionOption option = connectionOptions[optionIndex];
                     ConnectionIsland connection = option.Prefab;
-                    if (connectedRoute.Enabled && !IsCompactConnection(connection))
+                    if (connectedRoute.Enabled && !IsCompactConnection(connection)) {
+                        closureDiagnostics?.Filters.Add(new { connector = connection.name,
+                            reason = "not a Normal connection with a socket span within MaximumConnectionSpan",
+                            spanLimit = connectedRoute.MaximumConnectionSpan });
                         continue;
+                    }
                     connection.CollectSocketIndices(
                         SocketUsage.Entry,
                         SocketRouteUsage.Detour,
@@ -2442,6 +2560,10 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                         SocketRouteUsage.Detour,
                         null,
                         connectionExitIndices);
+                    if (connectionEntryIndices.Count == 0 || connectionExitIndices.Count == 0)
+                        closureDiagnostics?.Filters.Add(new { connector = connection.name,
+                            reason = "missing Detour-compatible connector entry or exit",
+                            entries = connectionEntryIndices.Count, exits = connectionExitIndices.Count });
 
                     for (int sourceIndexList = 0;
                          sourceIndexList < sourceIndices.Count;
@@ -2449,8 +2571,12 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                     {
                         int sourceIndex = sourceIndices[sourceIndexList];
                         IslandSocket sourceSocket = source.Prefab.GetSocket(sourceIndex);
-                        if (!sourceSocket.Allows(connection.ConnectionType))
+                        if (!sourceSocket.Allows(connection.ConnectionType)) {
+                            closureDiagnostics?.Filters.Add(new { source = source.Label, socket = sourceSocket.name,
+                                connector = connection.name, reason = "source socket connection-type mask",
+                                allowed = sourceSocket.AllowedConnections.ToString(), requested = connection.ConnectionType.ToString() });
                             continue;
+                        }
 
                         SocketPose sourcePose = GetSocketPose(source, sourceIndex);
                         for (int connectionEntryList = 0;
@@ -2463,15 +2589,11 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                                 connection,
                                 connectionEntryIndex,
                                 sourcePose);
-                            List<OrientedBox> bounds = BuildBounds(connection, placement);
-
-                            if (OverlapsExistingExcept(
-                                    bounds,
-                                    state.Pieces,
-                                    source,
-                                    target))
+                            List<OrientedBox> bounds = null;
+                            if (!connectedRoute.Enabled)
                             {
-                                continue;
+                                bounds = BuildBounds(connection, placement);
+                                if (OverlapsExistingExcept(bounds, state.Pieces, source, target)) continue;
                             }
 
                             for (int connectionExitList = 0;
@@ -2480,8 +2602,11 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                             {
                                 int connectionExitIndex =
                                     connectionExitIndices[connectionExitList];
-                                if (connectionExitIndex == connectionEntryIndex)
+                                if (connectionExitIndex == connectionEntryIndex) {
+                                    closureDiagnostics?.Filters.Add(new { connector = connection.name,
+                                        reason = "connector entry and exit are the same socket" });
                                     continue;
+                                }
 
                                 SocketPose exitPose = GetSocketPose(
                                     connection,
@@ -2494,21 +2619,51 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                                 {
                                     int targetIndex = targetIndices[targetIndexList];
                                     IslandSocket targetSocket = target.Prefab.GetSocket(targetIndex);
-                                    if (!targetSocket.Allows(connection.ConnectionType))
+                                    if (!targetSocket.Allows(connection.ConnectionType)) {
+                                        closureDiagnostics?.Filters.Add(new { target = target.Label, socket = targetSocket.name,
+                                            connector = connection.name, reason = "target socket connection-type mask",
+                                            allowed = targetSocket.AllowedConnections.ToString(), requested = connection.ConnectionType.ToString() });
                                         continue;
+                                    }
 
+                                    if (!ConsumeConnectedWork()) {
+                                        RecordClosureBudgetExhaustion(closureDiagnostics); return false;
+                                    }
                                     SocketPose targetPose = GetSocketPose(target, targetIndex);
                                     float distance = Vector3.Distance(
                                         exitPose.Position,
                                         targetPose.Position);
-                                    if (distance > rule.ExtraLinkPositionTolerance)
+                                    var diagnosticPair = RecordClosureDiagnosticPair(closureDiagnostics,
+                                        source, sourceIndex, target, targetIndex, connection,
+                                        connectionEntryIndex, connectionExitIndex,
+                                        sourcePose, targetPose, exitPose, distance);
+                                    if (distance > rule.ExtraLinkPositionTolerance) {
+                                        if (diagnosticPair != null) diagnosticPair.FirstRejection = "position mismatch";
                                         continue;
+                                    }
 
                                     float angle = Quaternion.Angle(
                                         exitPose.Rotation,
                                         targetPose.Rotation);
-                                    if (angle > rule.ExtraLinkAngleTolerance)
+                                    if (diagnosticPair != null) diagnosticPair.AngleChecked = true;
+                                    if (angle > rule.ExtraLinkAngleTolerance) {
+                                        if (diagnosticPair != null) diagnosticPair.FirstRejection = "angle mismatch";
                                         continue;
+                                    }
+
+                                    if (connectedRoute.Enabled)
+                                    {
+                                        if (bounds == null) bounds = BuildBounds(connection, placement);
+                                        bool closingOverlap = OverlapsExistingExcept(bounds, state.Pieces, source, target);
+                                        if (diagnosticPair != null) {
+                                            diagnosticPair.OverlapChecked = true; diagnosticPair.Overlap = closingOverlap;
+                                        }
+                                        if (closingOverlap) {
+                                            if (diagnosticPair != null) diagnosticPair.FirstRejection = "overlap";
+                                            continue;
+                                        }
+                                    }
+                                    if (diagnosticPair != null) diagnosticPair.FirstRejection = "accepted";
 
                                     candidates.Add(new ExtraLinkCandidate
                                     {
@@ -2537,8 +2692,10 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             }
         }
 
-        if (candidates.Count == 0)
+        if (candidates.Count == 0) {
+            FinishClosureDiagnostics(closureDiagnostics, "no closure candidate passed");
             return false;
+        }
 
         FilterByScoreTolerance(candidates, candidate => candidate.Score);
         List<ConnectionChoice> choices = new List<ConnectionChoice>();
@@ -2562,8 +2719,10 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             choices,
             choice => choice.Option.ChancePercent,
             random);
-        if (selectedChoice == null)
+        if (selectedChoice == null) {
+            FinishClosureDiagnostics(closureDiagnostics, "weighted selection returned no choice");
             return false;
+        }
 
         List<ExtraLinkCandidate> selectedCandidates = new List<ExtraLinkCandidate>();
         for (int i = 0; i < candidates.Count; i++)
@@ -2592,6 +2751,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         state.Pieces.Add(connectionPiece);
         state.Usage.RecordConnection(chosen.Option.Prefab);
         if (connectedRoute.Enabled) RecordConnectedEdge(state, chosen.Source, chosen.Target, connectionPiece, chosen.SourceSocketIndex, chosen.TargetSocketIndex, false);
+        FinishClosureDiagnostics(closureDiagnostics, "joined");
         return true;
     }
 
@@ -2654,6 +2814,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
             snapshot.UsedSockets.Add(
                 piece,
                 new HashSet<int>(piece.UsedSockets));
+            snapshot.ReservedSockets.Add(piece, new HashSet<int>(piece.ReservedSockets));
         }
 
         return snapshot;
@@ -2677,6 +2838,11 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 pair.Key.UsedSockets.Add(socketIndex);
         }
 
+        foreach (var pair in snapshot.ReservedSockets)
+        {
+            pair.Key.ReservedSockets.Clear();
+            pair.Key.ReservedSockets.UnionWith(pair.Value);
+        }
         if (state.ConnectedEdges.Count > snapshot.EdgeCount)
             state.ConnectedEdges.RemoveRange(snapshot.EdgeCount, state.ConnectedEdges.Count - snapshot.EdgeCount);
         state.Usage = snapshot.Usage.Clone();
@@ -3106,6 +3272,14 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         List<PlannedPiece> pieces,
         PlannedPiece skippedPiece)
     {
+        return FindOverlappingPiece(candidateBounds, pieces, skippedPiece) != null;
+    }
+
+    private static PlannedPiece FindOverlappingPiece(
+        List<OrientedBox> candidateBounds,
+        List<PlannedPiece> pieces,
+        PlannedPiece skippedPiece)
+    {
         for (int pieceIndex = 0; pieceIndex < pieces.Count; pieceIndex++)
         {
             PlannedPiece piece = pieces[pieceIndex];
@@ -3120,13 +3294,13 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                             candidateBounds[candidateIndex],
                             piece.Bounds[existingIndex]))
                     {
-                        return true;
+                        return piece;
                     }
                 }
             }
         }
 
-        return false;
+        return null;
     }
 
     private static bool OverlapsExistingExcept(
@@ -3302,6 +3476,13 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         public int ForwardProgressRejected;
         public int HeightRejected;
         public int ClusterEnvelopeRejected;
+        public string DiagnosticStage, DiagnosticOverlap;
+        public PlannedPiece DiagnosticSource;
+        public ConnectionIsland DiagnosticConnection;
+        public AboveIsland DiagnosticIsland;
+        public PiecePlacement DiagnosticPlacement;
+        public int DiagnosticSourceSocket, DiagnosticEntry, DiagnosticSocket;
+        public List<PlacementRuleExample> DiagnosticCurrentExamples;
 
         public string BuildSummary()
         {
@@ -3479,6 +3660,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         public PiecePlacement Placement;
         public List<OrientedBox> Bounds;
         public readonly HashSet<int> UsedSockets = new HashSet<int>();
+        public readonly HashSet<int> ReservedSockets = new HashSet<int>();
         public IslandBiome Biome;
         public bool IsMainIsland;
         public int MainIndex;
@@ -3624,6 +3806,8 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         public int EdgeCount;
         public RunUsageState Usage;
         public readonly Dictionary<PlannedPiece, HashSet<int>> UsedSockets =
+            new Dictionary<PlannedPiece, HashSet<int>>();
+        public readonly Dictionary<PlannedPiece, HashSet<int>> ReservedSockets =
             new Dictionary<PlannedPiece, HashSet<int>>();
     }
 

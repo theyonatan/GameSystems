@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using FishNet;
@@ -37,6 +37,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     [SerializeField] private RuntimeRouteNavMesh runtimeRouteNavMesh;
 
     [Header("Generation")]
+    [Tooltip("Legacy route seed limit. Connected routes with Preview Seed = 0 use at most 30 total route attempts, without nested route retries.")]
     [SerializeField, Min(1)] private int maximumSeedAttempts = 12;
 
     [Header("Client Readiness")]
@@ -416,12 +417,23 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         bool generated = false;
+        bool approvedLayout = routeGenerator.UsesApprovedConnectedLayout;
+        int previewSeed = routeGenerator.ConnectedRoute.Enabled ? routeGenerator.ConnectedRoute.PreviewSeed : 0;
+        bool randomConnectedRoute = !approvedLayout && routeGenerator.ConnectedRoute.Enabled && previewSeed == 0;
+        int attemptLimit = approvedLayout ? 1 : randomConnectedRoute
+            ? IslandRouteGenerator.MaximumRandomRouteAttempts
+            : maximumSeedAttempts;
+        string lastAttemptFailure = "No generation attempt completed.";
+        var generationClock = System.Diagnostics.Stopwatch.StartNew();
+        bool triedFallback = false;
 
         for (int attempt = 1;
-             attempt <= maximumSeedAttempts;
+             attempt <= attemptLimit;
              attempt++)
         {
-            int previewSeed = routeGenerator.ConnectedRoute.Enabled ? routeGenerator.ConnectedRoute.PreviewSeed : 0;
+            bool fallback = randomConnectedRoute && (attempt > attemptLimit ||
+                generationClock.Elapsed.TotalSeconds >= routeGenerator.ConnectedRoute.MaximumGenerationSeconds);
+            if (fallback) triedFallback = true;
             int candidateSeed = previewSeed != 0 ? previewSeed : CreateSeed();
 
             backgroundGenerator.ClearGeneratedBackground();
@@ -435,11 +447,28 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             backgroundGenerator.Integration.UseRouteSeed = true;
             backgroundGenerator.Integration.GenerateWithRoute = false;
 
-            if (!routeGenerator.GenerateRoute())
+            // One outer attempt is exactly one full route plan in random
+            // connected mode. Failed joins/bakes/backgrounds consume that same
+            // attempt; no inner 12x retry multiplier can restart the budget.
+            if (randomConnectedRoute)
+                Debug.Log(fallback ? "[World Generation] Search limit reached; loading saved connected fallback." :
+                    $"[World Generation] Route attempt {attempt}/{attemptLimit}, seed {candidateSeed}.", this);
+
+            string fallbackReport = string.Empty;
+            bool routeGenerated = fallback
+                ? routeGenerator.GenerateConnectedFallback(out fallbackReport)
+                : randomConnectedRoute ? routeGenerator.GenerateRouteWithAttemptLimit(1) : routeGenerator.GenerateRoute();
+            if ((approvedLayout || fallback) && routeGenerated) candidateSeed = routeGenerator.LastUsedSeed;
+            if (routeGenerator.ConnectedRoute.Enabled)
+                Debug.Log($"[World Generation] Timings: planning {routeGenerator.LastPlanningSeconds:F3}s, " +
+                    $"island creation {routeGenerator.LastInstantiationSeconds:F3}s.", this);
+            if (!routeGenerated)
             {
+                lastAttemptFailure = fallback ? fallbackReport : $"Seed {candidateSeed}: {routeGenerator.LastFailureReason}";
+                if (approvedLayout || fallback) break;
                 Debug.LogWarning(
                     $"[World Generation] Seed attempt {attempt}/" +
-                    $"{maximumSeedAttempts} failed: " +
+                    $"{attemptLimit} failed: " +
                     routeGenerator.LastFailureReason,
                     this);
                 if (previewSeed != 0)
@@ -451,6 +480,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                 continue;
             }
 
+            var navigationClock = System.Diagnostics.Stopwatch.StartNew();
             // Build once from the complete generated route hierarchy. Event
             // planning is intentionally blocked until this exact bake exists.
             if (runtimeRouteNavMesh != null &&
@@ -463,11 +493,17 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                 return;
             }
 
+            double bakeSeconds = navigationClock.Elapsed.TotalSeconds;
+            navigationClock.Restart();
+            string connectivityError = "Runtime route NavMesh is missing.";
             if (routeGenerator.ConnectedRoute.Enabled &&
-                (runtimeRouteNavMesh == null || !routeGenerator.ValidateConnectedNavigation(out _)))
+                (runtimeRouteNavMesh == null || !routeGenerator.ValidateConnectedNavigation(out connectivityError)))
             {
-                routeGenerator.ValidateConnectedNavigation(out string connectivityError);
+                lastAttemptFailure = $"Seed {candidateSeed}: {connectivityError}";
                 Debug.LogWarning("[World Generation] Connected route rejected: " + connectivityError, this);
+                Debug.Log($"[World Generation] Timings: NavMesh {bakeSeconds:F3}s, " +
+                    $"validation {navigationClock.Elapsed.TotalSeconds:F3}s (rejected).", this);
+                if (approvedLayout || fallback) break;
                 if (previewSeed != 0)
                 {
                     FailServerGeneration("Preview seed failed its walkability/gate check: " + connectivityError);
@@ -476,6 +512,9 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                 continue;
             }
 
+            if (routeGenerator.ConnectedRoute.Enabled)
+                Debug.Log($"[World Generation] Timings: NavMesh {bakeSeconds:F3}s, " +
+                    $"validation {navigationClock.Elapsed.TotalSeconds:F3}s (passed).", this);
             // Event planning is deterministic for this exact route. A plan
             // failure is a configuration problem, so do not hide it by trying
             // another seed or rerolling an invalid event.
@@ -491,12 +530,15 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
             if (!backgroundGenerator.GenerateBackground())
             {
+                lastAttemptFailure = $"Seed {candidateSeed}: background generation failed: " +
+                    backgroundGenerator.LastGenerationReport;
                 Debug.LogWarning(
                     $"[World Generation] Background generation failed " +
                     $"for seed {candidateSeed}: " +
                     backgroundGenerator.LastGenerationReport,
                     this);
 
+                if (approvedLayout || fallback) break;
                 continue;
             }
 
@@ -507,9 +549,13 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
         if (!generated)
         {
-            FailServerGeneration(
-                $"No world could be generated after " +
-                $"{maximumSeedAttempts} seed attempts.");
+            FailServerGeneration(approvedLayout
+                ? "Approved connected layout failed; no generation search or retries will run. " + lastAttemptFailure
+                : randomConnectedRoute
+                ? $"Stopped within the {attemptLimit}-attempt/search-time limit without a valid world. " +
+                  $"Saved fallback {(triedFallback ? "also failed" : "was not tried")}. " +
+                  $"No further retries will run. Last rejection: {lastAttemptFailure}"
+                : $"No world could be generated after {attemptLimit} seed attempts.");
             return;
         }
 
