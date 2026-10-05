@@ -44,7 +44,8 @@ public class CameraKnotRotation : MonoBehaviour
 
         quaternion newRotation = math.slerp(startRotation, endRotation, difference);
 
-        // Set camera rotation
-        vcam.transform.rotation = newRotation;
+        // Knot rotations are local to the spline. Preserve their authored look
+        // direction when the containing island/trail is rotated in the world.
+        vcam.transform.rotation = spline.transform.rotation * (Quaternion)newRotation;
     }
 }

@@ -48,6 +48,7 @@ public class CutsceneCamera : MonoBehaviour
 
     public void Play(float cameraSpeed=0.2f)
     {
+        _cameraFinishedAnimation = false;
         switch (_cameraType)
         {
             case CutsceneCameraType.StaticCamera:
