@@ -134,7 +134,7 @@ public class TP_CameraState : CameraState
             _mouseY = look.y;
         }
 
-        if (!CanLookAround || !InputDirector.GameplayInputEnabled)
+        if (!CanLookAround || !InputDirector.CameraInputEnabled)
         {
             _mouseX = 0;
             _mouseY = 0;

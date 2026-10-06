@@ -20,10 +20,12 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     private readonly HashSet<object> _movementAbilityLocks = new();
     private readonly HashSet<object> _equipmentInputLocks = new();
     private readonly HashSet<object> _gameplayInputLocks = new();
+    private readonly HashSet<object> _cameraAllowedGameplayLocks = new();
     private bool _runRequested = true;
     private bool _jumpRequested = true;
 
     public bool GameplayInputEnabled => _gameplayInputLocks.Count == 0;
+    public bool CameraInputEnabled => _gameplayInputLocks.Count == _cameraAllowedGameplayLocks.Count;
     public bool CanRun => GameplayInputEnabled && _runRequested && _movementAbilityLocks.Count == 0;
     public bool CanJump => GameplayInputEnabled && _jumpRequested && _movementAbilityLocks.Count == 0;
     public bool CanUseEquipment => GameplayInputEnabled && _equipmentInputLocks.Count == 0;
@@ -59,7 +61,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     // Mouse delta is already a per-frame displacement and must not use deltaTime.
     public Vector2 ReadCameraLook()
     {
-        if (!GameplayInputEnabled || _playerInput == null) return Vector2.zero;
+        if (!CameraInputEnabled || _playerInput == null) return Vector2.zero;
         var look = _playerInput.Player.Look;
         Vector2 value = look.ReadValue<Vector2>();
         return look.activeControl?.device is Gamepad || look.activeControl?.device is Joystick
@@ -170,7 +172,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.FlameThrower.canceled += _ => OnPlayerFlameThrowerStop?.Invoke();
 
         // camera
-        _playerInput.Player.Look.performed += ctx => { if (GameplayInputEnabled) OnCameraMoved?.Invoke(ctx.ReadValue<Vector2>()); };
+        _playerInput.Player.Look.performed += ctx => { if (CameraInputEnabled) OnCameraMoved?.Invoke(ctx.ReadValue<Vector2>()); };
         _playerInput.Player.Zoom.performed += ctx => { if (GameplayInputEnabled) OnCameraZoomChanged?.Invoke(ctx.ReadValue<float>()); };
         _playerInput.Player.LockSwitch.performed += _ => { if (GameplayInputEnabled) OnLockSwitchPressed?.Invoke(); };
 
@@ -328,12 +330,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     }
 
     /// <summary>Blocks gameplay while leaving Pause active and preserving existing story/action locks.</summary>
-    public void SetGameplayInputLock(object source, bool blocked)
+    public void SetGameplayInputLock(object source, bool blocked, bool allowCameraLook = false)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         bool wasEnabled = GameplayInputEnabled;
         if (blocked) _gameplayInputLocks.Add(source);
         else _gameplayInputLocks.Remove(source);
+        if (blocked && allowCameraLook) _cameraAllowedGameplayLocks.Add(source);
+        else _cameraAllowedGameplayLocks.Remove(source);
         if (wasEnabled == GameplayInputEnabled) return;
         if (!GameplayInputEnabled)
         {
