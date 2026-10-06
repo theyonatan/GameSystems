@@ -445,6 +445,26 @@ public sealed partial class IslandRouteGenerator
                 out var end, 5f, UnityEngine.AI.NavMesh.AllAreas) &&
                 UnityEngine.AI.NavMesh.CalculatePath(start.position,end.position,UnityEngine.AI.NavMesh.AllAreas,path) &&
                 path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete;
+            // An island pivot can lie in a tiny NavMesh pocket enclosed by its
+            // authored props. Used socket approaches represent the traversable
+            // route; every local connection is still checked below. Also check
+            // beacon approaches so an isolated pivot cannot hide a gate bypass.
+            if (!reachable)
+            {
+                int pieceIndex = generatedInstances.IndexOf(island);
+                foreach (var edge in connectedEdges)
+                {
+                    bool source = edge.FromPiece == pieceIndex;
+                    if (!source && edge.ToPiece != pieceIndex) continue;
+                    if (source && generatedInstances[edge.ToPiece].IsGeneratedBeacon) continue;
+                    var socket = island.Sockets.First(s => s.name == (source ? edge.FromSocket : edge.ToSocket));
+                    Vector3 approach = socket.transform.position + socket.transform.forward * (source ? -1.1f : 1.1f);
+                    if (UnityEngine.AI.NavMesh.SamplePosition(approach, out end, 2f, UnityEngine.AI.NavMesh.AllAreas) &&
+                        UnityEngine.AI.NavMesh.CalculatePath(start.position, end.position, UnityEngine.AI.NavMesh.AllAreas, path) &&
+                        path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete)
+                    { reachable = true; break; }
+                }
+            }
             if (reachable == island.IsGeneratedBeacon)
             { report = island.IsGeneratedBeacon ? "The closed gate can be bypassed on foot." : "Unreachable island: " + island.name; return false; }
         }
