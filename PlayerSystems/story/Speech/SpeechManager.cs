@@ -1,6 +1,7 @@
 using System.Collections;
 using EasyTextEffects;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// SpeechManager - Singleton
@@ -118,7 +119,7 @@ public class SpeechManager : MonoBehaviour
         // disable canvas
         while (true)
         {
-            if (Time.timeScale > 0f && Input.GetMouseButtonDown(0))
+            if (Time.timeScale > 0f && AdvancePressed())
             {
                 textBox.maxVisibleCharacters = int.MaxValue;
 
@@ -145,5 +146,16 @@ public class SpeechManager : MonoBehaviour
         activeCanvas.StopPointing();
         activeCanvas.ChatBubble.SetActive(false);
         activeCanvas.BubblePointer.gameObject.SetActive(false);
+    }
+
+    private static bool AdvancePressed()
+    {
+        var keyboard = Keyboard.current;
+        var gamepad = Gamepad.current;
+        return Mouse.current?.leftButton.wasPressedThisFrame == true ||
+            (keyboard != null && (keyboard.eKey.wasPressedThisFrame || keyboard.zKey.wasPressedThisFrame ||
+                keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame ||
+                keyboard.numpadEnterKey.wasPressedThisFrame)) ||
+            (gamepad != null && (gamepad.buttonSouth.wasPressedThisFrame || gamepad.rightTrigger.wasPressedThisFrame));
     }
 }

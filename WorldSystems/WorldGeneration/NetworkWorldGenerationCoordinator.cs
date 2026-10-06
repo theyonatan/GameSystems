@@ -33,6 +33,10 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     [Header("Events")]
     [SerializeField] private RunEventDirector eventDirector;
 
+    [Tooltip("Cosmetic camp marker for islands assigned a Boko Spawns encounter.")]
+    [SerializeField] private GameObject bokoCampfirePrefab;
+    private readonly List<GameObject> _campfireMarkers = new();
+
     [Header("Runtime Navigation")]
     [SerializeField] private RuntimeRouteNavMesh runtimeRouteNavMesh;
 
@@ -68,6 +72,15 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     public event Action<NetworkConnection> ServerClientWorldReady;
     public event Action<NetworkConnection, string> ServerClientWorldFailed;
+
+    // Called by the direct-scene bootstrap before this coordinator's Awake.
+    // Menu sessions keep resolving their server-selected Wind configuration.
+    public void PrepareDirectSceneLevel(LevelConfiguration level)
+    {
+        assignedLevelConfiguration = level;
+        applyWindSelectedLevel = false;
+        applyAssignedLevelOnStart = true;
+    }
 
     private void Awake()
     {
@@ -311,6 +324,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     public override void OnStopServer()
     {
+        ClearCampMarkers();
         if (eventDirector != null) eventDirector.ClearServerEncounters();
         base.OnStopServer();
 
@@ -629,6 +643,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
         WorldHash = CalculateWorldHash(pieces);
         ServerWorldGenerated = true;
+        ServerCreateBokoCampMarkers();
 
         Debug.Log(
             $"[World Generation] Server generated and spawned " +
@@ -641,6 +656,62 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         {
             SendWorldCompletionToClient(connection);
         }
+    }
+
+    [Server]
+    private void ServerCreateBokoCampMarkers()
+    {
+        if (!bokoCampfirePrefab) return;
+        var positions = new List<Vector3>();
+        foreach (var piece in routeGenerator.GeneratedInstances)
+        {
+            var trigger = piece.GetComponent<IslandEventTrigger>();
+            if (!trigger || !trigger.HasAssignedEvent || trigger.AssignedEvent != IslandEventId.BokoSpawns) continue;
+            Vector3 center = piece.transform.position;
+            var bounds = trigger.Island.PlacementBounds;
+            if (bounds != null && bounds.Count > 0 && bounds[0]) center = bounds[0].bounds.center;
+            var spawnPoint = trigger.Island.GetComponentInChildren<KoboldSpawnPoint>();
+            if (spawnPoint) center = spawnPoint.SpawnTransform.position;
+            if (UnityEngine.AI.NavMesh.SamplePosition(center, out var ground, 12f, UnityEngine.AI.NavMesh.AllAreas))
+                positions.Add(ground.position);
+        }
+        ApplyCampMarkers(positions.ToArray());
+        ObserversCreateCampMarkers(positions.ToArray());
+    }
+
+    [ObserversRpc(BufferLast = true)]
+    private void ObserversCreateCampMarkers(Vector3[] positions)
+    {
+        if (IsServerInitialized) return;
+        ApplyCampMarkers(positions);
+    }
+
+    private void ApplyCampMarkers(Vector3[] positions)
+    {
+        ClearCampMarkers();
+        if (!bokoCampfirePrefab) return;
+        foreach (var position in positions)
+        {
+            var marker = Instantiate(bokoCampfirePrefab, position, Quaternion.identity);
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(marker, gameObject.scene);
+            // These mark planned encounters on the already baked route. The
+            // source campfire has a solid collider at the enemy spawn position.
+            foreach (var collider in marker.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+            _campfireMarkers.Add(marker);
+        }
+    }
+
+    private void ClearCampMarkers()
+    {
+        foreach (var marker in _campfireMarkers) if (marker) Destroy(marker);
+        _campfireMarkers.Clear();
+    }
+
+    public override void OnStopClient()
+    {
+        ClearCampMarkers();
+        base.OnStopClient();
     }
 
     [Server]
