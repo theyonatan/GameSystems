@@ -63,6 +63,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     public int SpawnedPieceCount { get; private set; }
     public LevelConfiguration AssignedLevelConfiguration =>
         assignedLevelConfiguration;
+    public int SelectedSavedRunIndex { get; private set; } = -1;
+    public LevelConfiguration ActiveRunConfiguration { get; private set; }
 
     public event Action<NetworkConnection> ServerClientWorldReady;
     public event Action<NetworkConnection, string> ServerClientWorldFailed;
@@ -217,7 +219,28 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         assignedLevelConfiguration = level;
+        ActiveRunConfiguration = level;
         error = string.Empty;
+        return true;
+    }
+
+    private bool ApplySavedRun(int index, out string error)
+    {
+        LevelConfiguration level = assignedLevelConfiguration;
+        if (level == null)
+        {
+            error = "Cannot select a saved run without a level configuration.";
+            return false;
+        }
+        if (!level.TryGetSavedRun(index, out var run, out error))
+            return false;
+        if (!ApplyConfigurations(run.RouteConfiguration, run.EventConfiguration, out error))
+            return false;
+
+        // Keep the telescope destination and progression identity on the parent level.
+        assignedLevelConfiguration = level;
+        ActiveRunConfiguration = run;
+        SelectedSavedRunIndex = index;
         return true;
     }
 
@@ -272,6 +295,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         assignedLevelConfiguration = null;
+        ActiveRunConfiguration = null;
+        SelectedSavedRunIndex = -1;
         _assignedLevelApplyError = string.Empty;
         error = string.Empty;
         return true;
@@ -337,6 +362,17 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         ServerWorldGenerated = false;
         ServerWorldGenerationFailed = false;
         ServerFailureReason = string.Empty;
+
+        if (string.IsNullOrEmpty(_assignedLevelApplyError) &&
+            assignedLevelConfiguration != null && assignedLevelConfiguration.SavedRunCount > 0)
+        {
+            int index = UnityEngine.Random.Range(0, assignedLevelConfiguration.SavedRunCount);
+            if (!ApplySavedRun(index, out _assignedLevelApplyError))
+                _assignedLevelApplyError = "Could not load the selected saved run: " + _assignedLevelApplyError;
+            else
+                Debug.Log($"[World Generation] Selected saved run {index + 1}/{assignedLevelConfiguration.SavedRunCount}: " +
+                    $"'{ActiveRunConfiguration.name}'. Loading its approved layout and authored events without search.", this);
+        }
 
         if (!string.IsNullOrEmpty(_assignedLevelApplyError))
         {
@@ -780,7 +816,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             connection,
             WorldSeed,
             SpawnedPieceCount,
-            WorldHash);
+            WorldHash,
+            SelectedSavedRunIndex);
 
         StartCoroutine(
             ServerClientTimeoutRoutine(
@@ -806,10 +843,19 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         NetworkConnection connection,
         int seed,
         int expectedPieceCount,
-        int expectedHash)
+        int expectedHash,
+        int savedRunIndex)
     {
         if (_clientReadyRoutine != null)
             StopCoroutine(_clientReadyRoutine);
+
+        // Clients receive the server's choice; they never roll or generate a layout.
+        if (savedRunIndex >= 0 && !ApplySavedRun(savedRunIndex, out string error))
+        {
+            ServerReportWorldReady(seed, 0, false, "Could not apply the server's saved run: " + error);
+            _clientReadyRoutine = null;
+            return;
+        }
 
         _clientReadyRoutine = StartCoroutine(
             ClientVerifyWorldRoutine(
