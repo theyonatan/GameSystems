@@ -21,6 +21,9 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     [Tooltip("Apply the assigned level before server validation and generation. Leave off to use the Route Generator and Event Director exactly as configured in the scene.")]
     [SerializeField] private bool applyAssignedLevelOnStart;
+    [Tooltip("Generate scenery around an authored arena without a gameplay route or encounters.")]
+    [SerializeField] private bool backgroundOnly;
+    [SerializeField] private Bounds authoredArenaBounds = new Bounds(Vector3.zero, new Vector3(50, 30, 50));
 
     [Header("Generators")]
     [SerializeField] private IslandRouteGenerator routeGenerator;
@@ -133,7 +136,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         bool attemptedWindSelection =
-            applyWindSelectedLevel && Wind.Instance != null;
+            !backgroundOnly && applyWindSelectedLevel && Wind.Instance != null;
 
         if (attemptedWindSelection)
         {
@@ -161,7 +164,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     this);
             }
         }
-        else if (applyAssignedLevelOnStart)
+        else if (!backgroundOnly && applyAssignedLevelOnStart)
         {
             if (assignedLevelConfiguration == null)
             {
@@ -376,6 +379,18 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         ServerWorldGenerated = false;
         ServerWorldGenerationFailed = false;
         ServerFailureReason = string.Empty;
+
+        if (backgroundOnly)
+        {
+            WorldSeed = CreateSeed();
+            if (!backgroundGenerator || !backgroundGenerator.GenerateBackgroundForArena(authoredArenaBounds, WorldSeed))
+            {
+                FailServerGeneration("Arena background generation failed.");
+                return;
+            }
+            CompleteServerWorld();
+            return;
+        }
 
         if (string.IsNullOrEmpty(_assignedLevelApplyError) &&
             assignedLevelConfiguration != null && assignedLevelConfiguration.SavedRunCount > 0)
@@ -609,6 +624,12 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             return;
         }
 
+        CompleteServerWorld();
+    }
+
+    [Server]
+    private void CompleteServerWorld()
+    {
         if (!ValidateGeneratedNetworkRoots(out string networkError))
         {
             FailServerGeneration(networkError);
@@ -643,7 +664,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
         WorldHash = CalculateWorldHash(pieces);
         ServerWorldGenerated = true;
-        ServerCreateBokoCampMarkers();
+        if (!backgroundOnly) ServerCreateBokoCampMarkers();
 
         Debug.Log(
             $"[World Generation] Server generated and spawned " +

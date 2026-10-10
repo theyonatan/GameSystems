@@ -20,6 +20,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     private readonly HashSet<object> _movementAbilityLocks = new();
     private readonly HashSet<object> _equipmentInputLocks = new();
     private readonly HashSet<object> _gameplayInputLocks = new();
+    private readonly HashSet<object> _emoteOnlySources = new();
     private readonly HashSet<object> _cameraAllowedGameplayLocks = new();
     private bool _runRequested = true;
     private bool _jumpRequested = true;
@@ -223,14 +224,17 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Dispose();
         _playerInput = null;
     }
+
+    // Network despawn can revoke authority before Player's lifecycle cleanup.
+    private void OnDestroy() => OnDisablePlayer();
     
     private void Update()
     {
-        if (!_localPlayer || !_localPlayer.HasAuthority || !GameplayInputEnabled)
+        if (!_localPlayer || !_localPlayer.HasAuthority || (!GameplayInputEnabled && _emoteOnlySources.Count == 0))
             return;
 
         UpdateEmoteInput();
-        UpdateMouseDrag();
+        if (GameplayInputEnabled) UpdateMouseDrag();
     }
 
     private void UpdateEmoteInput()
@@ -251,6 +255,13 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         else if (Keyboard.current.digit7Key.wasPressedThisFrame) OnEmotePressed?.Invoke(6);
         else if (Keyboard.current.digit8Key.wasPressedThisFrame) OnEmotePressed?.Invoke(7);
         else if (Keyboard.current.digit9Key.wasPressedThisFrame) OnEmotePressed?.Invoke(8);
+    }
+
+    /// <summary>Allows cosmetic emotes during an owned gameplay lock, for victory podiums.</summary>
+    public void SetEmotesWhileLocked(object source, bool allowed)
+    {
+        if (allowed) _emoteOnlySources.Add(source);
+        else _emoteOnlySources.Remove(source);
     }
 
     public void EnableInput()

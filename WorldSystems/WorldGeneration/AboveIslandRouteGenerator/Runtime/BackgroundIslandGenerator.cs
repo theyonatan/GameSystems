@@ -100,6 +100,22 @@ public sealed class BackgroundIslandGenerator : MonoBehaviour
 
     [ContextMenu("Generate Background Islands")]
     public bool GenerateBackground()
+        => GenerateBackground(null, null, null);
+
+    // An authored arena supplies a scenic axis without generating gameplay islands.
+    public bool GenerateBackgroundForArena(Bounds bounds, int seed)
+    {
+        float extent = Mathf.Max(20f, bounds.extents.z);
+        var anchors = new List<RouteAnchor> {
+            new RouteAnchor { Position = bounds.center - Vector3.forward * extent, Biome = IslandBiome.Grass, MainIndex = 1 },
+            new RouteAnchor { Position = bounds.center + Vector3.forward * extent, Biome = IslandBiome.Grass, MainIndex = 2 }
+        };
+        return GenerateBackground(anchors, new List<PlacementSphere> {
+            new PlacementSphere { Center = bounds.center, Radius = bounds.extents.magnitude }
+        }, seed);
+    }
+
+    private bool GenerateBackground(List<RouteAnchor> authoredAnchors, List<PlacementSphere> authoredBounds, int? authoredSeed)
     {
         RefreshRouteSubscription();
         if (!ValidateConfiguration(out string validationReport))
@@ -110,7 +126,7 @@ public sealed class BackgroundIslandGenerator : MonoBehaviour
             return false;
         }
 
-        List<RouteAnchor> anchors = CollectRouteAnchors(subscribedRouteGenerator);
+        List<RouteAnchor> anchors = authoredAnchors ?? CollectRouteAnchors(subscribedRouteGenerator);
         if (anchors.Count < 2)
         {
             LastGenerationReport = "Generate the playable route first. At least two numbered route islands are required.";
@@ -120,14 +136,14 @@ public sealed class BackgroundIslandGenerator : MonoBehaviour
         }
 
         RoutePath path = new RoutePath(anchors, distribution.ExtendBeforeRoute, distribution.ExtendBeyondRoute);
-        int seed = integration.UseRouteSeed
+        int seed = authoredSeed ?? (integration.UseRouteSeed
             ? CombineSeeds(subscribedRouteGenerator.LastUsedSeed, integration.SeedOffset)
-            : integration.Seed;
+            : integration.Seed);
         LastUsedSeed = seed;
         Random random = new Random(seed);
 
         PlanningState state = new PlanningState();
-        state.PlayableBounds.AddRange(CollectPlayableBounds(subscribedRouteGenerator));
+        state.PlayableBounds.AddRange(authoredBounds ?? CollectPlayableBounds(subscribedRouteGenerator));
         state.ExclusionVolumes.AddRange(FindActiveExclusionVolumes());
         state.DensityVolumes.AddRange(FindActiveDensityVolumes());
 
