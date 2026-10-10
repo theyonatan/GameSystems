@@ -55,6 +55,10 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     [SerializeField, Min(0f)] private float stickLookSpeed = 75f;
     [SerializeField, Min(0f)] private float mouseLookScale = 0.06f;
 
+    // Local settings supplied by the game; shared input keeps neutral defaults.
+    public Vector2 MouseLookSensitivity { get; set; } = Vector2.one;
+    public Vector2 StickLookSensitivity { get; set; } = Vector2.one;
+
     public InputActionAsset ActiveActions => _playerInput?.asset;
 
     // Read every frame: a held stick doesn't keep sending performed callbacks.
@@ -65,8 +69,8 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         var look = _playerInput.Player.Look;
         Vector2 value = look.ReadValue<Vector2>();
         return look.activeControl?.device is Gamepad || look.activeControl?.device is Joystick
-            ? value * stickLookSpeed * Time.deltaTime
-            : value * mouseLookScale;
+            ? Vector2.Scale(value, StickLookSensitivity) * stickLookSpeed * Time.deltaTime
+            : Vector2.Scale(value, MouseLookSensitivity) * mouseLookScale;
     }
 
     private Vector2 _mouseDownPosition;
