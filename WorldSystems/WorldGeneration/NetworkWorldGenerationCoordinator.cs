@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using FishNet;
 using FishNet.Connection;
 using FishNet.Object;
@@ -688,16 +689,52 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         {
             var trigger = piece.GetComponent<IslandEventTrigger>();
             if (!trigger || !trigger.HasAssignedEvent || trigger.AssignedEvent != IslandEventId.BokoSpawns) continue;
-            Vector3 center = piece.transform.position;
-            var bounds = trigger.Island.PlacementBounds;
-            if (bounds != null && bounds.Count > 0 && bounds[0]) center = bounds[0].bounds.center;
-            var spawnPoint = trigger.Island.GetComponentInChildren<KoboldSpawnPoint>();
-            if (spawnPoint) center = spawnPoint.SpawnTransform.position;
-            if (UnityEngine.AI.NavMesh.SamplePosition(center, out var ground, 12f, UnityEngine.AI.NavMesh.AllAreas))
-                positions.Add(ground.position);
+            if (TryCampMarkerPosition(trigger.Island, out var position)) positions.Add(position);
         }
         ApplyCampMarkers(positions.ToArray());
         ObserversCreateCampMarkers(positions.ToArray());
+    }
+
+    private static bool TryCampMarkerPosition(AboveIsland island, out Vector3 position)
+    {
+        foreach (var point in island.GetComponentsInChildren<ItemSpawnPoint>())
+            if (point.isActiveAndEnabled && !point.HasSpawnedItem &&
+                TryClearCampGround(point.transform.position, .75f, out position)) return true;
+
+        // Some eligible island families have no general item markers; retain the
+        // proven encounter anchor instead of silently removing their campfire.
+        Vector3 center = island.transform.position;
+        var bounds = island.PlacementBounds;
+        if (bounds != null && bounds.Count > 0 && bounds[0]) center = bounds[0].bounds.center;
+        var spawn = island.GetComponentInChildren<KoboldSpawnPoint>();
+        if (spawn) center = spawn.SpawnTransform.position;
+        if (TryClearCampGround(center, 12f, out position)) return true;
+        // A pickup can also occupy that fallback. Search nearby on the same island
+        // without moving items, changing their seeded selection, or blocking paths.
+        for (int ring = 1; ring <= 3; ring++)
+        for (int direction = 0; direction < 8; direction++)
+        {
+            float angle = direction * Mathf.PI / 4f;
+            var candidate = center + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * (ring * 1.5f);
+            if (!TryClearCampGround(candidate, .75f, out position)) continue;
+            var sampled = position;
+            if (bounds == null || bounds.Count == 0 || bounds.Any(b => b && b.bounds.Contains(sampled))) return true;
+        }
+        position = default;
+        Debug.LogWarning("[World Generation] No walkable pickup-clear campfire location on " + island.name);
+        return false;
+    }
+
+    private static bool TryClearCampGround(Vector3 candidate, float radius, out Vector3 position)
+    {
+        position = default;
+        if (!UnityEngine.AI.NavMesh.SamplePosition(candidate, out var ground, radius, UnityEngine.AI.NavMesh.AllAreas)) return false;
+        foreach (var collider in Physics.OverlapSphere(ground.position + Vector3.up * .4f, 1.1f,
+                     Physics.AllLayers, QueryTriggerInteraction.Collide))
+            if (collider.GetComponentInParent<BreakableCrystal>() || collider.GetComponentInParent<BreakableSkull>() ||
+                collider.GetComponentInParent<DroppedPowerPickup>()) return false;
+        position = ground.position;
+        return true;
     }
 
     [ObserversRpc(BufferLast = true)]
