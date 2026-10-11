@@ -380,7 +380,14 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     private void ApplyRunAvailability()
     {
         if (CanRun)
+        {
             OnPlayerRunEnabled?.Invoke();
+            // Availability locks clear the movement state's sprint request, but
+            // Running stays enabled and will not send another started while held.
+            var running = _playerInput?.Player.Running;
+            if (running != null && running.enabled && running.IsPressed())
+                OnPlayerRunStarted?.Invoke();
+        }
         else
         {
             OnPlayerRunDisabled?.Invoke();
