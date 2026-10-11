@@ -98,13 +98,13 @@ public class cc_tpState : MovementState
                 Connection.To("Walking", customCrossfade: 0.06f).When("Walking", true),
             })
             .AddAnimation("Walking", connections: new [] {
-                Connection.To("Fall").When("Falling", true),
+                Connection.To("Fall", customCrossfade: 0.24f).When("Falling", true),
                 Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false),
                 Connection.To("Running", customCrossfade: 0.22f).When("Running", true)
             })
             .AddAnimation("Running", connections: new []
             {
-                Connection.To("Fall").When("Falling", true),
+                Connection.To("Fall", customCrossfade: 0.24f).When("Falling", true),
                 Connection.To("Walking", customCrossfade: 0.2f).When("Running", false),
                 Connection.To("Idle", customCrossfade: 0.2f).When("Walking", false)
             })
