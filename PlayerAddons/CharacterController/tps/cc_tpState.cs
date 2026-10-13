@@ -18,6 +18,7 @@ public class cc_tpState : MovementState
     [SerializeField] private Transform characterOrientation;
     private Player _player;
     private AnimationsManager _animator;
+    private ICharacterControllerTraversal _traversal;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 2.8f;
@@ -54,6 +55,7 @@ public class cc_tpState : MovementState
         _player = manager.GetComponent<Player>();
         _animator = manager.GetComponent<AnimationsManager>();
         cc = manager.GetComponent<CharacterController>();
+        _traversal = manager.GetComponent<ICharacterControllerTraversal>();
         
         if (!_player.HasAuthority)
             return;
@@ -239,11 +241,18 @@ public class cc_tpState : MovementState
         
         // move towards new velocity
         float targetSpeed = _holdingSprint && CanRun ? sprintSpeed : walkSpeed;
+        float controlAcceleration = acceleration;
+        if (!IsGrounded && _traversal != null &&
+            _traversal.TryGetAirControl(out float airSpeed, out float airAcceleration))
+        {
+            targetSpeed = airSpeed;
+            controlAcceleration = airAcceleration;
+        }
         Vector3 targetHorizontalVelocity = moveDir * targetSpeed;
         Vector3 currentHorizontal = new Vector3(_movementVelocity.x, 0f, _movementVelocity.z);
         
         currentHorizontal = Vector3.Lerp(currentHorizontal, targetHorizontalVelocity,
-            acceleration * Time.deltaTime);
+            controlAcceleration * Time.deltaTime);
 
         _movementVelocity.x = currentHorizontal.x;
         _movementVelocity.z = currentHorizontal.z;
@@ -264,6 +273,13 @@ public class cc_tpState : MovementState
 
     private void HandleJumpAndGravity()
     {
+        if (_traversal != null && _traversal.TryUpdateVerticalVelocity(
+                ref _verticalVelocity, _holdingJump, IsGrounded, CanMove, Time.deltaTime))
+        {
+            _animator.SetBool("Falling", !IsGrounded || _verticalVelocity > 0f);
+            _movementVelocity.y = _verticalVelocity;
+            return;
+        }
         // constant but limited force if on ground
         if (IsGrounded && _verticalVelocity < 0f)
         {

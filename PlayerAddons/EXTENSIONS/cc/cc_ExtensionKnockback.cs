@@ -9,6 +9,7 @@ public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable, IPlayerBehavi
 
     private CharacterController cc;
     private Vector3 impact = Vector3.zero;
+    public float LastImpactTime { get; private set; } = float.NegativeInfinity;
     
     public void AwakePlayer()
     {
@@ -59,6 +60,7 @@ public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable, IPlayerBehavi
     
     private void AddImpact(Vector3 dir, float force)
     {
+        if (force > 0f) LastImpactTime = Time.time;
         dir.Normalize();
 
         if (dir.y < 0)
