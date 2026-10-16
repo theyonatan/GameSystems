@@ -59,7 +59,7 @@ public sealed partial class IslandRouteGenerator
         {
             if (saved.Prefab == null) { report = "Saved layout contains a missing prefab."; return false; }
             var placement = new PiecePlacement(generation.RouteStart.position + generation.RouteStart.rotation * saved.Position,
-                generation.RouteStart.rotation * saved.Rotation);
+                generation.RouteStart.rotation * saved.Rotation, saved.Scale);
             var piece = CreatePlannedPiece(saved.Prefab, placement, BuildBounds(saved.Prefab, placement),
                 saved.Biome, saved.IsMainIsland, saved.MainIndex, saved.IsBeacon);
             piece.Label = saved.Label; piece.IsClusterPiece = saved.IsClusterPiece;
@@ -89,10 +89,11 @@ public sealed partial class IslandRouteGenerator
         }
         var main = state.Pieces.Where(p => p.IsMainIsland).OrderBy(p => p.MainIndex).ToList();
         int islands = state.Pieces.Count(p => p.Prefab is AboveIsland);
-        if (main.Count < 3 || state.Pieces.Count(p => p.IsBeacon) != 1 ||
+        if (!layout.IsAuthoredLayout && (main.Count < 3 || state.Pieces.Count(p => p.IsBeacon) != 1 ||
             state.ConnectedEdges.Count - islands + 1 < connectedRoute.MinimumCycles ||
-            HasMandatoryMiddleIsland(state, main))
+            HasMandatoryMiddleIsland(state, main)))
         { report = "Saved layout does not meet the required connected-web structure."; return false; }
+        if (layout.IsAuthoredLayout && !ValidateAuthoredSocketLayout(layout, out report)) return false;
         LastPlanningSeconds = clock.Elapsed.TotalSeconds;
         clock.Restart();
         ClearGeneratedRoute();

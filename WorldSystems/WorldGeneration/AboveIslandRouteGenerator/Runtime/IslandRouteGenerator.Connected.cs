@@ -31,10 +31,11 @@ public sealed partial class IslandRouteGenerator
             localOutline = GroundHull(ground.sharedMesh.vertices.Select(v=>local.MultiplyPoint3x4(v)));
             connectedGroundOutlines[prefab]=localOutline;
         }
-        var rootWorld=Matrix4x4.TRS(placement.Position,placement.Rotation,prefab.transform.localScale);
+        var pieceScale = placement.Scale == Vector3.zero ? prefab.transform.localScale : placement.Scale;
+        var rootWorld=Matrix4x4.TRS(placement.Position,placement.Rotation,pieceScale);
         var outline=localOutline.Select(v=>rootWorld.MultiplyPoint3x4(v)).ToArray();
         var meshBounds = ground.sharedMesh.bounds;
-        var world = Matrix4x4.TRS(placement.Position, placement.Rotation, prefab.transform.localScale) *
+        var world = Matrix4x4.TRS(placement.Position, placement.Rotation, pieceScale) *
             GetRelativeMatrix(prefab.transform, ground.transform) * Matrix4x4.TRS(meshBounds.center, Quaternion.identity, meshBounds.size);
         Vector3 x = world.GetColumn(0), y = world.GetColumn(1), z = world.GetColumn(2);
         bounds.Add(new OrientedBox(world.GetColumn(3), x.normalized,
@@ -433,6 +434,12 @@ public sealed partial class IslandRouteGenerator
     {
         report = string.Empty;
         if (!connectedRoute.Enabled) return true;
+        var loadedLayout = UsedApprovedLayout ? connectedRoute.ApprovedLayout : UsedConnectedFallback ? connectedRoute.FallbackLayout : null;
+        if (loadedLayout && loadedLayout.IsAuthoredLayout && !loadedLayout.ValidateBatteryNavigation)
+        {
+            report = "Authored socket graph loaded. Mode-specific gameplay navigation checks are not configured for this generic layout.";
+            return true;
+        }
         var islands = generatedInstances.OfType<AboveIsland>().ToArray();
         var pickup = islands.FirstOrDefault(p => p.GeneratedMainIndex == 2);
         if (pickup == null || !UnityEngine.AI.NavMesh.SamplePosition(pickup.transform.position,

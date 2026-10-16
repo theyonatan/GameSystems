@@ -599,6 +599,12 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 continue;
             }
 
+            if (entry.Prefab.AuthoredOnly)
+            {
+                errors.Add($"Connection '{entry.Prefab.name}' is an authored custom shape. Use it in a saved layout, not a random connection pool.");
+                continue;
+            }
+
             if (!seen.Add(entry.Prefab))
                 errors.Add($"Connection prefab '{entry.Prefab.name}' appears more than once in the table.");
 
@@ -1094,7 +1100,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         for (int slotIndex = startIndex; slotIndex < slots.Count; slotIndex++)
         {
             PlannedIslandSlot slot = slots[slotIndex];
-            MainCheckpoint checkpoint = connectedWork != null
+            MainCheckpoint checkpoint = connectedRoute.Enabled && connectedWork != null
                 ? RememberMainCheckpoint(state, slots, slotIndex, currentIsland, mainFrame) : null;
             PlacementDiagnostics diagnostics = new PlacementDiagnostics();
             if (!TryPlaceConnectedIsland(
@@ -3052,6 +3058,9 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
                 planned.Placement.Rotation,
                 generatedRoot.transform);
 
+            if (planned.Placement.Scale != Vector3.zero)
+                instance.transform.localScale = planned.Placement.Scale;
+
             instance.name = !string.IsNullOrEmpty(planned.Label) ? planned.Label + " - " + planned.Prefab.name : planned.IsBeacon
                 ? $"Beacon - {planned.Prefab.name}"
                 : planned.IsMainIsland
@@ -3210,7 +3219,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         Matrix4x4 rootWorld = Matrix4x4.TRS(
             placement.Position,
             placement.Rotation,
-            prefab.transform.localScale);
+            placement.Scale == Vector3.zero ? prefab.transform.localScale : placement.Scale);
         Matrix4x4 world = rootWorld * relative;
         return new SocketPose(world.GetColumn(3), world.rotation);
     }
@@ -3223,7 +3232,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
         Matrix4x4 rootWorld = Matrix4x4.TRS(
             placement.Position,
             placement.Rotation,
-            prefab.transform.localScale);
+            placement.Scale == Vector3.zero ? prefab.transform.localScale : placement.Scale);
 
         for (int i = 0; i < prefab.PlacementBounds.Count; i++)
         {
@@ -3843,11 +3852,13 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
     {
         public readonly Vector3 Position;
         public readonly Quaternion Rotation;
+        public readonly Vector3 Scale;
 
-        public PiecePlacement(Vector3 position, Quaternion rotation)
+        public PiecePlacement(Vector3 position, Quaternion rotation, Vector3 scale = default)
         {
             Position = position;
             Rotation = rotation;
+            Scale = scale;
         }
     }
 
