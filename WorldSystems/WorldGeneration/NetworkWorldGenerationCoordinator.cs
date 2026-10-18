@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -214,6 +214,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             return false;
         }
 
+        if (!level.ValidateRuntimeLayoutSource(out error)) return false;
+
         if (level.RouteConfiguration == null)
         {
             error = $"Level '{level.name}' has no Route Configuration.";
@@ -285,6 +287,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         error = string.Empty;
         var level = assignedLevelConfiguration;
         if (!level || backgroundOnly) return true;
+        if (!level.ValidateRuntimeLayoutSource(out error)) return false;
         if (level.SavedLayoutCount > 0)
         {
             int index = UnityEngine.Random.Range(0, level.SavedLayoutCount);
@@ -998,7 +1001,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             SpawnedPieceCount,
             WorldHash,
             SelectedSavedRunIndex,
-            SelectedSavedLayoutIndex);
+            SelectedSavedLayoutIndex,
+            assignedLevelConfiguration ? assignedLevelConfiguration.LevelId : string.Empty);
 
         StartCoroutine(
             ServerClientTimeoutRoutine(
@@ -1026,11 +1030,30 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         int expectedPieceCount,
         int expectedHash,
         int savedRunIndex,
-        int savedLayoutIndex)
+        int savedLayoutIndex,
+        string levelId)
     {
         if (_clientReadyRoutine != null)
             StopCoroutine(_clientReadyRoutine);
 
+        string localLevelId = assignedLevelConfiguration ? assignedLevelConfiguration.LevelId : string.Empty;
+        if (!string.Equals(localLevelId, levelId, StringComparison.Ordinal))
+        {
+            ServerReportWorldReady(seed, 0, false,
+                $"Level mismatch: server selected '{levelId}', client selected '{localLevelId}'. Return to Lobby and select the same expedition.");
+            _clientReadyRoutine = null;
+            return;
+        }
+        if (assignedLevelConfiguration &&
+            (!assignedLevelConfiguration.ValidateRuntimeLayoutSource(out string sourceError) ||
+             assignedLevelConfiguration.IsEnergyCollection && (savedLayoutIndex < 0 || savedRunIndex >= 0) ||
+             assignedLevelConfiguration.LevelId == Wind.ChargedCellLevelId && (savedRunIndex < 0 || savedLayoutIndex >= 0)))
+        {
+            ServerReportWorldReady(seed, 0, false,
+                "The server's layout selection does not match the selected expedition's assigned pool. " + sourceError);
+            _clientReadyRoutine = null;
+            return;
+        }
         // Clients receive the server's choice; they never roll or generate a layout.
         if (savedLayoutIndex >= 0 && !(IsServerStarted && assignedLevelConfiguration && assignedLevelConfiguration.IsEnergyCollection) &&
             !ApplySavedLayout(savedLayoutIndex, out string layoutError, seed))
