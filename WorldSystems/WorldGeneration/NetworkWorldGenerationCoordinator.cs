@@ -262,7 +262,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         return true;
     }
 
-    private bool ApplySavedLayout(int index, out string error)
+    private bool ApplySavedLayout(int index, out string error, int energySeed = 0)
     {
         var level = assignedLevelConfiguration;
         if (!level)
@@ -272,6 +272,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         routeGenerator.ConnectedRoute.Enabled = true;
         routeGenerator.ConnectedRoute.UseApprovedLayout = true;
         routeGenerator.ConnectedRoute.ApprovedLayout = layout;
+        if (level.IsEnergyCollection && !EnergyCollectionWorld.TryConfigure(routeGenerator, layout, level.EnergyCollection,
+                energySeed == 0 ? CreateSeed() : energySeed, out error)) return false;
         assignedLevelConfiguration = level;
         ActiveRunConfiguration = settings;
         SelectedSavedLayoutIndex = index;
@@ -286,6 +288,16 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         if (level.SavedLayoutCount > 0)
         {
             int index = UnityEngine.Random.Range(0, level.SavedLayoutCount);
+            if (level.IsEnergyCollection)
+            {
+                var ready = new List<int>(); var invalid = new List<string>();
+                for (int i = 0; i < level.SavedLayoutCount; i++)
+                    if (level.TryGetSavedLayout(i, out _, out _, out string issue)) ready.Add(i);
+                    else invalid.Add($"{level.SavedLayouts[i]?.name}: {issue}");
+                if (invalid.Count > 0) Debug.LogWarning("[Energy Collection] Assigned layouts requiring author fixes (excluded from this run's choice):\n" + string.Join("\n", invalid), this);
+                if (ready.Count == 0) { error = "No Energy Collection layout is ready. " + string.Join("\n", invalid); return false; }
+                index = ready[UnityEngine.Random.Range(0, ready.Count)];
+            }
             if (!ApplySavedLayout(index, out error)) return false;
             Debug.Log($"[World Generation] Selected layout {index + 1}/{level.SavedLayoutCount}: '{level.SavedLayouts[index].name}'. Loading the approved layout without search.", this);
         }
@@ -332,6 +344,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             return false;
         }
 
+        EnergyCollectionWorld.Clear(routeGenerator);
         if (!routeGenerator.ApplyConfiguration(routeConfiguration))
         {
             error =
@@ -367,6 +380,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     public override void OnStopServer()
     {
         ClearCampMarkers();
+        EnergyCollectionWorld.Clear(routeGenerator);
         if (eventDirector != null) eventDirector.ClearServerEncounters();
         base.OnStopServer();
 
@@ -590,6 +604,11 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             }
 
             double bakeSeconds = navigationClock.Elapsed.TotalSeconds;
+            if (!EnergyCollectionWorld.ValidateNavigation(routeGenerator, out string energyNavigationError))
+            {
+                FailServerGeneration("Energy Collection navigation failed: " + energyNavigationError);
+                return;
+            }
             navigationClock.Restart();
             string connectivityError = "Runtime route NavMesh is missing.";
             if (routeGenerator.ConnectedRoute.Enabled &&
@@ -670,6 +689,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         try
         {
             SpawnedPieceCount = SpawnGeneratedWorld();
+            EnergyCollectionWorld.SpawnStations(routeGenerator, root => _spawnedWorldRoots.Add(root));
         }
         catch (Exception exception)
         {
@@ -762,7 +782,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         foreach (var collider in Physics.OverlapSphere(ground.position + Vector3.up * .4f, 1.1f,
                      Physics.AllLayers, QueryTriggerInteraction.Collide))
             if (collider.GetComponentInParent<BreakableCrystal>() || collider.GetComponentInParent<BreakableSkull>() ||
-                collider.GetComponentInParent<DroppedPowerPickup>()) return false;
+                collider.GetComponentInParent<DroppedPowerPickup>() || collider.GetComponentInParent<EnergyStationCollector>()) return false;
         position = ground.position;
         return true;
     }
@@ -799,6 +819,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     public override void OnStopClient()
     {
         ClearCampMarkers();
+        EnergyCollectionWorld.Clear(routeGenerator);
         base.OnStopClient();
     }
 
@@ -1011,7 +1032,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             StopCoroutine(_clientReadyRoutine);
 
         // Clients receive the server's choice; they never roll or generate a layout.
-        if (savedLayoutIndex >= 0 && !ApplySavedLayout(savedLayoutIndex, out string layoutError))
+        if (savedLayoutIndex >= 0 && !(IsServerStarted && assignedLevelConfiguration && assignedLevelConfiguration.IsEnergyCollection) &&
+            !ApplySavedLayout(savedLayoutIndex, out string layoutError, seed))
         {
             ServerReportWorldReady(seed, 0, false, "Could not apply the server's saved layout: " + layoutError);
             _clientReadyRoutine = null;

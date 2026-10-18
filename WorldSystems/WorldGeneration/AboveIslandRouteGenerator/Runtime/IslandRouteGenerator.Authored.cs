@@ -5,7 +5,7 @@ using UnityEngine;
 public sealed partial class IslandRouteGenerator
 {
     /// <summary>Authored layouts share the saved-layout loader, without requiring web cycles.</summary>
-    public static bool ValidateAuthoredSocketLayout(ConnectedRouteLayout layout, out string report)
+    public static bool ValidateAuthoredSocketLayout(ConnectedRouteLayout layout, out string report, bool allowOpenConnectionEnds = false)
     {
         report = "Authored layout is empty.";
         if (!layout || layout.Pieces == null || layout.Pieces.Count == 0) return false;
@@ -45,7 +45,8 @@ public sealed partial class IslandRouteGenerator
         if (reached.Count != neighbours.Length)
         { report = $"Authored layout has {neighbours.Length - reached.Count} disconnected pieces. Draft can be saved; reconnect before runtime use."; return false; }
         foreach (var piece in layout.Pieces)
-            if (!piece.Prefab || piece.Prefab is ConnectionIsland && neighbours[layout.Pieces.IndexOf(piece)].Count != 2)
+            if (!piece.Prefab || piece.Prefab is ConnectionIsland &&
+                (neighbours[layout.Pieces.IndexOf(piece)].Count != 2 && !(allowOpenConnectionEnds && neighbours[layout.Pieces.IndexOf(piece)].Count == 1)))
             { report = "Every runtime connection needs an island at both ends."; return false; }
         report = "Authored socket layout is connected.";
         return true;
