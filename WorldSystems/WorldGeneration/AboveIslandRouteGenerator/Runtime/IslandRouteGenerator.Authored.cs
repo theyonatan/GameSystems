@@ -35,7 +35,7 @@ public sealed partial class IslandRouteGenerator
             var pb = GetSocketPose(b.Prefab, new PiecePlacement(b.Position, b.Rotation, b.Scale), bi);
             float positionTolerance = Mathf.Clamp(link.PositionTolerance, .02f, 1f);
             float angleTolerance = Mathf.Clamp(link.AngleTolerance, .2f, 30f);
-            if (Vector3.Distance(pa.Position, pb.Position) > positionTolerance || Quaternion.Angle(pa.Rotation, pb.Rotation) > angleTolerance)
+            if (Vector3.Distance(pa.Position, pb.Position) > positionTolerance || IslandSocket.AlignmentAngle(sa, pa.Rotation, sb, pb.Rotation) > angleTolerance)
             { report = "An authored socket link has moved apart. Reconnect it before runtime use."; return false; }
             neighbours[link.FromPiece].Add(link.ToPiece); neighbours[link.ToPiece].Add(link.FromPiece);
         }

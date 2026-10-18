@@ -72,6 +72,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     public LevelConfiguration AssignedLevelConfiguration =>
         assignedLevelConfiguration;
     public int SelectedSavedRunIndex { get; private set; } = -1;
+    public int SelectedSavedLayoutIndex { get; private set; } = -1;
     public LevelConfiguration ActiveRunConfiguration { get; private set; }
 
     public event Action<NetworkConnection> ServerClientWorldReady;
@@ -261,6 +262,42 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         return true;
     }
 
+    private bool ApplySavedLayout(int index, out string error)
+    {
+        var level = assignedLevelConfiguration;
+        if (!level)
+        { error = "Cannot select a saved layout without a level configuration."; return false; }
+        if (!level.TryGetSavedLayout(index, out var layout, out var settings, out error)) return false;
+        if (!ApplyConfigurations(settings.RouteConfiguration, settings.EventConfiguration, out error)) return false;
+        routeGenerator.ConnectedRoute.Enabled = true;
+        routeGenerator.ConnectedRoute.UseApprovedLayout = true;
+        routeGenerator.ConnectedRoute.ApprovedLayout = layout;
+        assignedLevelConfiguration = level;
+        ActiveRunConfiguration = settings;
+        SelectedSavedLayoutIndex = index;
+        return true;
+    }
+
+    private bool SelectSavedLayoutOrRun(out string error)
+    {
+        error = string.Empty;
+        var level = assignedLevelConfiguration;
+        if (!level || backgroundOnly) return true;
+        if (level.SavedLayoutCount > 0)
+        {
+            int index = UnityEngine.Random.Range(0, level.SavedLayoutCount);
+            if (!ApplySavedLayout(index, out error)) return false;
+            Debug.Log($"[World Generation] Selected layout {index + 1}/{level.SavedLayoutCount}: '{level.SavedLayouts[index].name}'. Loading the approved layout without search.", this);
+        }
+        else if (level.SavedRunCount > 0)
+        {
+            int index = UnityEngine.Random.Range(0, level.SavedRunCount);
+            if (!ApplySavedRun(index, out error)) return false;
+            Debug.Log($"[World Generation] Selected saved run {index + 1}/{level.SavedRunCount}: '{ActiveRunConfiguration.name}'. Loading its approved layout and authored events without search.", this);
+        }
+        return true;
+    }
+
     /// <summary>
     /// Applies a route/event pair before the server starts generation. This is
     /// used by direct-scene development tests that do not need to create a
@@ -314,6 +351,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         assignedLevelConfiguration = null;
         ActiveRunConfiguration = null;
         SelectedSavedRunIndex = -1;
+        SelectedSavedLayoutIndex = -1;
         _assignedLevelApplyError = string.Empty;
         error = string.Empty;
         return true;
@@ -393,16 +431,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             return;
         }
 
-        if (string.IsNullOrEmpty(_assignedLevelApplyError) &&
-            assignedLevelConfiguration != null && assignedLevelConfiguration.SavedRunCount > 0)
-        {
-            int index = UnityEngine.Random.Range(0, assignedLevelConfiguration.SavedRunCount);
-            if (!ApplySavedRun(index, out _assignedLevelApplyError))
-                _assignedLevelApplyError = "Could not load the selected saved run: " + _assignedLevelApplyError;
-            else
-                Debug.Log($"[World Generation] Selected saved run {index + 1}/{assignedLevelConfiguration.SavedRunCount}: " +
-                    $"'{ActiveRunConfiguration.name}'. Loading its approved layout and authored events without search.", this);
-        }
+        if (string.IsNullOrEmpty(_assignedLevelApplyError) && !SelectSavedLayoutOrRun(out _assignedLevelApplyError))
+            _assignedLevelApplyError = "Could not load the selected saved layout/run: " + _assignedLevelApplyError;
 
         if (!string.IsNullOrEmpty(_assignedLevelApplyError))
         {
@@ -946,7 +976,8 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             WorldSeed,
             SpawnedPieceCount,
             WorldHash,
-            SelectedSavedRunIndex);
+            SelectedSavedRunIndex,
+            SelectedSavedLayoutIndex);
 
         StartCoroutine(
             ServerClientTimeoutRoutine(
@@ -973,12 +1004,19 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         int seed,
         int expectedPieceCount,
         int expectedHash,
-        int savedRunIndex)
+        int savedRunIndex,
+        int savedLayoutIndex)
     {
         if (_clientReadyRoutine != null)
             StopCoroutine(_clientReadyRoutine);
 
         // Clients receive the server's choice; they never roll or generate a layout.
+        if (savedLayoutIndex >= 0 && !ApplySavedLayout(savedLayoutIndex, out string layoutError))
+        {
+            ServerReportWorldReady(seed, 0, false, "Could not apply the server's saved layout: " + layoutError);
+            _clientReadyRoutine = null;
+            return;
+        }
         if (savedRunIndex >= 0 && !ApplySavedRun(savedRunIndex, out string error))
         {
             ServerReportWorldReady(seed, 0, false, "Could not apply the server's saved run: " + error);

@@ -30,6 +30,13 @@ public sealed class IslandSocket : MonoBehaviour
         return (allowedConnections & connectionType.ToMask()) != 0;
     }
 
+    public static float AlignmentAngle(IslandSocket a, Quaternion rotationA, IslandSocket b, Quaternion rotationB)
+    {
+        float direct = Quaternion.Angle(rotationA, rotationB);
+        if (!a || !b || (!a.CanBeUsedAs(SocketUsage.Both) && !b.CanBeUsedAs(SocketUsage.Both))) return direct;
+        return Mathf.Min(direct, Quaternion.Angle(rotationA, rotationB * Quaternion.Euler(0, 180, 0)));
+    }
+
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {
