@@ -214,15 +214,12 @@ public class cc_tpState : MovementState
             return;
         }
 
-        // get inputs from player
-        Vector3 inputDir = new Vector3(_moveInput.x, 0f, _moveInput.y);
-        Vector3 moveDir = Vector3.zero;
-
-        // set move direction towards where camera looks
-        Vector3 camForward = cameraTransform.forward;
-        Vector3 camRight = cameraTransform.right;
-        moveDir = (camForward * inputDir.z) + (camRight * inputDir.x);
-        moveDir.Normalize();
+        // Use camera yaw so pitch cannot reduce horizontal speed or skew diagonals.
+        // Clamp only inputs above unit length; preserve partial analog movement.
+        Vector2 input = Vector2.ClampMagnitude(_moveInput, 1f);
+        Quaternion cameraYaw = Quaternion.Euler(0f, cameraTransform.eulerAngles.y, 0f);
+        Vector3 camForward = cameraYaw * Vector3.forward;
+        Vector3 moveDir = cameraYaw * new Vector3(input.x, 0f, input.y);
 
         // character orientation -> rotate just the model towards camera
         Quaternion targetRotation;
