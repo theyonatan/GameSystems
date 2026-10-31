@@ -262,6 +262,15 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""UseConsumable"",
+                    ""type"": ""Button"",
+                    ""id"": ""2b72ae72-3513-4133-a076-f921cfa52477"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -737,6 +746,28 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
                     ""action"": ""LockSwitch"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""29657511-d5f5-4da0-8b69-b76728d814c4"",
+                    ""path"": ""<Keyboard>/f"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""UseConsumable"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""662f99a4-980f-4c67-8eab-a9344061afff"",
+                    ""path"": ""<Gamepad>/buttonNorth"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""UseConsumable"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -770,6 +801,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
         m_Player_Back = m_Player.FindAction("Back", throwIfNotFound: true);
         m_Player_LockSwitch = m_Player.FindAction("LockSwitch", throwIfNotFound: true);
         m_Player_Pause = m_Player.FindAction("Pause", throwIfNotFound: true);
+        m_Player_UseConsumable = m_Player.FindAction("UseConsumable", throwIfNotFound: true);
     }
 
     ~@ActionsMaster()
@@ -869,6 +901,7 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Back;
     private readonly InputAction m_Player_LockSwitch;
     private readonly InputAction m_Player_Pause;
+    private readonly InputAction m_Player_UseConsumable;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -957,6 +990,10 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @Pause => m_Wrapper.m_Player_Pause;
         /// <summary>
+        /// Provides access to the underlying input action "Player/UseConsumable".
+        /// </summary>
+        public InputAction @UseConsumable => m_Wrapper.m_Player_UseConsumable;
+        /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
         public InputActionMap Get() { return m_Wrapper.m_Player; }
@@ -1039,6 +1076,9 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
             @Pause.started += instance.OnPause;
             @Pause.performed += instance.OnPause;
             @Pause.canceled += instance.OnPause;
+            @UseConsumable.started += instance.OnUseConsumable;
+            @UseConsumable.performed += instance.OnUseConsumable;
+            @UseConsumable.canceled += instance.OnUseConsumable;
         }
 
         /// <summary>
@@ -1107,6 +1147,9 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
             @Pause.started -= instance.OnPause;
             @Pause.performed -= instance.OnPause;
             @Pause.canceled -= instance.OnPause;
+            @UseConsumable.started -= instance.OnUseConsumable;
+            @UseConsumable.performed -= instance.OnUseConsumable;
+            @UseConsumable.canceled -= instance.OnUseConsumable;
         }
 
         /// <summary>
@@ -1293,5 +1336,12 @@ public partial class @ActionsMaster: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnPause(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "UseConsumable" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnUseConsumable(InputAction.CallbackContext context);
     }
 }

@@ -19,6 +19,7 @@ public class cc_tpState : MovementState
     private Player _player;
     private AnimationsManager _animator;
     private ICharacterControllerTraversal _traversal;
+    private IMovementSpeedModifier[] _speedModifiers;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 2.8f;
@@ -56,6 +57,7 @@ public class cc_tpState : MovementState
         _animator = manager.GetComponent<AnimationsManager>();
         cc = manager.GetComponent<CharacterController>();
         _traversal = manager.GetComponent<ICharacterControllerTraversal>();
+        _speedModifiers = manager.GetComponents<IMovementSpeedModifier>();
         
         if (!_player.HasAuthority)
             return;
@@ -245,6 +247,9 @@ public class cc_tpState : MovementState
             targetSpeed = airSpeed;
             controlAcceleration = airAcceleration;
         }
+        // Derive from the current base speed; never mutate the shared Walking data asset.
+        foreach (var modifier in _speedModifiers)
+            targetSpeed *= modifier.MovementSpeedMultiplier;
         Vector3 targetHorizontalVelocity = moveDir * targetSpeed;
         Vector3 currentHorizontal = new Vector3(_movementVelocity.x, 0f, _movementVelocity.z);
         
@@ -307,6 +312,13 @@ public class cc_tpState : MovementState
     public void AddVerticalVelocity(float knockbackUpForce)
     {
         _verticalVelocity += knockbackUpForce;
+    }
+
+    public void ResetAfterTeleport()
+    {
+        _verticalVelocity = -2f;
+        _movementVelocity = Vector3.zero;
+        HorizontalSpeed = 0f;
     }
 
     /// <summary>

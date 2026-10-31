@@ -9,6 +9,7 @@ public class cc_ExtensionKnockback : MonoBehaviour, Knockbackable, IPlayerBehavi
 
     private CharacterController cc;
     private Vector3 impact = Vector3.zero;
+    public void ClearImpact() => impact = Vector3.zero;
     public float LastImpactTime { get; private set; } = float.NegativeInfinity;
     
     public void AwakePlayer()

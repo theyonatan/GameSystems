@@ -37,6 +37,42 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnDisablePlayerMovement;
     public event Action OnEnablePlayerMovement;
 
+    public event Action OnUseConsumablePressed;
+    private object _primaryFireOwner;
+    private Action _primaryFireAction;
+    private bool _capturedFireCycle, _capturedMouseCycle;
+
+    /// <summary>Claims a complete press/release cycle before any weapon event is dispatched.</summary>
+    public bool TryCapturePrimaryFire(object source, Action pressed)
+    {
+        if (source == null || pressed == null || !CanUseEquipment ||
+            _playerInput?.Player.Fire1.IsPressed() == true ||
+            (_primaryFireOwner != null && _primaryFireOwner != source)) return false;
+        _primaryFireOwner = source;
+        _primaryFireAction = pressed;
+        return true;
+    }
+    public void ReleasePrimaryFire(object source)
+    {
+        if (_primaryFireOwner != source) return;
+        _primaryFireOwner = null;
+        _primaryFireAction = null;
+        // Retain cycle suppression until release, even if the item completes during this press.
+    }
+    private void PrimaryFireStarted()
+    {
+        _capturedFireCycle = _primaryFireOwner != null;
+        _capturedMouseCycle = _capturedFireCycle;
+        if (!CanUseEquipment) return;
+        if (_capturedFireCycle) _primaryFireAction?.Invoke();
+        else OnFireStarted?.Invoke();
+    }
+    private void PrimaryFireReleased()
+    {
+        if (!_capturedFireCycle) OnFireReleased?.Invoke();
+        _capturedFireCycle = false;
+    }
+
     public event Action OnFireStarted;
     public event Action OnFirePressed;
     public event Action OnFireReleased;
@@ -158,9 +194,10 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput = new ActionsMaster();
         
         // actions
-        _playerInput.Player.Fire1.started += _ => { if (CanUseEquipment) OnFireStarted?.Invoke(); };
-        _playerInput.Player.Fire1.performed += _ => { if (CanUseEquipment) OnFirePressed?.Invoke(); };
-        _playerInput.Player.Fire1.canceled += _ => OnFireReleased?.Invoke();
+        _playerInput.Player.Fire1.started += _ => PrimaryFireStarted();
+        _playerInput.Player.Fire1.performed += _ => { if (CanUseEquipment && !_capturedFireCycle && _primaryFireOwner == null) OnFirePressed?.Invoke(); };
+        _playerInput.Player.Fire1.canceled += _ => PrimaryFireReleased();
+        _playerInput.asset.FindAction("Player/UseConsumable", true).performed += _ => { if (CanUseEquipment) OnUseConsumablePressed?.Invoke(); };
         _playerInput.Player.Pause.performed += _ => OnPausePressed?.Invoke();
         _playerInput.Player.Interact.performed += _ => { if (GameplayInputEnabled) OnInteractPressed?.Invoke(); };
         _playerInput.Player.Inventory.performed += _ => { if (GameplayInputEnabled) OnInventoryPressed?.Invoke(); };
@@ -214,6 +251,8 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
             return;
 
         if (Instance == this) Instance = null;
+        _primaryFireOwner = null;
+        _primaryFireAction = null;
 
         // plugins
 
@@ -439,8 +478,9 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
             _isMouseDragging = false;
             OnMouseDragFinished?.Invoke();
 
-            if (!_mouseWasDragged && CanUseEquipment)
+            if (!_mouseWasDragged && CanUseEquipment && !_capturedMouseCycle && _primaryFireOwner == null)
                 OnFireClicked?.Invoke();
+            _capturedMouseCycle = false;
         }
     }
 
