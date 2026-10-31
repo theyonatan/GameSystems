@@ -49,7 +49,7 @@ internal static class GrassAuthoringVerification
         field.SetValue(window, Enum.Parse(field.FieldType, name));
     }
 
-    [MenuItem("Tools/Grass Verification/Verify Scene Callback Lifecycle")]
+    [MenuItem("Tools/Above/Testing & Diagnostics/World Building/Grass/Verify Scene Callback Lifecycle", false, 400)]
     internal static void VerifySceneCallbackLifecycle()
     {
         if (Application.isPlaying) throw new Exception("Run verification outside Play Mode.");
@@ -109,7 +109,7 @@ internal static class GrassAuthoringVerification
         Debug.Log(report.ToString());
     }
 
-    [MenuItem("Tools/Grass Verification/Verify Prefab Brushes")]
+    [MenuItem("Tools/Above/Testing & Diagnostics/World Building/Grass/Verify Prefab Brushes", false, 400)]
     internal static void Verify()
     {
         if (Application.isPlaying) throw new Exception("Run verification outside Play Mode.");

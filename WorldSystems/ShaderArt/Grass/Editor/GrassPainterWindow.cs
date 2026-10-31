@@ -64,7 +64,7 @@ public sealed class GrassPainterWindow : EditorWindow
     private double rebuildRequestedAt;
     private double lastBrushTime;
 
-    [MenuItem("Tools/Grass Tool 2.0")]
+    [MenuItem("Tools/Above/World Building/Grass/Grass Tool 2.0", false, 100)]
     private static void OpenWindow()
     {
         GrassPainterWindow window = GetWindow<GrassPainterWindow>(false, "Grass Tool 2.0", true);
@@ -85,7 +85,7 @@ public sealed class GrassPainterWindow : EditorWindow
         window.Repaint();
     }
 
-    [MenuItem("Tools/Grass Tool")]
+    [MenuItem("Tools/Above/World Building/Grass/Grass Tool", false, 100)]
     private static void OpenLegacyMenuPath()
     {
         OpenWindow();

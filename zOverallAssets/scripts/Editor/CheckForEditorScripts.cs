@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class CheckForEditorScripts : MonoBehaviour
 {
-    [MenuItem("Tools/Check for Editor Scripts in Scene")]
+    [MenuItem("Tools/Above/Testing & Diagnostics/Editor & Assets/Check for Editor Scripts in Scene", false, 400)]
     static void CheckForEditorScriptsFunc()
     {
         foreach (var comp in GameObject.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
@@ -15,7 +15,7 @@ public class CheckForEditorScripts : MonoBehaviour
         }
     }
 
-    [MenuItem("Tools/Find InputAction by GUID")]
+    [MenuItem("Tools/Above/Utilities/Input/Find InputAction by GUID", false, 500)]
     static void FindInputAsset()
     {
         string guid = "ca9f5fa95ffab41fb9a615ab714db018";

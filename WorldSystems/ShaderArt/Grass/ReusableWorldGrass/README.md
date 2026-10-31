@@ -12,7 +12,7 @@ authoring tool, reusable world batching, and the optional Above integration.
 3. Copy this package's complete `Grass` folder into `Assets/GameSystems` (or
    any other location under `Assets`).
 4. Let Unity finish importing and compiling.
-5. Open `Tools > Grass Tool 2.0`.
+5. Open `Tools > Above > World Building > Grass > Grass Tool 2.0`.
 
 The editor no longer relies on a hard-coded installation path. Keep the
 included `.meta` files: they preserve the GUIDs used by materials, shaders,

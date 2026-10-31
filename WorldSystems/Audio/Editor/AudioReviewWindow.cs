@@ -24,7 +24,7 @@ namespace GameSystems.Audio.Editor
         private bool capture = true;
         private int variant;
 
-        [MenuItem("Tools/GameSystems/Audio/Audio Review")]
+        [MenuItem("Tools/Above/Audio & Capture/Audio/GameSystems Audio Review", false, 300)]
         public static void Open() => GetWindow<AudioReviewWindow>("Audio Review");
         public static void Open(AudioLibrary asset)
         {

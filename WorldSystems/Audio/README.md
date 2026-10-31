@@ -27,7 +27,7 @@ The service handles source recycling, scene-owned effects, destroyed loop emitte
 
 ## Editor audio review
 
-**Tools → GameSystems → Audio → Audio Review** works with any AudioLibrary. Play the
+**Tools → Above → Audio & Capture → Audio → GameSystems Audio Review** works with any AudioLibrary. Play the
 real scene; select a captured cue to audition recording/volume/mute and per-clip start
 offset. Save explicitly or discard. Solo is session-only; flags and CSV help review.
 AudioDiagnostics and all audition overrides are `UNITY_EDITOR` only. Action markers

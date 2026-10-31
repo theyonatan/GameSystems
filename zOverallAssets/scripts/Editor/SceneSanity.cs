@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class SceneSanity : MonoBehaviour
 {
-    [MenuItem("Tools/Check Scene Sanity")]
+    [MenuItem("Tools/Above/Testing & Diagnostics/Editor & Assets/Check Scene Sanity", false, 400)]
     static void Check()
     {
         foreach (var t in FindObjectsByType<Transform>(FindObjectsSortMode.None))

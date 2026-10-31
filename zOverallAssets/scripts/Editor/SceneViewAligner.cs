@@ -3,7 +3,7 @@ using UnityEditor;
 
 public class SceneViewAligner : MonoBehaviour
 {
-    [MenuItem("Tools/Align Scene View to Selected Object")]
+    [MenuItem("Tools/Above/Utilities/Scene View/Align Scene View to Selected Object", false, 500)]
     public static void AlignSceneToSelected()
     {
         if (Selection.activeTransform == null)

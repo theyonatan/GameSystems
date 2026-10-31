@@ -5,7 +5,7 @@ using System.Collections.Generic;
 
 public static class SceneSanityV2
 {
-    [MenuItem("Tools/Check Scene Sanity (v2)")]
+    [MenuItem("Tools/Above/Testing & Diagnostics/Editor & Assets/Check Scene Sanity (v2)", false, 400)]
     static void Check()
     {
         int missing = 0, loops = 0, deep = 0, maxDepth = 0;

@@ -4,7 +4,7 @@ using System.IO;
 
 public class SceneAssetInspector
 {
-    [MenuItem("Tools/Log Raw Scene File References")]
+    [MenuItem("Tools/Above/Testing & Diagnostics/Editor & Assets/Log Raw Scene File References", false, 400)]
     static void LogSceneReferences()
     {
         string path = "Assets/GAMES/FallingRuins/Shooter.unity";
