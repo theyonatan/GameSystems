@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -9,7 +9,7 @@ public sealed partial class IslandRouteGenerator
     [SerializeField] private ConnectedRouteSettings connectedRoute = new ConnectedRouteSettings();
     public ConnectedRouteSettings ConnectedRoute => connectedRoute;
     public IReadOnlyList<ConnectedRouteEdge> ConnectedEdges => connectedEdges;
-    private readonly List<ConnectedRouteEdge> connectedEdges = new List<ConnectedRouteEdge>();
+    [SerializeField, HideInInspector] private List<ConnectedRouteEdge> connectedEdges = new List<ConnectedRouteEdge>();
     private readonly Dictionary<AboveRoutePiece, MeshCollider> connectedGroundMeshes = new Dictionary<AboveRoutePiece, MeshCollider>();
     private readonly Dictionary<AboveRoutePiece, Vector3[]> connectedGroundOutlines = new Dictionary<AboveRoutePiece, Vector3[]>();
 

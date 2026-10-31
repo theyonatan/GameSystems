@@ -87,6 +87,25 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         applyAssignedLevelOnStart = true;
     }
 
+    private bool preserveAuthoredPreview;
+
+    // Explicit direct-scene opt-in. Keep authored placements, then run the same
+    // navigation, event validation, network spawning and client-ready handshake.
+    public bool PreserveAuthoredPreviewForDirectScene()
+    {
+        if (!(Application.isEditor || Debug.isDebugBuild)) return false;
+        if (!routeGenerator)
+            routeGenerator = FindObjectsByType<IslandRouteGenerator>(FindObjectsSortMode.None)
+                .FirstOrDefault(route => route.gameObject.scene == gameObject.scene);
+        preserveAuthoredPreview = routeGenerator && routeGenerator.GeneratedInstances.Count > 0;
+        if (preserveAuthoredPreview)
+        {
+            applyWindSelectedLevel = false;
+            applyAssignedLevelOnStart = false;
+        }
+        return preserveAuthoredPreview;
+    }
+
     private void Awake()
     {
         if (routeGenerator == null)
@@ -377,7 +396,16 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     {
         base.OnStartServer();
 
-        GenerateAndSpawnServerWorld();
+        if (preserveAuthoredPreview) StartCoroutine(GeneratePreservedPreviewAfterSceneSpawn());
+        else GenerateAndSpawnServerWorld();
+    }
+
+    private System.Collections.IEnumerator GeneratePreservedPreviewAfterSceneSpawn()
+    {
+        // FishNet activates authored scene islands after their OnStartServer callbacks.
+        // Bake only once that pass has completed, so scene colliders enter the NavMesh.
+        yield return null;
+        if (IsServerStarted) GenerateAndSpawnServerWorld();
     }
 
     public override void OnStopServer()
@@ -448,7 +476,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             return;
         }
 
-        if (string.IsNullOrEmpty(_assignedLevelApplyError) && !SelectSavedLayoutOrRun(out _assignedLevelApplyError))
+        if (!preserveAuthoredPreview && string.IsNullOrEmpty(_assignedLevelApplyError) && !SelectSavedLayoutOrRun(out _assignedLevelApplyError))
             _assignedLevelApplyError = "Could not load the selected saved layout/run: " + _assignedLevelApplyError;
 
         if (!string.IsNullOrEmpty(_assignedLevelApplyError))
@@ -530,7 +558,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
 
         bool generated = false;
-        bool approvedLayout = routeGenerator.UsesApprovedConnectedLayout;
+        bool approvedLayout = preserveAuthoredPreview || routeGenerator.UsesApprovedConnectedLayout;
         int previewSeed = routeGenerator.ConnectedRoute.Enabled ? routeGenerator.ConnectedRoute.PreviewSeed : 0;
         bool randomConnectedRoute = !approvedLayout && routeGenerator.ConnectedRoute.Enabled && previewSeed == 0;
         int attemptLimit = approvedLayout ? 1 : randomConnectedRoute
@@ -547,12 +575,12 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
             bool fallback = randomConnectedRoute && (attempt > attemptLimit ||
                 generationClock.Elapsed.TotalSeconds >= routeGenerator.ConnectedRoute.MaximumGenerationSeconds);
             if (fallback) triedFallback = true;
-            int candidateSeed = previewSeed != 0 ? previewSeed : CreateSeed();
+            int candidateSeed = preserveAuthoredPreview ? routeGenerator.LastUsedSeed : previewSeed != 0 ? previewSeed : CreateSeed();
 
             backgroundGenerator.ClearGeneratedBackground();
             if (runtimeRouteNavMesh != null)
                 runtimeRouteNavMesh.ClearBuiltNavMesh();
-            routeGenerator.ClearGeneratedRoute();
+            if (!preserveAuthoredPreview) routeGenerator.ClearGeneratedRoute();
 
             routeGenerator.Generation.UseRandomSeed = false;
             routeGenerator.Generation.Seed = candidateSeed;
@@ -568,9 +596,9 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
                     $"[World Generation] Route attempt {attempt}/{attemptLimit}, seed {candidateSeed}.", this);
 
             string fallbackReport = string.Empty;
-            bool routeGenerated = fallback
+            bool routeGenerated = preserveAuthoredPreview || (fallback
                 ? routeGenerator.GenerateConnectedFallback(out fallbackReport)
-                : randomConnectedRoute ? routeGenerator.GenerateRouteWithAttemptLimit(1) : routeGenerator.GenerateRoute();
+                : randomConnectedRoute ? routeGenerator.GenerateRouteWithAttemptLimit(1) : routeGenerator.GenerateRoute());
             if ((approvedLayout || fallback) && routeGenerated) candidateSeed = routeGenerator.LastUsedSeed;
             if (routeGenerator.ConnectedRoute.Enabled)
                 Debug.Log($"[World Generation] Timings: planning {routeGenerator.LastPlanningSeconds:F3}s, " +
@@ -844,7 +872,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
             NetworkObject root = marker.GetComponent<NetworkObject>();
 
-            ServerManager.Spawn(root);
+            if (!root.IsSpawned) ServerManager.Spawn(root);
 
             if (!root.IsSpawned)
             {
@@ -878,7 +906,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
             NetworkObject root = marker.GetComponent<NetworkObject>();
 
-            ServerManager.Spawn(root);
+            if (!root.IsSpawned) ServerManager.Spawn(root);
 
             if (!root.IsSpawned)
             {

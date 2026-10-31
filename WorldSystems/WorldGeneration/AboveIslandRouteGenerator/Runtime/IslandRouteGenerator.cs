@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -56,8 +56,8 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
 
     private const string GeneratedRootName = "[Generated Above Island Route]";
 
-    private GameObject generatedRoot;
-    private readonly List<AboveRoutePiece> generatedInstances = new List<AboveRoutePiece>();
+    [SerializeField, HideInInspector] private GameObject generatedRoot;
+    [SerializeField, HideInInspector] private List<AboveRoutePiece> generatedInstances = new List<AboveRoutePiece>();
     private RouteConfiguration runtimeConfigurationCopy;
 
     public RouteConfiguration AssignedConfiguration => routeConfiguration;
@@ -75,6 +75,7 @@ public sealed partial class IslandRouteGenerator : MonoBehaviour
     public IReadOnlyList<ConnectionPoolEntry> ConnectionPrefabs => connectionPrefabs;
     public IReadOnlyList<SpecialIslandRule> SpecialIslands => specialIslands;
     public IReadOnlyList<AboveRoutePiece> GeneratedInstances => generatedInstances;
+    [field: SerializeField, HideInInspector]
     public int LastUsedSeed { get; private set; }
     public string LastFailureReason { get; private set; }
     public string LastGenerationDiagnostics { get; private set; }

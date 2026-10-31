@@ -19,11 +19,17 @@ public abstract class AboveRoutePiece : MonoBehaviour
     public IReadOnlyList<IslandBiome> AllowedBiomes => allowedBiomes;
     public IReadOnlyList<IslandSocket> Sockets => sockets;
     public IReadOnlyList<BoxCollider> PlacementBounds => placementBounds;
+    [field: SerializeField, HideInInspector]
     public bool HasGeneratedContext { get; private set; }
+    [field: SerializeField, HideInInspector]
     public IslandBiome GeneratedBiome { get; private set; }
+    [field: SerializeField, HideInInspector]
     public bool IsGeneratedMainIsland { get; private set; }
+    [field: SerializeField, HideInInspector]
     public int GeneratedMainIndex { get; private set; }
+    [field: SerializeField, HideInInspector]
     public bool IsGeneratedBeacon { get; private set; }
+    [field: SerializeField, HideInInspector]
     public bool IsGeneratedClusterPiece { get; private set; }
 
     public void InitializeGeneratedContext(
