@@ -22,6 +22,19 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     private readonly HashSet<object> _gameplayInputLocks = new();
     private readonly HashSet<object> _emoteOnlySources = new();
     private readonly HashSet<object> _cameraAllowedGameplayLocks = new();
+    private readonly Dictionary<object, int> _temporaryNumberReservations = new();
+    public void ReserveTemporaryNumberKeys(object source, int mask)
+    {
+        if (source == null) return;
+        if (mask == 0) _temporaryNumberReservations.Remove(source);
+        else _temporaryNumberReservations[source] = mask;
+    }
+    private bool NumberReserved(int number)
+    {
+        foreach (int mask in _temporaryNumberReservations.Values)
+            if ((mask & (1 << number)) != 0) return true;
+        return false;
+    }
     private bool _runRequested = true;
     private bool _jumpRequested = true;
 
@@ -292,7 +305,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         else if (Keyboard.current.digit5Key.wasPressedThisFrame) OnEmotePressed?.Invoke(4);
         else if (Keyboard.current.digit6Key.wasPressedThisFrame) OnEmotePressed?.Invoke(5);
         else if (Keyboard.current.digit7Key.wasPressedThisFrame) OnEmotePressed?.Invoke(6);
-        else if (Keyboard.current.digit8Key.wasPressedThisFrame) OnEmotePressed?.Invoke(7);
+        else if (Keyboard.current.digit8Key.wasPressedThisFrame && !NumberReserved(8)) OnEmotePressed?.Invoke(7);
         else if (Keyboard.current.digit9Key.wasPressedThisFrame) OnEmotePressed?.Invoke(8);
     }
 

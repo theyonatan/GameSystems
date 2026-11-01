@@ -42,6 +42,10 @@ public class cc_tpState : MovementState
     private bool IsGrounded => cc.isGrounded;
     private bool _lockSwitch = false; // Free orbit until the player explicitly toggles camera lock.
 
+    private ICharacterControllerVelocityOverride _velocityOverride;
+    private bool _retainTraversalMomentum;
+    public Vector3 CurrentVelocity => _movementVelocity;
+    public Vector3 ResolvedVelocity { get; private set; }
     private float _verticalVelocity;
     private Vector3 _movementVelocity;
 
@@ -57,6 +61,7 @@ public class cc_tpState : MovementState
         _animator = manager.GetComponent<AnimationsManager>();
         cc = manager.GetComponent<CharacterController>();
         _traversal = manager.GetComponent<ICharacterControllerTraversal>();
+        _velocityOverride = manager.GetComponent<ICharacterControllerVelocityOverride>();
         _speedModifiers = manager.GetComponents<IMovementSpeedModifier>();
         
         if (!_player.HasAuthority)
@@ -139,6 +144,12 @@ public class cc_tpState : MovementState
     {
         HandleMovementInput();
         HandleJumpAndGravity();
+        if (CanMove && _velocityOverride != null && _velocityOverride.TryGetTraversalVelocity(Time.deltaTime, out var traversalVelocity))
+        {
+            _movementVelocity = traversalVelocity;
+            _verticalVelocity = traversalVelocity.y;
+            _retainTraversalMomentum = true;
+        }
         MovePlayer();
         UpdateLocomotionAnimation();
     }
@@ -192,6 +203,14 @@ public class cc_tpState : MovementState
         Vector3 before = cc.transform.position;
         cc.Move(_movementVelocity * Time.deltaTime);
         Vector3 travelled = cc.transform.position - before;
+        ResolvedVelocity = travelled / Mathf.Max(Time.deltaTime, .0001f);
+        if (_retainTraversalMomentum)
+        {
+            // Keep collision-resolved travel, not the requested pull speed or a release boost.
+            _movementVelocity = travelled / Mathf.Max(Time.deltaTime, .0001f);
+            _verticalVelocity = _movementVelocity.y;
+            if (cc.isGrounded && _verticalVelocity <= 0f) _retainTraversalMomentum = false;
+        }
         HorizontalSpeed = new Vector2(travelled.x, travelled.z).magnitude / Mathf.Max(Time.deltaTime, .0001f);
         if (!groundedBefore && cc.isGrounded) Landed?.Invoke(_player);
     }
@@ -253,8 +272,15 @@ public class cc_tpState : MovementState
         Vector3 targetHorizontalVelocity = moveDir * targetSpeed;
         Vector3 currentHorizontal = new Vector3(_movementVelocity.x, 0f, _movementVelocity.z);
         
-        currentHorizontal = Vector3.Lerp(currentHorizontal, targetHorizontalVelocity,
-            controlAcceleration * Time.deltaTime);
+        if (_retainTraversalMomentum && !IsGrounded)
+        {
+            // No input means ballistic carry. Input steers without deleting launch momentum.
+            float limit = Mathf.Max(currentHorizontal.magnitude, targetSpeed);
+            currentHorizontal = Vector3.ClampMagnitude(currentHorizontal + moveDir * controlAcceleration * Time.deltaTime, limit);
+        }
+        else
+            currentHorizontal = Vector3.Lerp(currentHorizontal, targetHorizontalVelocity,
+                controlAcceleration * Time.deltaTime);
 
         _movementVelocity.x = currentHorizontal.x;
         _movementVelocity.z = currentHorizontal.z;
@@ -316,8 +342,11 @@ public class cc_tpState : MovementState
 
     public void ResetAfterTeleport()
     {
+        _velocityOverride?.CancelTraversalVelocity();
+        _retainTraversalMomentum = false;
         _verticalVelocity = -2f;
         _movementVelocity = Vector3.zero;
+        ResolvedVelocity = Vector3.zero;
         HorizontalSpeed = 0f;
     }
 
