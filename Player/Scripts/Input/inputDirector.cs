@@ -151,6 +151,8 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnPlayerRunDisabled;
     public event Action OnPlayerRunEnabled;
 
+    // Traversal can consume a jump press before any movement state sees it.
+    public event Func<bool> OnPlayerJumpRequested;
     public event Action OnPlayerJumpStarted;
     public event Action OnPlayerJumpStopped;
 
@@ -240,7 +242,18 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.Player.Running.canceled += _ => OnPlayerRunStopped?.Invoke();
 
         // jumping
-        _playerInput.Player.Jumping.started += _ => { if (CanJump) OnPlayerJumpStarted?.Invoke(); };
+        _playerInput.Player.Jumping.started += _ =>
+        {
+            if (!CanJump) return;
+            if (OnPlayerJumpRequested != null)
+                foreach (Func<bool> consumer in OnPlayerJumpRequested.GetInvocationList())
+                    if (consumer())
+                    {
+                        OnPlayerJumpStopped?.Invoke();
+                        return;
+                    }
+            OnPlayerJumpStarted?.Invoke();
+        };
         _playerInput.Player.Jumping.canceled += _ => OnPlayerJumpStopped?.Invoke();
 
         // crouching
