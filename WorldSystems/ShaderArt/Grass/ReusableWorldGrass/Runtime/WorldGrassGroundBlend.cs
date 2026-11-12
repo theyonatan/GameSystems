@@ -28,7 +28,8 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
     static readonly int coverageId = Shader.PropertyToID("_GrassGroundCoverage");
     static readonly int useCoverageId = Shader.PropertyToID("_GrassGroundUseCoverage");
     readonly Dictionary<Material, Material> captureMaterials = new Dictionary<Material, Material>();
-    WorldGrassAlbedoShader[] captureShaders;
+    // Runtime cache only: Unity hot reload can restore a null array as an empty array.
+    [NonSerialized] WorldGrassAlbedoShader[] captureShaders;
     RenderTexture map;
     Camera captureCamera;
     bool dirty = true;
@@ -60,7 +61,7 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
         captureShaders = null;
     }
     [ContextMenu("Refresh Ground Blend Map")]
-    public void RequestRefresh() { dirty = true; }
+    public void RequestRefresh() { dirty = true; captureShaders = null; }
     public static void RequestSceneRefresh(Scene scene)
     {
         foreach (var entry in maps)
@@ -121,7 +122,15 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
         if (!includeAlbedoPasses && (groundMaterials == null || groundMaterials.Length == 0)) return;
         var draws = new List<(Renderer renderer, Material material, int submesh, int pass)>();
         var preparedMaterials = new HashSet<Material>();
-        if (captureShaders == null) captureShaders = Resources.LoadAll<WorldGrassAlbedoShader>("GrassGroundAlbedo");
+        if (captureShaders == null || captureShaders.Length == 0 ||
+            Array.Exists(captureShaders, entry => !entry || !entry.surfaceShader || !entry.captureShader))
+        {
+            // Refresh derived materials together with mappings. Do this here, not in
+            // OnValidate/RequestRefresh, which may run outside the rendering lifecycle.
+            foreach (var cached in captureMaterials.Values) if (cached) DestroyOwned(cached);
+            captureMaterials.Clear();
+            captureShaders = Resources.LoadAll<WorldGrassAlbedoShader>("GrassGroundAlbedo");
+        }
         var focusRoots = new List<Transform>();
         foreach (var entry in captureRoots)
             if (entry.Key != null && entry.Value != null && entry.Key.gameObject.scene == gameObject.scene && entry.Value.gameObject.activeInHierarchy)
@@ -150,14 +159,14 @@ public sealed class WorldGrassGroundBlend : MonoBehaviour
                     var source = material;
                     // A GBuffer pass can disappear from Forward/Forward+ player builds.
                     // Use an explicitly referenced single-target albedo shader instead.
-                    if (!captureMaterials.TryGetValue(source, out material))
+                    if (!captureMaterials.TryGetValue(source, out material) || !material)
                     {
                         foreach (var mapping in captureShaders)
                             if (mapping && mapping.surfaceShader == source.shader && mapping.captureShader)
                             {
                                 material = new Material(mapping.captureShader)
                                 { name = source.name + " (grass albedo)", hideFlags = HideFlags.HideAndDontSave };
-                                captureMaterials.Add(source, material);
+                                captureMaterials[source] = material;
                                 break;
                             }
                     }

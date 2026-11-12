@@ -115,10 +115,28 @@ public sealed class BackgroundIslandGenerator : MonoBehaviour
         }, seed);
     }
 
-    private bool GenerateBackground(List<RouteAnchor> authoredAnchors, List<PlacementSphere> authoredBounds, int? authoredSeed)
+    // Authored-grid adapter: reuses the same planner without generating a legacy route.
+    public bool GenerateBackgroundForAuthoredRoute(IReadOnlyList<Vector3> positions, IReadOnlyList<Bounds> playableBounds, int seed)
+    {
+        if (positions == null || positions.Count < 2 || playableBounds == null || playableBounds.Count == 0)
+            throw new ArgumentException("Authored background requires at least two ordered route positions and explicit playable exclusion bounds.");
+        var anchors = new List<RouteAnchor>();
+        for (int i = 0; i < positions.Count; i++)
+        {
+            Vector3 p = positions[i];
+            if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.z) || float.IsInfinity(p.x) || float.IsInfinity(p.y) || float.IsInfinity(p.z))
+                throw new ArgumentException("Authored route contains invalid coordinates.");
+            anchors.Add(new RouteAnchor { Position = p, Biome = IslandBiome.Grass, MainIndex = i + 1 });
+        }
+        var spheres = new List<PlacementSphere>();
+        foreach (Bounds b in playableBounds)
+            spheres.Add(new PlacementSphere { Center = b.center, Radius = b.extents.magnitude });
+        return GenerateBackground(anchors, spheres, seed, true);
+    }
+    private bool GenerateBackground(List<RouteAnchor> authoredAnchors, List<PlacementSphere> authoredBounds, int? authoredSeed, bool allowStandalone = false)
     {
         RefreshRouteSubscription();
-        if (!ValidateConfiguration(out string validationReport))
+        if (!ValidateConfiguration(out string validationReport, !allowStandalone))
         {
             LastGenerationReport = validationReport;
             Debug.LogError($"Background island configuration is invalid:\n{validationReport}", this);
@@ -199,13 +217,15 @@ public sealed class BackgroundIslandGenerator : MonoBehaviour
         generatedRoot = null;
     }
 
-    public bool ValidateConfiguration(out string report)
+    public bool ValidateConfiguration(out string report) => ValidateConfiguration(out report, true);
+
+    private bool ValidateConfiguration(out string report, bool requireRoute)
     {
         List<string> errors = new List<string>();
         List<string> warnings = new List<string>();
         IslandRouteGenerator route = ResolveRouteGenerator();
 
-        if (route == null)
+        if (requireRoute && route == null)
             errors.Add("Integration / Route Generator is missing and none was found on a parent.");
         if (layers == null || layers.Count == 0)
             errors.Add("Add at least one Background Layer.");
