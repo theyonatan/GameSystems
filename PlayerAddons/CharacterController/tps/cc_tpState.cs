@@ -20,6 +20,10 @@ public class cc_tpState : MovementState
     private AnimationsManager _animator;
     private ICharacterControllerTraversal _traversal;
     private IMovementSpeedModifier[] _speedModifiers;
+    private IWalkingSpeedOverride[] _walkingSpeedOverrides;
+    private ICharacterAirJump _airJump;
+    private bool _jumpPressed;
+    private float _airJumpRiseLimit;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 2.8f;
@@ -42,6 +46,7 @@ public class cc_tpState : MovementState
     private bool IsGrounded => cc.isGrounded;
     private bool _lockSwitch = false; // Free orbit until the player explicitly toggles camera lock.
 
+    private ICharacterGravityModifier[] _gravityModifiers;
     private ICharacterControllerVelocityOverride _velocityOverride;
     private bool _retainTraversalMomentum;
     public Vector3 CurrentVelocity => _movementVelocity;
@@ -63,6 +68,9 @@ public class cc_tpState : MovementState
         _traversal = manager.GetComponent<ICharacterControllerTraversal>();
         _velocityOverride = manager.GetComponent<ICharacterControllerVelocityOverride>();
         _speedModifiers = manager.GetComponents<IMovementSpeedModifier>();
+        _walkingSpeedOverrides = manager.GetComponents<IWalkingSpeedOverride>();
+        _airJump = manager.GetComponent<ICharacterAirJump>();
+        _gravityModifiers = manager.GetComponents<ICharacterGravityModifier>();
         
         if (!_player.HasAuthority)
             return;
@@ -142,8 +150,10 @@ public class cc_tpState : MovementState
 
     public override void UpdateState()
     {
+        _airJump?.UpdateAirJumpState(IsGrounded, CanMove);
         HandleMovementInput();
         HandleJumpAndGravity();
+        _jumpPressed = false;
         if (CanMove && _velocityOverride != null && _velocityOverride.TryGetTraversalVelocity(Time.deltaTime, out var traversalVelocity))
         {
             _movementVelocity = traversalVelocity;
@@ -165,6 +175,9 @@ public class cc_tpState : MovementState
         // _currentVelocity = Vector3.zero;
         // _verticalVelocity = 0f;
         
+        _airJump?.CancelAirJump();
+        _airJumpRiseLimit = 0f;
+        _jumpPressed = false;
         // clear input
         Director.OnPlayerMoved -= OnPlayerMoved;
         Director.OnPlayerMovedFinished -= OnPlayerMovedFinished;
@@ -266,6 +279,10 @@ public class cc_tpState : MovementState
             targetSpeed = airSpeed;
             controlAcceleration = airAcceleration;
         }
+        if (_walkingSpeedOverrides != null)
+            foreach (var speedOverride in _walkingSpeedOverrides)
+                if (speedOverride.TryGetWalkingSpeedOverride(walkSpeed, out float overrideSpeed))
+                    targetSpeed = overrideSpeed;
         // Derive from the current base speed; never mutate the shared Walking data asset.
         foreach (var modifier in _speedModifiers)
             targetSpeed *= modifier.MovementSpeedMultiplier;
@@ -308,10 +325,20 @@ public class cc_tpState : MovementState
             _movementVelocity.y = _verticalVelocity;
             return;
         }
+        float gravityScale = 1f, jumpVelocityScale = 1f, fallLimit = minGravity;
+        if (_gravityModifiers != null)
+            foreach (var modifier in _gravityModifiers)
+                if (modifier.TryGetGravityModifiers(out float g, out float j, out float fall))
+                {
+                    gravityScale *= Mathf.Clamp(g, .01f, 5f);
+                    jumpVelocityScale *= Mathf.Clamp(j, .1f, 3f);
+                    fallLimit = Mathf.Max(fallLimit, -Mathf.Max(.1f, fall));
+                }
         // constant but limited force if on ground
         if (IsGrounded && _verticalVelocity < 0f)
         {
             _verticalVelocity = -2f;
+            _airJumpRiseLimit = 0f;
             
             _animator.SetBool("Falling", false);
         }
@@ -321,14 +348,26 @@ public class cc_tpState : MovementState
         // jump
         if (IsGrounded && _holdingJump && CanMove)
         {
-            _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity) * jumpVelocityScale;
+            _animator.Play("Jump");
+            Jumped?.Invoke(_player);
+        }
+
+        // Only a fresh airborne press can spend a charge. Hook's pre-jump consumer
+        // retains priority, and holding the first jump cannot trigger the second.
+        if (!IsGrounded && _jumpPressed && CanMove && Director.CanJump && _airJump != null &&
+            _airJump.TryAirJump(-gravity * gravityScale, out float airJumpVelocity))
+        {
+            _verticalVelocity = airJumpVelocity;
+            _airJumpRiseLimit = airJumpVelocity;
+            _retainTraversalMomentum = false;
             _animator.Play("Jump");
             Jumped?.Invoke(_player);
         }
 
         // new velocity, clamp if reached max
-        _verticalVelocity += gravity * Time.deltaTime;
-        _verticalVelocity = Mathf.Clamp(_verticalVelocity, minGravity, maxGravity);
+        _verticalVelocity += gravity * gravityScale * Time.deltaTime;
+        _verticalVelocity = Mathf.Clamp(_verticalVelocity, fallLimit, Mathf.Max(maxGravity, _airJumpRiseLimit));
         
         // apply new velocity
         _movementVelocity.y = _verticalVelocity;
@@ -342,6 +381,9 @@ public class cc_tpState : MovementState
 
     public void ResetAfterTeleport()
     {
+        _airJump?.CancelAirJump();
+        _airJumpRiseLimit = 0f;
+        _jumpPressed = false;
         _velocityOverride?.CancelTraversalVelocity();
         _retainTraversalMomentum = false;
         _verticalVelocity = -2f;
@@ -376,7 +418,11 @@ public class cc_tpState : MovementState
         _moveInput = Vector2.zero;
     }
 
-    private void OnPlayerJumpStarted() => _holdingJump = true;
+    private void OnPlayerJumpStarted()
+    {
+        _jumpPressed = !_holdingJump;
+        _holdingJump = true;
+    }
     private void OnPlayerJumpStopped() => _holdingJump = false;
 
     private void OnPlayerRunStarted()
@@ -396,7 +442,12 @@ public class cc_tpState : MovementState
     }
 
     private void OnEnablePlayerMovement() => CanMove = true;
-    private void OnDisablePlayerMovement() => CanMove = false;
+    private void OnDisablePlayerMovement()
+    {
+        CanMove = false;
+        _jumpPressed = false;
+        _airJump?.CancelAirJump();
+    }
 
     private void OnPlayerRunEnabled() => CanRun = true;
     private void OnPlayerRunDisabled() => CanRun = false;
