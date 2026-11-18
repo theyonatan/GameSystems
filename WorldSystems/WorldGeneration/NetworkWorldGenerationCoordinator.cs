@@ -93,6 +93,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     // navigation, event validation, network spawning and client-ready handshake.
     public bool PreserveAuthoredPreviewForDirectScene()
     {
+        if (V3Backend) return false;
         if (!(Application.isEditor || Debug.isDebugBuild)) return false;
         if (!routeGenerator)
             routeGenerator = FindObjectsByType<IslandRouteGenerator>(FindObjectsSortMode.None)
@@ -106,8 +107,11 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         return preserveAuthoredPreview;
     }
 
+    public Above.GridV3.V3NetworkBackend V3Backend => GetComponent<Above.GridV3.V3NetworkBackend>();
+
     private void Awake()
     {
+        if (V3Backend) return;
         if (routeGenerator == null)
             routeGenerator = FindFirstObjectByType<IslandRouteGenerator>();
 
@@ -396,6 +400,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
     {
         base.OnStartServer();
 
+        if (V3Backend) { StartCoroutine(GenerateV3World()); return; }
         if (preserveAuthoredPreview) StartCoroutine(GeneratePreservedPreviewAfterSceneSpawn());
         else GenerateAndSpawnServerWorld();
     }
@@ -410,6 +415,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     public override void OnStopServer()
     {
+        if (V3Backend) V3Backend.Clear();
         ClearCampMarkers();
         EnergyCollectionWorld.Clear(routeGenerator);
         if (eventDirector != null) eventDirector.ClearServerEncounters();
@@ -849,6 +855,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     public override void OnStopClient()
     {
+        if (V3Backend && !IsServerStarted) V3Backend.Clear();
         ClearCampMarkers();
         EnergyCollectionWorld.Clear(routeGenerator);
         base.OnStopClient();
@@ -1023,7 +1030,9 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
         _seedSentClients.Add(connection.ClientId);
 
-        TargetWorldSpawnComplete(
+        if (V3Backend)
+            TargetV3World(connection, WorldSeed, WorldHash, V3Backend.DescriptorJson);
+        else TargetWorldSpawnComplete(
             connection,
             WorldSeed,
             SpawnedPieceCount,
@@ -1411,6 +1420,48 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         }
     }
 
+    private void FailV3Generation(string reason)
+    {
+        // Registered clients may still be waiting for the server to finish. Their
+        // per-client timeout starts only after descriptor delivery, so reject now.
+        FailServerGeneration(reason);
+        if (V3Backend) V3Backend.Clear();
+        foreach (var connection in _registeredClients.Values.ToArray())
+            if (connection != null && connection.IsActive) ServerRejectClient(connection, reason);
+    }
+
+    private IEnumerator GenerateV3World()
+    {
+        WorldSeed = CreateSeed();
+        try {
+            V3Backend.BuildServer(WorldSeed, root => _spawnedWorldRoots.Add(root));
+            WorldHash = unchecked((int)Above.GridV3.V3WorldBuilder.StableHash(V3Backend.WorldHash));
+            SpawnedPieceCount = V3Backend.Result.timings.islands + V3Backend.Result.timings.connectors;
+        } catch (Exception e) { DespawnPartiallySpawnedWorld(); V3Backend.Clear(); FailV3Generation(e.ToString()); yield break; }
+        yield return V3Backend.WaitForPresentation();
+        if (!string.IsNullOrEmpty(V3Backend.PresentationError)) { DespawnPartiallySpawnedWorld(); FailV3Generation(V3Backend.PresentationError); yield break; }
+        ServerWorldGenerated = true;
+        foreach (var connection in _registeredClients.Values.ToArray()) SendWorldCompletionToClient(connection);
+    }
+
+    [TargetRpc]
+    private void TargetV3World(NetworkConnection connection, int seed, int expectedHash, string descriptor)
+    {
+        if (_clientReadyRoutine != null) StopCoroutine(_clientReadyRoutine);
+        _clientReadyRoutine = StartCoroutine(ClientBuildV3(seed, expectedHash, descriptor));
+    }
+    private IEnumerator ClientBuildV3(int seed, int expectedHash, string descriptor)
+    {
+        string error = null;
+        try { if (!V3Backend) throw new InvalidOperationException("V3 backend missing from client scene."); V3Backend.BuildClient(descriptor, seed); }
+        catch (Exception e) { error = e.Message; }
+        if (error != null) { V3Backend?.Clear(); ServerReportWorldReady(seed, 0, false, error); yield break; }
+        yield return V3Backend.WaitForPresentation();
+        if (!string.IsNullOrEmpty(V3Backend.PresentationError)) { ServerReportWorldReady(seed, 0, false, V3Backend.PresentationError); yield break; }
+        int hash = unchecked((int)Above.GridV3.V3WorldBuilder.StableHash(V3Backend.WorldHash));
+        ServerReportWorldReady(seed, hash, hash == expectedHash, hash == expectedHash ? "" : "V3 hash mismatch");
+        _clientReadyRoutine = null;
+    }
     private static int CreateSeed()
     {
         return BitConverter.ToInt32(
@@ -1440,6 +1491,7 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
             if (root != null && root.IsSpawned)
                 ServerManager.Despawn(root);
+            else if (root != null && V3Backend) Destroy(root.gameObject);
         }
 
         _spawnedWorldRoots.Clear();
