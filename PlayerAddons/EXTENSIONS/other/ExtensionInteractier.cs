@@ -2,8 +2,18 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>Optional target-specific gesture; returning true suppresses the ordinary press interaction.</summary>
+public interface IPlayerInteractionGestureHandler
+{
+    bool TryBeginInteraction(Interactable target);
+    void CancelInteraction();
+}
+
 public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlayerReferences
 {
+    public static event Action<ExtensionInteractier> ConfigureGestureHandlers;
+    private IPlayerInteractionGestureHandler[] _gestureHandlers;
+    public Interactable CurrentInteractionTarget => _lastInteractedObj;
     protected InputDirector _inputDirector;
     private int _interactionMask;
     public List<string> InteractableTypes;
@@ -25,6 +35,8 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
         UnsubscribeFromDefaultInteract();
         _interactionHandlers = GetComponents<IPlayerInteractionHandler>();
         _inputDirector = GetComponent<InputDirector>();
+        ConfigureGestureHandlers?.Invoke(this);
+        _gestureHandlers = GetComponents<IPlayerInteractionGestureHandler>();
         _inputDirector.OnInteractPressed += OnPressedInteract;
         
         InteractorSource = GetComponentInChildren<CameraOrientation>().transform;
@@ -62,7 +74,12 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
         if (TryGetInteractionHit(out RaycastHit hitInfo))
         {
             if (TryGetInteractable(hitInfo, out var interactObj))
+            {
+                if (_gestureHandlers != null)
+                    foreach (var gesture in _gestureHandlers)
+                        if (gesture.TryBeginInteraction(interactObj)) return;
                 interactObj.Interact();
+            }
             else if (hitInfo.collider != null && hitInfo.collider.transform.parent != null)
             {
                 Debug.Log(hitInfo.collider.gameObject.name  + " bellow: " + hitInfo.collider.transform.parent.name + " is not interactable");
@@ -95,8 +112,15 @@ public class ExtensionInteractier : MonoBehaviour, IPlayerBehavior, IRefreshPlay
 
     protected void UnsubscribeFromDefaultInteract()
     {
+        if (_gestureHandlers != null) foreach (var gesture in _gestureHandlers) gesture.CancelInteraction();
         if (_inputDirector != null)
             _inputDirector.OnInteractPressed -= OnPressedInteract;
+    }
+
+    public bool TryGetCurrentInteractionTarget(out Interactable target)
+    {
+        target = null;
+        return TryGetInteractionHit(out var hit) && TryGetInteractable(hit, out target);
     }
 
     private bool TryGetInteractionHit(out RaycastHit hit)

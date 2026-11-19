@@ -91,6 +91,9 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
     public event Action OnFireReleased;
     public event Action OnFireClicked;
     public event Action OnInteractPressed;
+    public event Action OnInteractReleased;
+    public bool InteractInputEnabled => _playerInput != null && _playerInput.Player.Interact.enabled;
+    public bool InteractHeld => _playerInput != null && _playerInput.Player.Interact.IsPressed();
     public event Action OnCombatPressed;
     public event Action OnInventoryPressed;
     public event Action OnMainMenuPressed;
@@ -215,6 +218,7 @@ public class InputDirector : MonoBehaviour, IPlayerBehavior
         _playerInput.asset.FindAction("Player/UseConsumable", true).performed += _ => { if (CanUseEquipment) OnUseConsumablePressed?.Invoke(); };
         _playerInput.Player.Pause.performed += _ => OnPausePressed?.Invoke();
         _playerInput.Player.Interact.performed += _ => { if (GameplayInputEnabled) OnInteractPressed?.Invoke(); };
+        _playerInput.Player.Interact.canceled += _ => OnInteractReleased?.Invoke();
         _playerInput.Player.Inventory.performed += _ => { if (GameplayInputEnabled) OnInventoryPressed?.Invoke(); };
         _playerInput.Player.MainMenu.performed += _ => { if (GameplayInputEnabled) OnMainMenuPressed?.Invoke(); };
         _playerInput.Player.TimeSwap.performed += _ => { if (GameplayInputEnabled) OnPressedTimeChange?.Invoke(); };
