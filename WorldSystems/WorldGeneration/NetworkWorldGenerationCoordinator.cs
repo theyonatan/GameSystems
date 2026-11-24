@@ -396,11 +396,48 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
         return true;
     }
 
+    private readonly HashSet<Action> _v3StartListeners = new();
+    private bool _v3Started;
+    private Coroutine _v3StartDispatch;
+
+    // The generator owns replay for listeners that subscribe after server spawn.
+    public void SubscribeV3ServerStarted(Action listener)
+    {
+        _v3StartListeners.Add(listener);
+        ScheduleV3StartSignal();
+    }
+
+    public void UnsubscribeV3ServerStarted(Action listener) => _v3StartListeners.Remove(listener);
+
+    private void ScheduleV3StartSignal()
+    {
+        if (_v3Started && _v3StartListeners.Count != 0 && _v3StartDispatch == null)
+            _v3StartDispatch = StartCoroutine(DispatchV3StartSignal());
+    }
+
+    private IEnumerator DispatchV3StartSignal()
+    {
+        // Complete FishNet's scene activation first, but do not poll.
+        yield return null;
+        _v3StartDispatch = null;
+        foreach (var listener in _v3StartListeners.ToArray())
+        {
+            if (!_v3Started) yield break;
+            if (_v3StartListeners.Remove(listener)) listener();
+        }
+    }
+
     public override void OnStartServer()
     {
         base.OnStartServer();
 
-        if (V3Backend) { StartCoroutine(GenerateV3World()); return; }
+        if (V3Backend)
+        {
+            _v3Started = true;
+            ScheduleV3StartSignal();
+            StartCoroutine(GenerateV3World());
+            return;
+        }
         if (preserveAuthoredPreview) StartCoroutine(GeneratePreservedPreviewAfterSceneSpawn());
         else GenerateAndSpawnServerWorld();
     }
@@ -415,6 +452,10 @@ public sealed class NetworkWorldGenerationCoordinator : NetworkBehaviour
 
     public override void OnStopServer()
     {
+        _v3Started = false;
+        if (_v3StartDispatch != null) StopCoroutine(_v3StartDispatch);
+        _v3StartDispatch = null;
+        _v3StartListeners.Clear();
         if (V3Backend) V3Backend.Clear();
         ClearCampMarkers();
         EnergyCollectionWorld.Clear(routeGenerator);
